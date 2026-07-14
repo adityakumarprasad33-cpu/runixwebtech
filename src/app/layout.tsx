@@ -5,6 +5,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { AuthProvider } from "@/contexts/AuthContext";
 import Preloader from "@/components/ui/Preloader";
+import { Suspense } from "react";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -32,7 +33,9 @@ export default function RootLayout({
         className={`${inter.variable} ${plusJakartaSans.variable} font-sans bg-[#050505] text-white antialiased min-h-screen flex flex-col selection:bg-white selection:text-black`}
       >
         <AuthProvider>
-          <Preloader />
+          <Suspense fallback={null}>
+            <Preloader />
+          </Suspense>
           <Navbar />
           <main className="flex-grow flex flex-col w-full">
             {children}
