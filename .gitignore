@@ -39,3 +39,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Documentation / Markdown
+*.md
+
+# Python scripts and artifacts
+*.py
+__pycache__/
