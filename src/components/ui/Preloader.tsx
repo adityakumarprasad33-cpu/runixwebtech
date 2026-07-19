@@ -18,7 +18,7 @@ export default function Preloader() {
     // In a real scenario, this could wait for document.readyState or images to load
     const timer = setTimeout(() => {
       setIsLoading(false);
-    }, 1200);
+    }, 400);
 
     return () => clearTimeout(timer);
   }, [pathname, searchParams]);

@@ -20,6 +20,9 @@ import {
   Shield,
 } from "lucide-react";
 
+import { collection, getDocs } from "firebase/firestore";
+import { db } from "@/lib/firebase";
+
 const sidebarLinks = [
   { name: "Overview", path: "/dashboard", icon: LayoutDashboard },
   { name: "Projects", path: "/dashboard/projects", icon: FolderKanban },
@@ -34,12 +37,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
+    } else if (user) {
+      fetchNotifications();
     }
   }, [user, loading, router]);
+
+  const fetchNotifications = async () => {
+    if (!user) return;
+    try {
+      const snap = await getDocs(collection(db, "notifications"));
+      const allNotifs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+      // Filter broadcast or targeted to current user
+      const userNotifs = allNotifs.filter(
+        (n) =>
+          n.targetType === "broadcast" ||
+          n.targetUserId === user.uid ||
+          n.targetEmail === user.email
+      );
+
+      // Sort by date if available
+      userNotifs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+
+      if (userNotifs.length > 0) {
+        setNotifications(userNotifs);
+        setUnreadCount(userNotifs.filter((n) => !n.readBy?.includes(user.uid)).length);
+      } else {
+        // Fallback default notification
+        setNotifications([
+          {
+            id: "default-1",
+            title: "Welcome to Runix Web Tech!",
+            message: "Your dashboard is ready. Submit your project requirements anytime to begin.",
+            createdAt: new Date().toISOString(),
+          },
+        ]);
+        setUnreadCount(1);
+      }
+    } catch (e) {
+      console.error("Failed to fetch notifications:", e);
+    }
+  };
 
   if (loading || !user) {
     return (
@@ -242,11 +286,64 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               />
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <button className="relative p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors">
+          <div className="flex items-center gap-3 relative">
+            <button 
+              onClick={() => setShowNotifications(!showNotifications)}
+              className="relative p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+              title="Notifications"
+            >
               <Bell className="w-5 h-5" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full" />
+              {unreadCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+              )}
             </button>
+
+            {/* Notifications Dropdown */}
+            <AnimatePresence>
+              {showNotifications && (
+                <>
+                  <div 
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowNotifications(false)}
+                  />
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    transition={{ duration: 0.2 }}
+                    className="absolute right-0 top-12 z-50 w-80 sm:w-96 bg-[#111] border border-white/10 rounded-2xl shadow-2xl p-4 overflow-hidden"
+                  >
+                    <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-3">
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-white">Notifications</h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-500/20 text-indigo-400 rounded-full">
+                          {notifications.length} New
+                        </span>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          setUnreadCount(0);
+                        }}
+                        className="text-xs text-zinc-500 hover:text-white transition-colors"
+                      >
+                        Mark all as read
+                      </button>
+                    </div>
+
+                    <div className="space-y-2 max-h-72 overflow-y-auto">
+                      {notifications.map((n) => (
+                        <div key={n.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors">
+                          <p className="text-xs font-semibold text-white mb-1">{n.title}</p>
+                          <p className="text-xs text-zinc-400 leading-relaxed mb-2">{n.message}</p>
+                          <span className="text-[10px] text-zinc-500">{n.time}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
             <Link href="/" className="text-xs text-zinc-500 hover:text-zinc-300 font-medium px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors hidden sm:block">
               ← Back to Site
             </Link>

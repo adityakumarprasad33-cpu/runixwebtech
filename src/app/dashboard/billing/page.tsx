@@ -118,9 +118,11 @@ export default function BillingPage() {
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
                         order.status === "completed"
                           ? "bg-emerald-500/10 text-emerald-400"
+                          : order.status === "awaiting_verification"
+                          ? "bg-blue-500/10 text-blue-400"
                           : "bg-amber-500/10 text-amber-400"
                       }`}>
-                        {order.status.replace("_", " ")}
+                        {order.status.replace(/_/g, " ")}
                       </span>
                     </td>
                   </tr>

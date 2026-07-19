@@ -109,7 +109,7 @@ export default function AboutPage() {
           <p className="text-xl text-zinc-400 mb-10 relative z-10 max-w-2xl mx-auto leading-relaxed">
             If your current website feels outdated, generic, or not aligned with your brand, it might be time to rebuild it properly.
           </p>
-          <Link href="/services#pricing" className="relative z-10">
+          <Link href="/services" className="relative z-10">
             <Button size="lg" variant="default" className="rounded-full h-16 px-12 text-lg shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:scale-105">
               View Our Services
             </Button>

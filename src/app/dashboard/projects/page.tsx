@@ -18,6 +18,7 @@ interface Order {
 
 const statusConfig: Record<string, { label: string; color: string; icon: any }> = {
   pending_payment: { label: "Pending Payment", color: "text-amber-400 bg-amber-500/10", icon: Clock },
+  awaiting_verification: { label: "Awaiting Verification", color: "text-blue-400 bg-blue-500/10", icon: Clock },
   in_progress: { label: "In Progress", color: "text-blue-400 bg-blue-500/10", icon: FolderKanban },
   completed: { label: "Completed", color: "text-emerald-400 bg-emerald-500/10", icon: CheckCircle2 },
   cancelled: { label: "Cancelled", color: "text-red-400 bg-red-500/10", icon: AlertCircle },
