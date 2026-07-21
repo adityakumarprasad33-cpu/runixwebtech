@@ -18,14 +18,17 @@ import {
   Bell,
   Search,
   Shield,
+  MessageSquare,
+  X,
 } from "lucide-react";
 
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, updateDoc, doc, arrayUnion } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 const sidebarLinks = [
   { name: "Overview", path: "/dashboard", icon: LayoutDashboard },
   { name: "Projects", path: "/dashboard/projects", icon: FolderKanban },
+  { name: "Workspace", path: "/dashboard/workspace", icon: MessageSquare },
   { name: "Billing", path: "/dashboard/billing", icon: CreditCard },
   { name: "Support", path: "/dashboard/support", icon: HelpCircle },
   { name: "Settings", path: "/dashboard/settings", icon: Settings },
@@ -54,34 +57,55 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     try {
       const snap = await getDocs(collection(db, "notifications"));
       const allNotifs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
-      // Filter broadcast or targeted to current user
+
+      // One month ago cutoff
+      const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+
+      // Filter: relevant to this user, not cleared by them, not older than 1 month
       const userNotifs = allNotifs.filter(
         (n) =>
-          n.targetType === "broadcast" ||
-          n.targetUserId === user.uid ||
-          n.targetEmail === user.email
+          (n.targetType === "broadcast" ||
+            n.targetUserId === user.uid ||
+            n.targetEmail === user.email) &&
+          !n.clearedBy?.includes(user.uid) &&
+          new Date(n.createdAt || 0).getTime() > oneMonthAgo
       );
 
-      // Sort by date if available
+      // Sort newest first
       userNotifs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
 
       if (userNotifs.length > 0) {
         setNotifications(userNotifs);
         setUnreadCount(userNotifs.filter((n) => !n.readBy?.includes(user.uid)).length);
       } else {
-        // Fallback default notification
         setNotifications([
           {
             id: "default-1",
             title: "Welcome to Runix Web Tech!",
             message: "Your dashboard is ready. Submit your project requirements anytime to begin.",
             createdAt: new Date().toISOString(),
+            senderName: "Runix",
+            senderRole: "System",
           },
         ]);
         setUnreadCount(1);
       }
     } catch (e) {
       console.error("Failed to fetch notifications:", e);
+    }
+  };
+
+  const handleClearNotification = async (notifId: string) => {
+    // Optimistic UI update
+    setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+    // Persist to Firestore (clearedBy array — does NOT delete the document)
+    if (notifId === "default-1") return;
+    try {
+      await updateDoc(doc(db, "notifications", notifId), {
+        clearedBy: arrayUnion(user?.uid || ""),
+      });
+    } catch (e) {
+      console.error("Failed to clear notification:", e);
     }
   };
 
@@ -102,7 +126,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ? user.displayName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "U";
 
-  const links = profile?.role === "admin"
+  const links = (profile?.role === "admin" || profile?.role === "super_admin")
     ? [...sidebarLinks, { name: "Admin Panel", path: "/dashboard/admin", icon: Shield }]
     : sidebarLinks;
 
@@ -331,13 +355,49 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     </div>
 
                     <div className="space-y-2 max-h-72 overflow-y-auto">
-                      {notifications.map((n) => (
-                        <div key={n.id} className="p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors">
-                          <p className="text-xs font-semibold text-white mb-1">{n.title}</p>
-                          <p className="text-xs text-zinc-400 leading-relaxed mb-2">{n.message}</p>
-                          <span className="text-[10px] text-zinc-500">{n.time}</span>
-                        </div>
-                      ))}
+                      {notifications.map((n) => {
+                        let timeStr = "";
+                        try {
+                          const diff = (Date.now() - new Date(n.createdAt).getTime()) / 1000;
+                          if (diff < 60) timeStr = "just now";
+                          else if (diff < 3600) timeStr = `${Math.floor(diff / 60)}m ago`;
+                          else if (diff < 86400) timeStr = `${Math.floor(diff / 3600)}h ago`;
+                          else timeStr = new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(n.createdAt));
+                        } catch { timeStr = ""; }
+
+                        // Compose sender label: "[Name] • [Role]"
+                        const senderLabel = n.senderName
+                          ? `${n.senderName} • ${n.senderRole || "Admin"}`
+                          : n.targetType === "broadcast"
+                          ? "Runix Team • Admin"
+                          : "Admin";
+
+                        return (
+                          <div key={n.id} className="rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors overflow-hidden group">
+                            <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-xs font-semibold text-white mb-1">{n.title}</p>
+                                <p className="text-xs text-zinc-400 leading-relaxed">{n.message}</p>
+                              </div>
+                              {/* Clear (X) button — marks clearedBy in Firestore, NOT deleted */}
+                              <button
+                                onClick={() => handleClearNotification(n.id)}
+                                title="Dismiss"
+                                className="shrink-0 p-0.5 rounded text-zinc-600 hover:text-white hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                            {/* Footer: [Name] • [Role] + timestamp */}
+                            <div className="flex items-center justify-between px-3 py-1.5 border-t border-white/5 bg-white/[0.02]">
+                              <span className="text-[10px] font-medium text-indigo-400 truncate">
+                                {senderLabel}
+                              </span>
+                              <span className="text-[10px] text-zinc-600 shrink-0 ml-2">{timeStr}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
                   </motion.div>
                 </>

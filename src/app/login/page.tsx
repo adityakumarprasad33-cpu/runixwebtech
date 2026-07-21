@@ -16,14 +16,16 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [failCount, setFailCount] = useState(0);
+  const [backoffUntil, setBackoffUntil] = useState(0);
   const router = useRouter();
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (Date.now() < backoffUntil) return;
     setLoading(true);
     setError("");
 
-    // Log login event immediately to capture attempts (IP, location, timezone, time)
     logLoginEvent({ email, action: "login" });
 
     try {
@@ -35,7 +37,9 @@ export default function LoginPage() {
 
       if (!secRes.ok) {
         const data = await secRes.json();
-        throw new Error(data.error || "Security check failed.");
+        setFailCount((c) => c + 1);
+        setBackoffUntil(Date.now() + 3000);
+        throw new Error(data.error || "Security check failed. Try again later.");
       }
 
       await signInWithEmailAndPassword(auth, email, password);
@@ -47,14 +51,17 @@ export default function LoginPage() {
       }).catch(console.error);
 
       const cartItem = localStorage.getItem("pending_cart");
-      if (cartItem) {
-        router.push("/dashboard?checkout=true");
-      } else {
-        router.push("/dashboard");
-      }
+      router.push(cartItem ? "/dashboard?checkout=true" : "/dashboard");
     } catch (err: any) {
-      console.error(err);
-      setError(err.message || "Failed to log in. Please check your credentials.");
+      // Normalize Firebase auth error codes to a generic message
+      const code: string = err?.code || "";
+      const isAuthError = code.startsWith("auth/");
+      const normalizedMsg = isAuthError
+        ? "Invalid email or password. Please try again."
+        : err.message || "Login failed. Please try again.";
+      setFailCount((c) => c + 1);
+      setBackoffUntil(Date.now() + 3000 * Math.min(failCount + 1, 5));
+      setError(normalizedMsg);
     } finally {
       setLoading(false);
     }

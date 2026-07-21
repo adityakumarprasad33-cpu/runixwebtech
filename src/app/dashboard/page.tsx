@@ -35,7 +35,9 @@ import {
   HelpCircle,
   Send,
   MessageSquare,
+  MessageCircle,
 } from "lucide-react";
+import DeveloperInteractionRoom from "@/components/dashboard/DeveloperInteractionRoom";
 
 interface UserProfile {
   name: string;
@@ -102,6 +104,9 @@ export default function DashboardOverview() {
   // User UTR Submission for existing orders
   const [submittingUtrForOrder, setSubmittingUtrForOrder] = useState<string | null>(null);
   const [userUtrInput, setUserUtrInput] = useState("");
+
+  // Developer Room toggle
+  const [openRoomOrderId, setOpenRoomOrderId] = useState<string | null>(null);
 
   const handleUserSubmitUtr = async (orderId: string) => {
     if (!userUtrInput.trim()) return;
@@ -1109,9 +1114,35 @@ export default function DashboardOverview() {
                         </div>
                       )}
                     </div>
-                  )}
-                </div>
-              ))
+                    )}
+                    {/* Developer Interaction Room */}
+                    <div className="pt-1">
+                      <button
+                        onClick={() =>
+                          setOpenRoomOrderId(openRoomOrderId === order.id ? null : order.id)
+                        }
+                        className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+                          openRoomOrderId === order.id
+                            ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-300"
+                            : "bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white hover:border-white/20"
+                        }`}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        {openRoomOrderId === order.id ? "Close" : "Open"} Developer Workspace
+                      </button>
+                      {openRoomOrderId === order.id && (
+                        <DeveloperInteractionRoom
+                          orderId={order.id}
+                          orderStatus={order.status}
+                          planName={order.planName}
+                          currentUserId={user?.uid || ""}
+                          currentUserName={user?.displayName || profile?.name || "Client"}
+                          currentUserRole="user"
+                        />
+                      )}
+                    </div>
+                  </div>
+                ))
             )}
           </div>
         </motion.div>

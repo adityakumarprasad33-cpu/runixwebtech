@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
+import { logAdminAction } from "@/lib/logAdminAction";
+import DeveloperInteractionRoom from "@/components/dashboard/DeveloperInteractionRoom";
 import {
   collection,
   getDocs,
@@ -38,6 +40,14 @@ import {
   Award,
   Check,
   HelpCircle,
+  FileText,
+  Activity,
+  MessageCircle,
+  Search,
+  Crown,
+  ToggleLeft,
+  ToggleRight,
+  UserCog,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
@@ -58,18 +68,29 @@ const emptyProject: ProjectForm = {
 };
 
 export default function AdminPanel() {
-  const { profile, loading } = useAuth();
+  const { profile, loading, user, isSuperAdmin, isAdmin, canDo } = useAuth();
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<
-    "users" | "cms" | "orders" | "notifications" | "logs"
+    "users" | "cms" | "orders" | "notifications" | "logs" | "activity" | "team"
   >("cms");
+
+  // Team management state (super_admin only)
+  const [savingPermissions, setSavingPermissions] = useState<string | null>(null);
+  const [promotingUser, setPromotingUser] = useState<string | null>(null);
+
+  // Developer Room state
+  const [openRoomOrderId, setOpenRoomOrderId] = useState<string | null>(null);
+
+  // Global Search
+  const [globalSearch, setGlobalSearch] = useState("");
 
   // Data States
   const [users, setUsers] = useState<any[]>([]);
   const [dbProjects, setDbProjects] = useState<any[]>([]);
   const [orders, setOrders] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
 
   const [loadingData, setLoadingData] = useState(true);
 
@@ -139,7 +160,7 @@ export default function AdminPanel() {
 
   useEffect(() => {
     if (!loading) {
-      if (profile?.role !== "admin") {
+      if (!isAdmin) {
         router.push("/dashboard");
       } else {
         fetchData();
@@ -147,7 +168,7 @@ export default function AdminPanel() {
         fetchHeroStats();
       }
     }
-  }, [loading, profile, router]);
+  }, [loading, isAdmin, router]);
 
   const fetchData = async () => {
     setLoadingData(true);
@@ -162,18 +183,25 @@ export default function AdminPanel() {
         }
       };
 
-      const [usersData, projectsData, ordersData, logsData] =
+      const [usersData, projectsData, ordersData, logsData, activityLogsData] =
         await Promise.all([
           fetchCollection("users"),
           fetchCollection("projects"),
           fetchCollection("orders"),
           fetchCollection("login_logs"),
+          fetchCollection("admin_activity_logs"),
         ]);
 
       setUsers(usersData);
       setDbProjects(projectsData);
       setOrders(ordersData);
       setLogs(logsData);
+      setActivityLogs(
+        activityLogsData.sort(
+          (a: any, b: any) =>
+            new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+        )
+      );
     } catch (err) {
       console.error(err);
     }
@@ -261,8 +289,20 @@ export default function AdminPanel() {
         message: notifMessage.trim(),
         targetType: notifTargetType,
         targetUserId: notifTargetType === "user" ? notifTargetUserId : null,
+        senderName: user?.displayName || profile?.name || "Admin",
+        senderRole: "Admin",
+        senderEmail: user?.email || "",
         createdAt: new Date().toISOString(),
         readBy: [],
+        clearedBy: [],
+      });
+      // Audit log
+      logAdminAction({
+        adminId: user?.uid || "",
+        adminName: user?.displayName || profile?.name || "Admin",
+        adminEmail: user?.email || "",
+        action: "SENT_NOTIFICATION",
+        details: { title: notifTitle.trim(), targetType: notifTargetType, targetUserId: notifTargetUserId || null },
       });
       setNotifSent(true);
       setNotifTitle("");
@@ -291,8 +331,20 @@ export default function AdminPanel() {
         targetType: "user",
         targetUserId: userId || null,
         targetEmail: userEmail || null,
+        senderName: user?.displayName || profile?.name || "Admin",
+        senderRole: "Admin",
+        senderEmail: user?.email || "",
         createdAt: new Date().toISOString(),
         readBy: [],
+        clearedBy: [],
+      });
+      // Audit log
+      logAdminAction({
+        adminId: user?.uid || "",
+        adminName: user?.displayName || profile?.name || "Admin",
+        adminEmail: user?.email || "",
+        action: newStatus === "rejected" ? "REJECTED_PAYMENT" : "APPROVED_PAYMENT",
+        details: { orderId, newStatus, targetUserId: userId, targetEmail: userEmail },
       });
     } catch (e) {
       console.error("Failed to update order status:", e);
@@ -317,8 +369,21 @@ export default function AdminPanel() {
         targetType: "user",
         targetUserId: queryOrder.userId || null,
         targetEmail: queryOrder.userEmail || queryOrder.email || null,
+        senderName: user?.displayName || profile?.name || "Admin",
+        senderRole: "Admin",
+        senderEmail: user?.email || "",
         createdAt: new Date().toISOString(),
         readBy: [],
+        clearedBy: [],
+      });
+
+      // Audit log
+      logAdminAction({
+        adminId: user?.uid || "",
+        adminName: user?.displayName || profile?.name || "Admin",
+        adminEmail: user?.email || "",
+        action: "SENT_ORDER_QUERY",
+        details: { orderId: queryOrder.id, planName: queryOrder.planName, targetEmail: queryOrder.userEmail },
       });
 
       setOrders((prev) =>
@@ -349,6 +414,13 @@ export default function AdminPanel() {
     try {
       await deleteDoc(doc(db, "projects", projectId));
       setDbProjects((prev) => prev.filter((p) => p.id !== projectId));
+      logAdminAction({
+        adminId: user?.uid || "",
+        adminName: user?.displayName || profile?.name || "Admin",
+        adminEmail: user?.email || "",
+        action: "DELETED_PROJECT",
+        details: { projectId, title },
+      });
     } catch (e) {
       console.error(e);
       alert("Failed to delete project");
@@ -384,6 +456,13 @@ export default function AdminPanel() {
         ...prev,
         { id: projectForm.slug, ...projectData },
       ]);
+      logAdminAction({
+        adminId: user?.uid || "",
+        adminName: user?.displayName || profile?.name || "Admin",
+        adminEmail: user?.email || "",
+        action: "ADDED_PROJECT",
+        details: { slug: projectForm.slug, title: projectForm.title },
+      });
       setProjectForm(emptyProject);
       setShowAddModal(false);
     } catch (e) {
@@ -394,7 +473,7 @@ export default function AdminPanel() {
     }
   };
 
-  if (loading || profile?.role !== "admin") {
+  if (loading || !isAdmin) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
@@ -420,31 +499,63 @@ export default function AdminPanel() {
           <p className="text-sm text-zinc-400">
             Full access control, content management & notification engine
           </p>
-        </div>
+      </div>
       </div>
 
-      {/* Tabs */}
+      {/* Tabs — permission-gated */}
       <div className="flex flex-wrap items-center gap-2 border-b border-white/5 pb-4">
         {[
-          { id: "cms", label: "Content (CMS)", icon: FolderKanban },
-          { id: "users", label: "Personnel", icon: Users },
-          { id: "orders", label: "Orders & Payments", icon: ShoppingCart },
-          { id: "notifications", label: "Notifications", icon: Bell },
-          { id: "logs", label: "Security Logs", icon: ShieldCheck },
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-              activeTab === tab.id
-                ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
-                : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
-            }`}
-          >
-            <tab.icon className="w-4 h-4" />
-            {tab.label}
+          { id: "cms",           label: "Content (CMS)",    icon: FolderKanban,  show: canDo("cms") },
+          { id: "users",         label: "Personnel",        icon: Users,         show: true },
+          { id: "orders",        label: "Orders & Payments",icon: ShoppingCart,  show: canDo("payments") },
+          { id: "notifications", label: "Notifications",    icon: Bell,          show: canDo("notifications") },
+          { id: "logs",          label: "Security Logs",    icon: ShieldCheck,   show: canDo("logs") },
+          { id: "activity",      label: "Admin Activity",   icon: Activity,      show: canDo("logs") },
+          { id: "team",          label: "Team Management",  icon: Crown,         show: isSuperAdmin },
+        ]
+          .filter((tab) => tab.show)
+          .map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                activeTab === tab.id
+                  ? tab.id === "team"
+                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                    : "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30"
+                  : "text-zinc-500 hover:text-zinc-300 hover:bg-white/5"
+              }`}
+            >
+              <tab.icon className="w-4 h-4" />
+              {tab.label}
+              {tab.id === "team" && (
+                <span className="ml-1 text-[9px] font-bold uppercase tracking-widest text-amber-400 bg-amber-500/10 px-1.5 py-0.5 rounded">
+                  Super
+                </span>
+              )}
+            </button>
+          ))}
+      </div>
+
+      {/* Global Search Bar */}
+      <div className="flex items-center gap-3 px-4 py-2.5 bg-white/[0.03] border border-white/10 rounded-xl">
+        <Search className="w-4 h-4 text-zinc-500 shrink-0" />
+        <input
+          type="text"
+          value={globalSearch}
+          onChange={(e) => setGlobalSearch(e.target.value)}
+          placeholder="Search by name, email, user ID, order name, or IP…"
+          className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-600 outline-none"
+        />
+        {globalSearch && (
+          <button onClick={() => setGlobalSearch("")}
+            className="text-zinc-500 hover:text-white transition-colors">
+            <X className="w-4 h-4" />
           </button>
-        ))}
+        )}
+        {globalSearch && (
+          <span className="text-[11px] text-zinc-500 shrink-0">Filtering all tabs…</span>
+        )}
       </div>
 
       {/* Content Area */}
@@ -452,7 +563,51 @@ export default function AdminPanel() {
         <div className="flex justify-center py-20">
           <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : (
+      ) : (() => {
+        // ── Search filter helpers ──────────────────────────────
+        const q = globalSearch.toLowerCase().trim();
+        const filteredUsers = q
+          ? users.filter(
+              (u: any) =>
+                u.name?.toLowerCase().includes(q) ||
+                u.email?.toLowerCase().includes(q) ||
+                u.uid?.toLowerCase().includes(q) ||
+                u.id?.toLowerCase().includes(q) ||
+                u.role?.toLowerCase().includes(q)
+            )
+          : users;
+        const filteredOrders = q
+          ? orders.filter(
+              (o: any) =>
+                o.planName?.toLowerCase().includes(q) ||
+                o.userEmail?.toLowerCase().includes(q) ||
+                o.email?.toLowerCase().includes(q) ||
+                o.userId?.toLowerCase().includes(q) ||
+                o.utrNumber?.toLowerCase().includes(q) ||
+                o.status?.toLowerCase().includes(q)
+            )
+          : orders;
+        const filteredLogs = q
+          ? logs.filter(
+              (l: any) =>
+                l.email?.toLowerCase().includes(q) ||
+                l.ip?.toLowerCase().includes(q) ||
+                l.action?.toLowerCase().includes(q) ||
+                l.city?.toLowerCase().includes(q)
+            )
+          : logs;
+        const filteredActivity = q
+          ? activityLogs.filter(
+              (l: any) =>
+                l.adminName?.toLowerCase().includes(q) ||
+                l.adminEmail?.toLowerCase().includes(q) ||
+                l.adminId?.toLowerCase().includes(q) ||
+                l.action?.toLowerCase().includes(q) ||
+                l.ip?.toLowerCase().includes(q)
+            )
+          : activityLogs;
+
+        return (
         <div className="space-y-6">
           {/* CMS TAB */}
           {activeTab === "cms" && (
@@ -773,14 +928,16 @@ export default function AdminPanel() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-white/5">
-                    {users.map((u) => (
+                    {filteredUsers.map((u) => (
                       <tr key={u.id} className="text-zinc-300">
                         <td className="py-4">{u.displayName || u.name || "Unknown"}</td>
                         <td className="py-4">{u.email}</td>
                         <td className="py-4">
                           <span
                             className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                              u.role === "admin"
+                              u.role === "super_admin"
+                                ? "bg-amber-500/20 text-amber-400"
+                                : u.role === "admin"
                                 ? "bg-indigo-500/20 text-indigo-400"
                                 : "bg-white/10 text-zinc-400"
                             }`}
@@ -805,12 +962,12 @@ export default function AdminPanel() {
                   Platform Orders & Payment Approvals
                 </h2>
                 <span className="text-xs text-zinc-400 bg-white/5 px-3 py-1 rounded-full border border-white/10">
-                  Total Orders: {orders.length}
+                  {globalSearch ? `${filteredOrders.length} of ${orders.length}` : `Total: ${orders.length}`}
                 </span>
               </div>
 
               <div className="space-y-4">
-                {orders.map((o) => (
+                {filteredOrders.map((o) => (
                   <div
                     key={o.id}
                     className="p-5 border border-white/10 rounded-2xl bg-black/50 space-y-4"
@@ -1016,6 +1173,34 @@ export default function AdminPanel() {
                         )}
                       </div>
                     )}
+
+                    {/* Developer Interaction Room */}
+                    <div className="mt-3">
+                      <button
+                        onClick={() =>
+                          setOpenRoomOrderId(openRoomOrderId === o.id ? null : o.id)
+                        }
+                        className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
+                          openRoomOrderId === o.id
+                            ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-300"
+                            : "bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white hover:border-white/20"
+                        }`}
+                      >
+                        <MessageCircle className="w-3.5 h-3.5" />
+                        {openRoomOrderId === o.id ? "Close" : "Open"} Developer Room
+                      </button>
+
+                      {openRoomOrderId === o.id && (
+                        <DeveloperInteractionRoom
+                          orderId={o.id}
+                          orderStatus={o.status}
+                          planName={o.planName}
+                          currentUserId={user?.uid || ""}
+                          currentUserName={user?.displayName || profile?.name || "Admin"}
+                          currentUserRole="admin"
+                        />
+                      )}
+                    </div>
                   </div>
                 ))}
 
@@ -1157,7 +1342,7 @@ export default function AdminPanel() {
                 Security & Login Logs
               </h2>
               <div className="space-y-3">
-                {logs.map((l) => (
+                {filteredLogs.map((l) => (
                   <div
                     key={l.id}
                     className="p-4 border border-white/5 rounded-xl bg-black/40"
@@ -1179,8 +1364,203 @@ export default function AdminPanel() {
               </div>
             </div>
           )}
+
+          {/* ADMIN ACTIVITY LOGS TAB */}
+          {activeTab === "activity" && (
+            <div className="bg-[#0e0e0e] border border-white/5 rounded-2xl p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+                  <Activity className="w-5 h-5 text-purple-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Admin Activity Audit Log</h2>
+                  <p className="text-xs text-zinc-500">
+                    All admin actions are automatically recorded — including IP address, location, user, and action details.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {filteredActivity.length === 0 && (
+                  <p className="text-center text-zinc-500 py-8 text-sm">No admin actions logged yet.</p>
+                )}
+                {filteredActivity.map((l) => (
+                  <div
+                    key={l.id}
+                    className="p-4 border border-white/5 rounded-xl bg-black/40 space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-mono font-bold text-purple-400 px-2 py-0.5 rounded-md bg-purple-500/10 border border-purple-500/20">
+                        {l.action}
+                      </span>
+                      <span className="text-[10px] text-zinc-500">
+                        {l.timestamp
+                          ? new Intl.DateTimeFormat("en", {
+                              dateStyle: "medium",
+                              timeStyle: "short",
+                            }).format(new Date(l.timestamp))
+                          : "—"}
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-xs">
+                      <span className="text-zinc-300 font-medium">{l.adminName}</span>
+                      <span className="text-zinc-500">{l.adminEmail}</span>
+                    </div>
+                    <div className="flex flex-wrap gap-4 text-xs text-zinc-600">
+                      <span>IP: <span className="font-mono text-zinc-400">{l.ip || "—"}</span></span>
+                      <span>Location: <span className="text-zinc-400">{l.location || "—"}</span></span>
+                      <span>UID: <span className="font-mono text-zinc-600 text-[10px]">{l.adminId}</span></span>
+                    </div>
+                    {l.details && Object.keys(l.details).length > 0 && (
+                      <div className="mt-1 pt-2 border-t border-white/5 text-[11px] text-zinc-500 flex flex-wrap gap-3">
+                        {Object.entries(l.details).map(([k, v]) =>
+                          v != null ? (
+                            <span key={k}>
+                              <span className="text-zinc-600">{k}:</span>{" "}
+                              <span className="text-zinc-400">{String(v)}</span>
+                            </span>
+                          ) : null
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TEAM MANAGEMENT TAB — super_admin only */}
+          {activeTab === "team" && isSuperAdmin && (
+            <div className="bg-[#0e0e0e] border border-white/5 rounded-2xl p-6 space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+                  <Crown className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-white">Team Management</h2>
+                  <p className="text-xs text-zinc-500">
+                    Assign work permissions to admins and promote users to admin role. Only you can see this tab.
+                  </p>
+                </div>
+              </div>
+
+              {/* Promote user to admin */}
+              <div className="border border-white/5 rounded-xl p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <UserCog className="w-4 h-4 text-indigo-400" /> Promote / Demote Users
+                </h3>
+                <div className="space-y-2">
+                  {filteredUsers
+                    .filter((u: any) => u.role !== "super_admin")
+                    .map((u: any) => (
+                      <div key={u.id} className="flex items-center justify-between p-3 rounded-xl bg-white/[0.02] border border-white/5">
+                        <div>
+                          <p className="text-sm text-white font-medium">{u.name || u.email}</p>
+                          <p className="text-xs text-zinc-500">{u.email} • <span className="font-mono">{u.id}</span></p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${
+                            u.role === "admin" ? "text-indigo-400 border-indigo-500/30 bg-indigo-500/10" : "text-zinc-400 border-zinc-700 bg-white/[0.02]"
+                          }`}>{u.role || "user"}</span>
+                          <button
+                            disabled={promotingUser === u.id}
+                            onClick={async () => {
+                              setPromotingUser(u.id);
+                              const newRole = u.role === "admin" ? "user" : "admin";
+                              try {
+                                await updateDoc(doc(db, "users", u.id), { role: newRole });
+                                setUsers((prev: any[]) => prev.map((x: any) => x.id === u.id ? { ...x, role: newRole } : x));
+                                logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: newRole === "admin" ? "PROMOTED_TO_ADMIN" : "DEMOTED_TO_USER", details: { targetUid: u.id, targetEmail: u.email } });
+                              } catch { alert("Failed to update role"); }
+                              finally { setPromotingUser(null); }
+                            }}
+                            className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${
+                              u.role === "admin"
+                                ? "border-red-500/30 text-red-400 hover:bg-red-500/10"
+                                : "border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10"
+                            }`}
+                          >
+                            {promotingUser === u.id ? "Saving…" : u.role === "admin" ? "Demote to User" : "Promote to Admin"}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              </div>
+
+              {/* Permission toggles per admin */}
+              <div className="border border-white/5 rounded-xl p-4 space-y-4">
+                <h3 className="text-sm font-semibold text-white flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" /> Admin Work Distribution
+                </h3>
+                <p className="text-xs text-zinc-500">
+                  Toggle which tasks each admin is responsible for. Super admin always has full access.
+                </p>
+                {users
+                  .filter((u: any) => u.role === "admin")
+                  .map((admin: any) => {
+                    const perms = admin.adminPermissions || {};
+                    const PERM_LIST: { key: string; label: string }[] = [
+                      { key: "cms",           label: "CMS / Content" },
+                      { key: "payments",      label: "Payment Verification" },
+                      { key: "notifications", label: "Send Notifications" },
+                      { key: "queries",       label: "User Queries" },
+                      { key: "logs",          label: "View Logs" },
+                    ];
+                    return (
+                      <div key={admin.id} className="p-4 rounded-xl bg-white/[0.02] border border-white/5 space-y-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-7 h-7 rounded-full bg-indigo-500/20 flex items-center justify-center text-xs font-bold text-indigo-300">
+                            {(admin.name || admin.email || "A")[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-white">{admin.name || "—"}</p>
+                            <p className="text-[11px] text-zinc-500">{admin.email}</p>
+                          </div>
+                          {savingPermissions === admin.id && (
+                            <span className="ml-auto text-[11px] text-indigo-400 animate-pulse">Saving…</span>
+                          )}
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                          {PERM_LIST.map(({ key, label }) => {
+                            const enabled = !!perms[key];
+                            return (
+                              <button
+                                key={key}
+                                onClick={async () => {
+                                  setSavingPermissions(admin.id);
+                                  const newPerms = { ...perms, [key]: !enabled };
+                                  try {
+                                    await updateDoc(doc(db, "users", admin.id), { adminPermissions: newPerms });
+                                    setUsers((prev: any[]) => prev.map((u: any) => u.id === admin.id ? { ...u, adminPermissions: newPerms } : u));
+                                    logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "UPDATED_ADMIN_PERMISSIONS", details: { targetAdminId: admin.id, permission: key, enabled: !enabled } });
+                                  } catch { alert("Failed to update permissions"); }
+                                  finally { setSavingPermissions(null); }
+                                }}
+                                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
+                                  enabled
+                                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                                    : "border-white/10 bg-white/[0.02] text-zinc-500 hover:border-white/20 hover:text-zinc-300"
+                                }`}
+                              >
+                                {enabled ? <ToggleRight className="w-3.5 h-3.5" /> : <ToggleLeft className="w-3.5 h-3.5" />}
+                                {label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                {users.filter((u: any) => u.role === "admin").length === 0 && (
+                  <p className="text-sm text-zinc-500 text-center py-4">No admins yet. Promote a user above first.</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-      )}
+        );
+      })()}
 
       {/* ── Ask Query Modal ── */}
       <AnimatePresence>
