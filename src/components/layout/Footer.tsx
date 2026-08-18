@@ -7,8 +7,10 @@ import { ArrowUpRight } from "lucide-react";
 export default function Footer() {
   const pathname = usePathname();
 
-  // Hide footer on dashboard routes
-  if (pathname?.startsWith("/dashboard")) return null;
+  // Hide footer on dashboard and auth routes
+  const isDashboard = pathname?.startsWith("/dashboard");
+  const isAuth = pathname === "/login" || pathname === "/register";
+  if (isDashboard || isAuth) return null;
 
   return (
     <footer className="mt-24 border-t border-white/10 bg-[#050505] relative overflow-hidden">

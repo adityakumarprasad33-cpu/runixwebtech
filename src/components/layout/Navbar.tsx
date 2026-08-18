@@ -15,8 +15,9 @@ export default function Navbar() {
   const router = useRouter();
   const { user, loading, signOut } = useAuth();
 
-  // Hide navbar on dashboard routes (dashboard has its own layout)
+  // Hide navbar on dashboard and auth routes
   const isDashboard = pathname?.startsWith("/dashboard");
+  const isAuth = pathname === "/login" || pathname === "/register";
 
   useEffect(() => {
     const handleScroll = () => {
@@ -38,8 +39,8 @@ export default function Navbar() {
     router.push("/");
   };
 
-  // Hide navbar on dashboard routes (dashboard has its own layout)
-  if (isDashboard) return null;
+  // Hide navbar on dashboard and auth routes
+  if (isDashboard || isAuth) return null;
 
   return (
     <>
