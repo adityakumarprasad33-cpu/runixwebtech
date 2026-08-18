@@ -293,7 +293,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ── Main Content ── */}
       <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${collapsed ? "lg:ml-[72px]" : "lg:ml-[260px]"}`}>
         {/* Top bar */}
-        <header className="h-16 flex items-center justify-between px-4 sm:px-8 border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl shrink-0">
+        <header className="relative z-40 h-16 flex items-center justify-between px-4 sm:px-8 border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileOpen(true)}
@@ -313,7 +313,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-3 relative">
             <button 
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+              className="relative p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
               title="Notifications"
             >
               <Bell className="w-5 h-5" />
@@ -335,7 +335,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute right-0 top-12 z-50 w-80 sm:w-96 bg-[#111] border border-white/10 rounded-2xl shadow-2xl p-4 overflow-hidden"
+                    className="absolute right-0 top-12 z-50 w-80 sm:w-96 bg-[#111113] border border-white/15 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] p-4 overflow-hidden"
                   >
                     <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-3">
                       <div className="flex items-center gap-2">
@@ -348,60 +348,67 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         onClick={() => {
                           setUnreadCount(0);
                         }}
-                        className="text-xs text-zinc-500 hover:text-white transition-colors"
+                        className="text-xs text-zinc-500 hover:text-white transition-colors cursor-pointer"
                       >
                         Mark all as read
                       </button>
                     </div>
 
-                    <div className="space-y-2 max-h-72 overflow-y-auto">
-                      {notifications.map((n) => {
-                        let timeStr = "";
-                        try {
-                          const diff = (Date.now() - new Date(n.createdAt).getTime()) / 1000;
-                          if (diff < 60) timeStr = "just now";
-                          else if (diff < 3600) timeStr = `${Math.floor(diff / 60)}m ago`;
-                          else if (diff < 86400) timeStr = `${Math.floor(diff / 3600)}h ago`;
-                          else timeStr = new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(n.createdAt));
-                        } catch { timeStr = ""; }
+                    <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
+                      {notifications.length === 0 ? (
+                        <div className="py-8 text-center text-zinc-500 text-xs">
+                          <Bell className="w-5 h-5 mx-auto mb-2 text-zinc-600 opacity-60" />
+                          No new notifications
+                        </div>
+                      ) : (
+                        notifications.map((n) => {
+                          let timeStr = "";
+                          try {
+                            const diff = (Date.now() - new Date(n.createdAt).getTime()) / 1000;
+                            if (diff < 60) timeStr = "just now";
+                            else if (diff < 3600) timeStr = `${Math.floor(diff / 60)}m ago`;
+                            else if (diff < 86400) timeStr = `${Math.floor(diff / 3600)}h ago`;
+                            else timeStr = new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(n.createdAt));
+                          } catch { timeStr = ""; }
 
-                        // Compose sender label: "[Name] • [Role/Designation]"
-                        const officialTitle = n.senderDesignation 
-                          ? `${n.senderDesignation}${n.senderDepartment ? ` (${n.senderDepartment})` : ""}`
-                          : (n.senderRole || "Admin");
-                          
-                        const senderLabel = n.senderName
-                          ? `${n.senderName} • ${officialTitle}`
-                          : n.targetType === "broadcast"
-                          ? "Runix Team • Admin"
-                          : "Admin";
+                          // Compose sender label: "[Name] • [Role/Designation]"
+                          const officialTitle = n.senderDesignation 
+                            ? `${n.senderDesignation}${n.senderDepartment ? ` (${n.senderDepartment})` : ""}`
+                            : (n.senderRole || "Admin");
+                            
+                          const senderLabel = n.senderName
+                            ? `${n.senderName} • ${officialTitle}`
+                            : n.targetType === "broadcast"
+                            ? "Runix Team • Admin"
+                            : "Admin";
 
-                        return (
-                          <div key={n.id} className="rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors overflow-hidden group">
-                            <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-xs font-semibold text-white mb-1">{n.title}</p>
-                                <p className="text-xs text-zinc-400 leading-relaxed">{n.message}</p>
+                          return (
+                            <div key={n.id} className="rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors overflow-hidden group">
+                              <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-semibold text-white mb-1">{n.title}</p>
+                                  <p className="text-xs text-zinc-400 leading-relaxed">{n.message}</p>
+                                </div>
+                                {/* Clear (X) button */}
+                                <button
+                                  onClick={() => handleClearNotification(n.id)}
+                                  title="Dismiss"
+                                  className="shrink-0 p-0.5 rounded text-zinc-600 hover:text-white hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
                               </div>
-                              {/* Clear (X) button — marks clearedBy in Firestore, NOT deleted */}
-                              <button
-                                onClick={() => handleClearNotification(n.id)}
-                                title="Dismiss"
-                                className="shrink-0 p-0.5 rounded text-zinc-600 hover:text-white hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100"
-                              >
-                                <X className="w-3 h-3" />
-                              </button>
+                              {/* Footer: [Name] • [Role] + timestamp */}
+                              <div className="flex items-center justify-between px-3 py-1.5 border-t border-white/5 bg-white/[0.02]">
+                                <span className="text-[10px] font-medium text-indigo-400 truncate">
+                                  {senderLabel}
+                                </span>
+                                <span className="text-[10px] text-zinc-600 shrink-0 ml-2">{timeStr}</span>
+                              </div>
                             </div>
-                            {/* Footer: [Name] • [Role] + timestamp */}
-                            <div className="flex items-center justify-between px-3 py-1.5 border-t border-white/5 bg-white/[0.02]">
-                              <span className="text-[10px] font-medium text-indigo-400 truncate">
-                                {senderLabel}
-                              </span>
-                              <span className="text-[10px] text-zinc-600 shrink-0 ml-2">{timeStr}</span>
-                            </div>
-                          </div>
-                        );
-                      })}
+                          );
+                        })
+                      )}
                     </div>
                   </motion.div>
                 </>
