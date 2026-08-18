@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { motion } from "framer-motion";
 import { FolderKanban, Clock, CheckCircle2, AlertCircle } from "lucide-react";
@@ -30,19 +30,30 @@ export default function ProjectsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchOrders = async () => {
-      if (!user) return;
-      try {
-        const q = query(collection(db, "orders"), where("userId", "==", user.uid), orderBy("createdAt", "desc"));
-        const snap = await getDocs(q);
+    if (!user) {
+      setLoading(false);
+      return;
+    }
+
+    const q = query(
+      collection(db, "orders"),
+      where("userId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
         setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
-      } catch (err) {
-        console.error(err);
-      } finally {
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Realtime projects listener error:", err);
         setLoading(false);
       }
-    };
-    fetchOrders();
+    );
+
+    return () => unsub();
   }, [user]);
 
   return (

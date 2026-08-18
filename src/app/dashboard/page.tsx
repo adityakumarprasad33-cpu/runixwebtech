@@ -8,6 +8,7 @@ import {
   getDoc,
   collection,
   getDocs,
+  onSnapshot,
   query,
   where,
   orderBy,
@@ -164,12 +165,10 @@ export default function DashboardOverview() {
   };
 
   useEffect(() => {
-    const fetchData = async () => {
-      if (!user) return;
+    if (!user) return;
 
-      // Fetch profile
-      const docRef = doc(db, "users", user.uid);
-      const docSnap = await getDoc(docRef);
+    // 1. Real-time User Profile Listener
+    const unsubProfile = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data() as UserProfile;
         setProfile(data);
@@ -191,34 +190,30 @@ export default function DashboardOverview() {
           email: user.email || "",
         }));
       }
+    });
 
-      // Fetch orders
-      try {
-        const q = query(
-          collection(db, "orders"),
-          where("userId", "==", user.uid),
-          orderBy("createdAt", "desc")
-        );
-        const snap = await getDocs(q);
-        setOrders(
-          snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order))
-        );
-      } catch (err) {
-        console.error("Error fetching orders:", err);
-      }
+    // 2. Real-time User Orders Listener
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("userId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
+    const unsubOrders = onSnapshot(ordersQuery, (snap) => {
+      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+    });
 
-      // Fetch payment settings
-      try {
-        const payDocSnap = await getDoc(doc(db, "settings", "payment"));
-        if (payDocSnap.exists()) {
-          setPaymentSettings(payDocSnap.data() as PaymentSettings);
-        }
-      } catch (err) {
-        console.error("Error fetching payment settings:", err);
+    // 3. Real-time Payment Settings Listener
+    const unsubPayment = onSnapshot(doc(db, "settings", "payment"), (payDocSnap) => {
+      if (payDocSnap.exists()) {
+        setPaymentSettings(payDocSnap.data() as PaymentSettings);
       }
+    });
+
+    return () => {
+      unsubProfile();
+      unsubOrders();
+      unsubPayment();
     };
-
-    fetchData();
   }, [user]);
 
   const hasActiveProject = orders.some(

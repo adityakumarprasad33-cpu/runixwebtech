@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
-import { collection, getDocs, query, where, orderBy } from "firebase/firestore";
+import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { motion } from "framer-motion";
 import DeveloperInteractionRoom from "@/components/dashboard/DeveloperInteractionRoom";
@@ -18,12 +18,17 @@ import {
 interface Order {
   id: string;
   planName: string;
-  status: string;
   price?: number;
   currency?: string;
+  status: string;
   userEmail?: string;
   userId?: string;
-  createdAt?: any;
+  createdAt: any;
+  formData?: {
+    name?: string;
+    projectType?: string;
+    details?: string;
+  };
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -34,7 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
   rejected: "bg-red-500/10 text-red-400 border-red-500/20",
 };
 
-const LOCKED_STATUSES = ["pending_payment", "awaiting_verification", "pending", "rejected"];
+const LOCKED_STATUSES = ["pending_payment", "awaiting_verification", "cancelled", "rejected"];
 
 const fadeUp = {
   initial: { opacity: 0, y: 16 },
@@ -52,42 +57,41 @@ export default function WorkspacePage() {
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
-    } else if (user) {
-      fetchOrders();
+      return;
     }
-  }, [user, loading]);
-
-  const fetchOrders = async () => {
     if (!user) return;
+
     setFetchingOrders(true);
-    try {
-      let snap;
-      if (profile?.role === "admin") {
-        // Admin sees all orders
-        snap = await getDocs(collection(db, "orders"));
-      } else {
-        // User sees only their own orders
-        snap = await getDocs(
-          query(collection(db, "orders"), where("userId", "==", user.uid))
-        );
+
+    const q = profile?.role === "admin" || profile?.role === "super_admin"
+      ? collection(db, "orders")
+      : query(collection(db, "orders"), where("userId", "==", user.uid));
+
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
+        data.sort((a, b) => {
+          const priority = (s: string) =>
+            s === "in_progress" ? 0 : s === "completed" ? 1 : s === "awaiting_verification" ? 2 : 3;
+          return priority(a.status) - priority(b.status);
+        });
+        setOrders(data);
+        setOpenOrderId((prev) => {
+          if (prev && data.some((o) => o.id === prev)) return prev;
+          const firstActive = data.find((o) => !LOCKED_STATUSES.includes(o.status));
+          return firstActive ? firstActive.id : null;
+        });
+        setFetchingOrders(false);
+      },
+      (err) => {
+        console.error("Realtime workspace orders error:", err);
+        setFetchingOrders(false);
       }
-      const data = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
-      // Sort: active (in_progress/completed) first, then others
-      data.sort((a, b) => {
-        const priority = (s: string) =>
-          s === "in_progress" ? 0 : s === "completed" ? 1 : s === "awaiting_verification" ? 2 : 3;
-        return priority(a.status) - priority(b.status);
-      });
-      setOrders(data);
-      // Auto-open first unlocked order
-      const firstActive = data.find((o) => !LOCKED_STATUSES.includes(o.status));
-      if (firstActive) setOpenOrderId(firstActive.id);
-    } catch (e) {
-      console.error("Failed to fetch orders:", e);
-    } finally {
-      setFetchingOrders(false);
-    }
-  };
+    );
+
+    return () => unsub();
+  }, [user, loading, profile?.role, router]);
 
   if (loading || fetchingOrders) {
     return (

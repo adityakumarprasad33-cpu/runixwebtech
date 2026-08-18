@@ -29,16 +29,24 @@ export default function Home() {
   const [dbProjects, setDbProjects] = useState<Project[]>(defaultProjects);
 
   useEffect(() => {
-    // Non-blocking fetch of dynamic projects on idle
-    const fetchProjects = async () => {
+    let unsub: (() => void) | undefined;
+
+    const subscribeProjects = async () => {
       try {
-        const { collection, getDocs } = await import("firebase/firestore");
+        const { collection, onSnapshot } = await import("firebase/firestore");
         const { db } = await import("@/lib/firebase");
-        const snap = await getDocs(collection(db, "projects"));
-        const data = snap.docs.map((doc) => doc.data() as Project);
-        if (data.length > 0) {
-          setDbProjects(data);
-        }
+        unsub = onSnapshot(
+          collection(db, "projects"),
+          (snap) => {
+            const data = snap.docs.map((doc) => doc.data() as Project);
+            if (data.length > 0) {
+              setDbProjects(data);
+            }
+          },
+          (err) => {
+            console.error("Realtime homepage projects error:", err);
+          }
+        );
       } catch (e) {
         // Fallback to static defaultProjects
       }
@@ -46,9 +54,17 @@ export default function Home() {
 
     if (typeof window !== "undefined") {
       if ("requestIdleCallback" in window) {
-        (window as any).requestIdleCallback(fetchProjects, { timeout: 2000 });
+        const handle = (window as any).requestIdleCallback(subscribeProjects, { timeout: 2000 });
+        return () => {
+          if ("cancelIdleCallback" in window) (window as any).cancelIdleCallback(handle);
+          if (unsub) unsub();
+        };
       } else {
-        setTimeout(fetchProjects, 500);
+        const timer = setTimeout(subscribeProjects, 500);
+        return () => {
+          clearTimeout(timer);
+          if (unsub) unsub();
+        };
       }
     }
   }, []);
@@ -69,7 +85,7 @@ export default function Home() {
       <Hero3DScroll />
 
       {/* ── What We Do / Services Highlights ── */}
-      <section className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-28 relative z-10 border-t border-white/5">
+      <section className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-28 relative z-10 border-t border-white/5 lazy-render">
         <div className="flex flex-col lg:flex-row gap-16 justify-between">
           <div className="lg:w-1/3">
             <motion.h2
@@ -127,7 +143,7 @@ export default function Home() {
       </section>
 
       {/* ── Selected Works (High Performance Visual Mockups) ── */}
-      <section className="w-full px-4 sm:px-6 lg:px-8 py-28 relative z-10 bg-[#030303]">
+      <section className="w-full px-4 sm:px-6 lg:px-8 py-28 relative z-10 bg-[#030303] lazy-render">
         <div className="max-w-7xl mx-auto">
           <div className="mb-20 flex flex-col md:flex-row items-end justify-between gap-8">
             <motion.h2
@@ -201,7 +217,7 @@ export default function Home() {
       </section>
 
       {/* ── Final Call to Action ── */}
-      <section className="w-full min-h-[70vh] flex items-center justify-center px-4 py-24 relative z-10 overflow-hidden">
+      <section className="w-full min-h-[70vh] flex items-center justify-center px-4 py-24 relative z-10 overflow-hidden lazy-render">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}

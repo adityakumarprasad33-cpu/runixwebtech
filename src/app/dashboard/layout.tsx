@@ -22,7 +22,7 @@ import {
   X,
 } from "lucide-react";
 
-import { collection, getDocs, updateDoc, doc, arrayUnion } from "firebase/firestore";
+import { collection, onSnapshot, updateDoc, doc, arrayUnion } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 const sidebarLinks = [
@@ -35,7 +35,7 @@ const sidebarLinks = [
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut, isSuperAdmin, isAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -47,53 +47,54 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!loading && !user) {
       router.push("/login");
-    } else if (user) {
-      fetchNotifications();
+      return;
     }
-  }, [user, loading, router]);
-
-  const fetchNotifications = async () => {
     if (!user) return;
-    try {
-      const snap = await getDocs(collection(db, "notifications"));
-      const allNotifs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
 
-      // One month ago cutoff
-      const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    // Real-time synchronization for notifications
+    const unsub = onSnapshot(
+      collection(db, "notifications"),
+      (snap) => {
+        const allNotifs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
+        const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
-      // Filter: relevant to this user, not cleared by them, not older than 1 month
-      const userNotifs = allNotifs.filter(
-        (n) =>
-          (n.targetType === "broadcast" ||
-            n.targetUserId === user.uid ||
-            n.targetEmail === user.email) &&
-          !n.clearedBy?.includes(user.uid) &&
-          new Date(n.createdAt || 0).getTime() > oneMonthAgo
-      );
+        const userNotifs = allNotifs.filter(
+          (n) =>
+            (n.targetType === "broadcast" ||
+              n.targetUserId === user.uid ||
+              n.targetEmail === user.email) &&
+            !n.clearedBy?.includes(user.uid) &&
+            new Date(n.createdAt || 0).getTime() > oneMonthAgo
+        );
 
-      // Sort newest first
-      userNotifs.sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+        userNotifs.sort(
+          (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+        );
 
-      if (userNotifs.length > 0) {
-        setNotifications(userNotifs);
-        setUnreadCount(userNotifs.filter((n) => !n.readBy?.includes(user.uid)).length);
-      } else {
-        setNotifications([
-          {
-            id: "default-1",
-            title: "Welcome to Runix Web Tech!",
-            message: "Your dashboard is ready. Submit your project requirements anytime to begin.",
-            createdAt: new Date().toISOString(),
-            senderName: "Runix",
-            senderRole: "System",
-          },
-        ]);
-        setUnreadCount(1);
+        if (userNotifs.length > 0) {
+          setNotifications(userNotifs);
+          setUnreadCount(userNotifs.filter((n) => !n.readBy?.includes(user.uid)).length);
+        } else {
+          setNotifications([
+            {
+              id: "default-1",
+              title: "Welcome to Runix Web Tech!",
+              message: "Your dashboard is ready. Submit your project requirements anytime to begin.",
+              createdAt: new Date().toISOString(),
+              senderName: "Runix",
+              senderRole: "System",
+            },
+          ]);
+          setUnreadCount(1);
+        }
+      },
+      (err) => {
+        console.error("Realtime notifications listener error:", err);
       }
-    } catch (e) {
-      console.error("Failed to fetch notifications:", e);
-    }
-  };
+    );
+
+    return () => unsub();
+  }, [user, loading, router]);
 
   const handleClearNotification = async (notifId: string) => {
     // Optimistic UI update

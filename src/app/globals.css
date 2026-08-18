@@ -44,6 +44,12 @@
     font-family: var(--font-jakarta), system-ui, sans-serif;
   }
 
+  /* ─── Below-the-fold render optimization ─── */
+  .lazy-render {
+    content-visibility: auto;
+    contain-intrinsic-size: 1px 700px;
+  }
+
   /* ─── Navbar dark glass ─── */
   .glass-panel {
     background: rgba(5, 5, 5, 0.7);

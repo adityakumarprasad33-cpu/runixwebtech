@@ -1,33 +1,45 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import ShowcaseViewer from "@/components/showcase/ShowcaseViewer";
 import { Button } from "@/components/ui/Button";
-import { type Project } from "@/data/projects";
-import { collection, getDocs } from "firebase/firestore";
+import { type Project, projects as defaultProjects } from "@/data/projects";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+
+const ShowcaseViewer = dynamic(() => import("@/components/showcase/ShowcaseViewer"), {
+  ssr: false,
+});
 
 export default function WorkPage() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [activeCategory, setActiveCategory] = useState<string>("All");
-  const [dbProjects, setDbProjects] = useState<Project[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dbProjects, setDbProjects] = useState<Project[]>(defaultProjects);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const fetchProjects = async () => {
-      try {
-        const snap = await getDocs(collection(db, "projects"));
-        const data = snap.docs.map(doc => doc.data() as Project);
-        setDbProjects(data);
-      } catch (e) {
-        console.error(e);
+    const unsub = onSnapshot(
+      collection(db, "projects"),
+      (snap) => {
+        const data = snap.docs.map((doc) => doc.data() as Project);
+        if (data.length > 0) {
+          setDbProjects(data);
+        } else {
+          setDbProjects(defaultProjects);
+        }
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Realtime work projects error:", err);
+        setDbProjects(defaultProjects);
+        setLoading(false);
       }
-      setLoading(false);
-    };
-    fetchProjects();
+    );
+
+    return () => unsub();
   }, []);
 
   const categories = ["All", ...Array.from(new Set(dbProjects.map(p => p.category)))];

@@ -8,6 +8,7 @@ import DeveloperInteractionRoom from "@/components/dashboard/DeveloperInteractio
 import {
   collection,
   getDocs,
+  onSnapshot,
   doc,
   setDoc,
   updateDoc,
@@ -191,6 +192,47 @@ export default function AdminPanel() {
         fetchData();
         fetchPaymentSettings();
         fetchHeroStats();
+
+        // Real-time synchronization for admin views
+        const unsubUsers = onSnapshot(collection(db, "users"), (snap) => {
+          setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        });
+
+        const unsubOrders = onSnapshot(collection(db, "orders"), (snap) => {
+          setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        });
+
+        const unsubProjects = onSnapshot(collection(db, "projects"), (snap) => {
+          setDbProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+        });
+
+        const unsubNotifs = onSnapshot(collection(db, "notifications"), (snap) => {
+          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setNotifications(
+            list.sort(
+              (a: any, b: any) =>
+                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+            )
+          );
+        });
+
+        const unsubActivity = onSnapshot(collection(db, "admin_activity_logs"), (snap) => {
+          const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+          setActivityLogs(
+            list.sort(
+              (a: any, b: any) =>
+                new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+            )
+          );
+        });
+
+        return () => {
+          unsubUsers();
+          unsubOrders();
+          unsubProjects();
+          unsubNotifs();
+          unsubActivity();
+        };
       }
     }
   }, [loading, isAdmin, router]);

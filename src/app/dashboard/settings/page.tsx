@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
 import { updateProfile } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { motion } from "framer-motion";
@@ -24,23 +24,33 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      if (!user) return;
-      const docRef = doc(db, "users", user.uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setProfile(docSnap.data() as UserProfile);
-      } else {
-        setProfile({
-          name: user.displayName || "",
-          email: user.email || "",
-          phone: "",
-          location: "",
-        });
-      }
+    if (!user) {
       setLoading(false);
-    };
-    fetchProfile();
+      return;
+    }
+    const docRef = doc(db, "users", user.uid);
+    const unsub = onSnapshot(
+      docRef,
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setProfile(docSnap.data() as UserProfile);
+        } else {
+          setProfile({
+            name: user.displayName || "",
+            email: user.email || "",
+            phone: "",
+            location: "",
+          });
+        }
+        setLoading(false);
+      },
+      (err) => {
+        console.error("Realtime settings error:", err);
+        setLoading(false);
+      }
+    );
+
+    return () => unsub();
   }, [user]);
 
   const handleSave = async () => {

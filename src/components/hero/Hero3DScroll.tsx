@@ -23,7 +23,7 @@ export default function Hero3DScroll() {
       setIsDesktop(window.innerWidth >= 1024);
     };
     checkWidth();
-    window.addEventListener("resize", checkWidth);
+    window.addEventListener("resize", checkWidth, { passive: true });
     return () => window.removeEventListener("resize", checkWidth);
   }, []);
 
