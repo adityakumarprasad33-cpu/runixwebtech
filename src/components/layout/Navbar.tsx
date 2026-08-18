@@ -59,7 +59,14 @@ export default function Navbar() {
           {/* Logo */}
           <Link href="/" className="flex items-center gap-3 group relative z-10">
             <div className="relative w-12 h-12 group-hover:scale-105 transition-transform duration-300">
-              <Image src="/logo-v2.png" alt="Runix Logo" fill className="object-contain" />
+              <Image 
+                src="/logo-v2.png" 
+                alt="Runix Logo" 
+                fill 
+                priority 
+                sizes="48px"
+                className="object-contain" 
+              />
             </div>
             <span className="font-jakarta font-bold text-2xl tracking-tight text-white group-hover:text-zinc-300 transition-colors">
               Runix

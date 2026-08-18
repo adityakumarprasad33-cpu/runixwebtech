@@ -48,34 +48,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let unsubProfile: (() => void) | undefined;
+    let unsubscribeAuth: (() => void) | undefined;
 
-    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+    const initAuth = () => {
+      unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
+        setUser(currentUser);
 
-      if (currentUser) {
-        if (unsubProfile) unsubProfile();
-        unsubProfile = onSnapshot(doc(db, "users", currentUser.uid), (docSnap) => {
-          if (docSnap.exists()) {
-            setProfile(docSnap.data() as UserProfile);
-          } else {
-            setProfile(null);
+        if (currentUser) {
+          if (unsubProfile) unsubProfile();
+          unsubProfile = onSnapshot(doc(db, "users", currentUser.uid), (docSnap) => {
+            if (docSnap.exists()) {
+              setProfile(docSnap.data() as UserProfile);
+            } else {
+              setProfile(null);
+            }
+            setLoading(false);
+          });
+        } else {
+          if (unsubProfile) {
+            unsubProfile();
+            unsubProfile = undefined;
           }
+          setProfile(null);
           setLoading(false);
-        });
-      } else {
-        if (unsubProfile) {
-          unsubProfile();
-          unsubProfile = undefined;
         }
-        setProfile(null);
-        setLoading(false);
-      }
-    });
-
-    return () => {
-      unsubscribeAuth();
-      if (unsubProfile) unsubProfile();
+      });
     };
+
+    // Defer auth check until critical rendering is done to avoid blocking LCP
+    if (typeof window !== "undefined") {
+      if ("requestIdleCallback" in window) {
+        const handle = (window as any).requestIdleCallback(initAuth, { timeout: 1500 });
+        return () => {
+          if ("cancelIdleCallback" in window) (window as any).cancelIdleCallback(handle);
+          if (unsubscribeAuth) unsubscribeAuth();
+          if (unsubProfile) unsubProfile();
+        };
+      } else {
+        const timer = setTimeout(initAuth, 100);
+        return () => {
+          clearTimeout(timer);
+          if (unsubscribeAuth) unsubscribeAuth();
+          if (unsubProfile) unsubProfile();
+        };
+      }
+    }
   }, []);
 
   const signOut = async () => {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import {
@@ -15,30 +16,41 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import ShowcaseViewer from "@/components/showcase/ShowcaseViewer";
 import Hero3DScroll from "@/components/hero/Hero3DScroll";
 import { type Project, projects as defaultProjects } from "@/data/projects";
-import { collection, getDocs, doc, getDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+
+// Dynamically load modal viewer only when a user interacts
+const ShowcaseViewer = dynamic(() => import("@/components/showcase/ShowcaseViewer"), {
+  ssr: false,
+});
 
 export default function Home() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [dbProjects, setDbProjects] = useState<Project[]>([]);
+  const [dbProjects, setDbProjects] = useState<Project[]>(defaultProjects);
+
   useEffect(() => {
-    const fetchData = async () => {
+    // Non-blocking fetch of dynamic projects on idle
+    const fetchProjects = async () => {
       try {
+        const { collection, getDocs } = await import("firebase/firestore");
+        const { db } = await import("@/lib/firebase");
         const snap = await getDocs(collection(db, "projects"));
         const data = snap.docs.map((doc) => doc.data() as Project);
         if (data.length > 0) {
           setDbProjects(data);
-        } else {
-          setDbProjects(defaultProjects);
         }
       } catch (e) {
-        setDbProjects(defaultProjects);
+        // Fallback to static defaultProjects
       }
     };
-    fetchData();
+
+    if (typeof window !== "undefined") {
+      if ("requestIdleCallback" in window) {
+        (window as any).requestIdleCallback(fetchProjects, { timeout: 2000 });
+      } else {
+        setTimeout(fetchProjects, 500);
+      }
+    }
   }, []);
 
   const displayProjects = dbProjects.length > 0 ? dbProjects : defaultProjects;
