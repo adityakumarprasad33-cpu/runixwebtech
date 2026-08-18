@@ -27,6 +27,8 @@ interface Message {
   senderId: string;
   senderRole: "admin" | "user";
   senderName: string;
+  senderDesignation?: string | null;
+  senderDepartment?: string | null;
   text?: string;
   linkUrl?: string;
   linkType?: "preview" | "figma" | "github" | "file" | "general";
@@ -40,6 +42,8 @@ interface DeveloperInteractionRoomProps {
   currentUserId: string;
   currentUserName: string;
   currentUserRole: "admin" | "user";
+  currentUserDesignation?: string;
+  currentUserDepartment?: string;
 }
 
 const LOCKED_STATUSES = ["pending_payment", "awaiting_verification", "pending", "rejected"];
@@ -71,6 +75,8 @@ export default function DeveloperInteractionRoom({
   currentUserId,
   currentUserName,
   currentUserRole,
+  currentUserDesignation,
+  currentUserDepartment,
 }: DeveloperInteractionRoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -107,6 +113,8 @@ export default function DeveloperInteractionRoom({
         senderId: currentUserId,
         senderRole: currentUserRole,
         senderName: currentUserName,
+        senderDesignation: currentUserDesignation || null,
+        senderDepartment: currentUserDepartment || null,
         text: msg || null,
         linkUrl: url || null,
         linkType: url ? linkType : null,
@@ -262,7 +270,9 @@ export default function DeveloperInteractionRoom({
                       m.senderRole === "admin" ? "text-indigo-400" : "text-emerald-400"
                     }`}
                   >
-                    {m.senderRole === "admin" ? "Dev Team" : m.senderName}
+                    {m.senderRole === "admin" 
+                      ? (m.senderDesignation ? `${m.senderName} • ${m.senderDesignation}` : "Dev Team")
+                      : m.senderName}
                   </span>
                   <span className="text-[10px] text-zinc-600">•</span>
                   <span className="text-[10px] text-zinc-600">

@@ -20,10 +20,6 @@ export default function ServicesPage() {
           transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
           className="max-w-7xl mx-auto w-full text-center"
         >
-          <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8">
-            <span className="text-xs font-bold text-zinc-300 uppercase tracking-[0.2em]">Capabilities</span>
-          </div>
-          
           <h1 className="font-jakarta text-6xl md:text-8xl lg:text-[9rem] text-white tracking-tighter mb-8 leading-[0.85] font-black uppercase text-glow">
             What We <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-500 to-purple-500">Do</span>
           </h1>
@@ -47,10 +43,6 @@ export default function ServicesPage() {
               className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-16 items-start"
             >
               <div className="lg:col-span-5 sticky top-32">
-                <span className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-zinc-400 uppercase tracking-widest mb-8">
-                  <span className="w-2 h-2 rounded-full bg-indigo-500" />
-                  Service 0{index + 1}
-                </span>
                 <h2 className="font-jakarta text-5xl md:text-6xl font-bold text-white mb-6 tracking-tight leading-tight">
                   {service.title}
                 </h2>
@@ -112,7 +104,7 @@ export default function ServicesPage() {
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/dashboard">
-              <Button variant="accent" size="lg" className="rounded-full h-16 px-10 text-lg shadow-[0_0_30px_rgba(99,102,241,0.3)] hover:shadow-[0_0_40px_rgba(99,102,241,0.5)]">
+              <Button variant="accent" size="lg" className="rounded-full h-16 px-10 text-lg">
                 Go to Dashboard <ArrowRight className="w-5 h-5 ml-2" />
               </Button>
             </Link>

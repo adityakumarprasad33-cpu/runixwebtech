@@ -91,6 +91,7 @@ export default function AdminPanel() {
   const [orders, setOrders] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
 
   const [loadingData, setLoadingData] = useState(true);
 
@@ -110,6 +111,10 @@ export default function AdminPanel() {
   const [editUtrValue, setEditUtrValue] = useState("");
   const [expandedOrderDetails, setExpandedOrderDetails] = useState<string | null>(null);
 
+  // Status Caption State
+  const [editingCaptionOrderId, setEditingCaptionOrderId] = useState<string | null>(null);
+  const [captionValue, setCaptionValue] = useState("");
+
   const handleSaveUtr = async (orderId: string) => {
     try {
       await updateDoc(doc(db, "orders", orderId), {
@@ -128,6 +133,26 @@ export default function AdminPanel() {
     } catch (e) {
       console.error("Failed to update UTR:", e);
       alert("Failed to update UTR");
+    }
+  };
+
+  const handleSaveCaption = async (orderId: string) => {
+    try {
+      await updateDoc(doc(db, "orders", orderId), {
+        statusCaption: captionValue.trim(),
+      });
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId
+            ? { ...o, statusCaption: captionValue.trim() }
+            : o
+        )
+      );
+      setEditingCaptionOrderId(null);
+      setCaptionValue("");
+    } catch (e) {
+      console.error("Failed to update caption:", e);
+      alert("Failed to update status caption");
     }
   };
 
@@ -171,7 +196,53 @@ export default function AdminPanel() {
   }, [loading, isAdmin, router]);
 
   const fetchData = async () => {
+    if (!user) return;
     setLoadingData(true);
+    try {
+      const token = await user.getIdToken();
+      const res = await fetch("/api/admin/data", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      let data;
+      try {
+        data = await res.json();
+      } catch (err) {
+        console.warn("Failed to parse admin data response, falling back to client-side fetch.", err);
+        await fallbackClientFetch();
+        return;
+      }
+
+      if (res.ok && data.success) {
+        setUsers(data.users);
+        setDbProjects(data.dbProjects);
+        setOrders(data.orders);
+        setLogs(data.logs);
+        setActivityLogs(
+          data.activityLogs.sort(
+            (a: any, b: any) =>
+              new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+          )
+        );
+        setNotifications(
+          (data.notifications || []).sort(
+            (a: any, b: any) =>
+              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+          )
+        );
+      } else {
+        console.warn("Failed to fetch admin data, falling back to client-side fetch:", data.error);
+        await fallbackClientFetch();
+      }
+    } catch (err) {
+      console.error(err);
+      await fallbackClientFetch();
+    }
+  };
+
+  const fallbackClientFetch = async () => {
     try {
       const fetchCollection = async (col: string) => {
         try {
@@ -183,13 +254,14 @@ export default function AdminPanel() {
         }
       };
 
-      const [usersData, projectsData, ordersData, logsData, activityLogsData] =
+      const [usersData, projectsData, ordersData, logsData, activityLogsData, notificationsData] =
         await Promise.all([
           fetchCollection("users"),
           fetchCollection("projects"),
           fetchCollection("orders"),
           fetchCollection("login_logs"),
           fetchCollection("admin_activity_logs"),
+          fetchCollection("notifications"),
         ]);
 
       setUsers(usersData);
@@ -200,6 +272,12 @@ export default function AdminPanel() {
         activityLogsData.sort(
           (a: any, b: any) =>
             new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+        )
+      );
+      setNotifications(
+        notificationsData.sort(
+          (a: any, b: any) =>
+            new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
         )
       );
     } catch (err) {
@@ -291,6 +369,8 @@ export default function AdminPanel() {
         targetUserId: notifTargetType === "user" ? notifTargetUserId : null,
         senderName: user?.displayName || profile?.name || "Admin",
         senderRole: "Admin",
+        senderDesignation: profile?.designation || null,
+        senderDepartment: profile?.department || null,
         senderEmail: user?.email || "",
         createdAt: new Date().toISOString(),
         readBy: [],
@@ -333,6 +413,8 @@ export default function AdminPanel() {
         targetEmail: userEmail || null,
         senderName: user?.displayName || profile?.name || "Admin",
         senderRole: "Admin",
+        senderDesignation: profile?.designation || null,
+        senderDepartment: profile?.department || null,
         senderEmail: user?.email || "",
         createdAt: new Date().toISOString(),
         readBy: [],
@@ -371,6 +453,8 @@ export default function AdminPanel() {
         targetEmail: queryOrder.userEmail || queryOrder.email || null,
         senderName: user?.displayName || profile?.name || "Admin",
         senderRole: "Admin",
+        senderDesignation: profile?.designation || null,
+        senderDepartment: profile?.department || null,
         senderEmail: user?.email || "",
         createdAt: new Date().toISOString(),
         readBy: [],
@@ -917,39 +1001,89 @@ export default function AdminPanel() {
               <h2 className="text-lg font-semibold text-white">
                 Personnel Directory
               </h2>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="text-zinc-500 border-b border-white/10">
-                    <tr>
-                      <th className="pb-3 font-medium">Name</th>
-                      <th className="pb-3 font-medium">Email</th>
-                      <th className="pb-3 font-medium">Role</th>
-                      <th className="pb-3 font-medium">User ID</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-white/5">
-                    {filteredUsers.map((u) => (
-                      <tr key={u.id} className="text-zinc-300">
-                        <td className="py-4">{u.displayName || u.name || "Unknown"}</td>
-                        <td className="py-4">{u.email}</td>
-                        <td className="py-4">
-                          <span
-                            className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                              u.role === "super_admin"
-                                ? "bg-amber-500/20 text-amber-400"
-                                : u.role === "admin"
-                                ? "bg-indigo-500/20 text-indigo-400"
-                                : "bg-white/10 text-zinc-400"
-                            }`}
-                          >
-                            {u.role || "user"}
-                          </span>
-                        </td>
-                        <td className="py-4 font-mono text-xs text-zinc-500">{u.id}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-4">
+                {filteredUsers.map((u) => {
+                  const userOrders = orders.filter((o) => o.userId === u.id);
+                  return (
+                    <div key={u.id} className="p-5 border border-white/5 rounded-2xl bg-black/40">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg font-bold text-zinc-400">
+                            {(u.displayName || u.name || "U")[0].toUpperCase()}
+                          </div>
+                          <div>
+                            <h3 className="text-white font-medium text-base flex items-center gap-2">
+                              {u.displayName || u.name || "Unknown User"}
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                                  u.role === "super_admin"
+                                    ? "bg-amber-500/20 text-amber-400"
+                                    : u.role === "admin"
+                                    ? "bg-indigo-500/20 text-indigo-400"
+                                    : "bg-white/10 text-zinc-400"
+                                }`}
+                              >
+                                {u.role || "user"}
+                              </span>
+                            </h3>
+                                {(u.designation || u.department) && (
+                                  <div className="flex items-center gap-2 mt-1.5 mb-1">
+                                    {u.designation && (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                                        {u.designation}
+                                      </span>
+                                    )}
+                                    {u.department && (
+                                      <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                        {u.department}
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                <p className="text-sm text-zinc-500 mt-0.5">{u.email}</p>
+                                <p className="text-[10px] text-zinc-600 font-mono mt-0.5">ID: {u.id}</p>
+                              </div>
+                            </div>
+                          </div>
+
+                      {/* User's Projects / Orders */}
+                      {userOrders.length > 0 ? (
+                        <div className="mt-4 pt-4 border-t border-white/5">
+                          <p className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider mb-3">
+                            Associated Projects & Orders
+                          </p>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {userOrders.map((o) => (
+                              <div key={o.id} className="p-3 rounded-xl bg-white/[0.02] border border-white/5 flex justify-between items-center">
+                                <div>
+                                  <p className="text-xs font-semibold text-white">{o.planName}</p>
+                                  <p className="text-[10px] text-zinc-500 mt-0.5">
+                                    {o.createdAt?.toDate?.() ? new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(o.createdAt.toDate()) : "Recent"}
+                                  </p>
+                                </div>
+                                <span
+                                  className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
+                                    o.status === "completed"
+                                      ? "bg-emerald-500/10 text-emerald-400"
+                                      : o.status === "in_progress"
+                                      ? "bg-blue-500/10 text-blue-400"
+                                      : "bg-zinc-500/10 text-zinc-400"
+                                  }`}
+                                >
+                                  {o.status?.replace(/_/g, " ")}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="mt-4 pt-4 border-t border-white/5">
+                          <p className="text-[11px] text-zinc-600 italic">No projects or orders associated with this user.</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -1139,6 +1273,18 @@ export default function AdminPanel() {
                           <MessageSquare className="w-3.5 h-3.5" />
                           {o.adminQuery ? "Edit Admin Query" : "Ask Query"}
                         </button>
+
+                        {/* Status Caption Button */}
+                        <button
+                          onClick={() => {
+                            setEditingCaptionOrderId(editingCaptionOrderId === o.id ? null : o.id);
+                            setCaptionValue(o.statusCaption || "");
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-zinc-500/10 text-zinc-300 border border-zinc-500/20 hover:bg-zinc-500/20 transition-all"
+                        >
+                          <FileText className="w-3.5 h-3.5" />
+                          {o.statusCaption ? "Edit Status Caption" : "+ Add Status Caption"}
+                        </button>
                       </div>
 
                       {/* Display active query/response indicators */}
@@ -1155,6 +1301,32 @@ export default function AdminPanel() {
                         )}
                       </div>
                     </div>
+
+                    {/* Inline Status Caption Edit Form */}
+                    {editingCaptionOrderId === o.id && (
+                      <div className="mt-3 p-3 bg-black/40 border border-white/10 rounded-xl space-y-2">
+                        <textarea
+                          value={captionValue}
+                          onChange={(e) => setCaptionValue(e.target.value)}
+                          placeholder="E.g. Currently working on the homepage design..."
+                          className="w-full bg-black/60 border border-white/20 rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 resize-none h-16"
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => handleSaveCaption(o.id)}
+                            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-white text-black hover:bg-zinc-200 transition-colors"
+                          >
+                            Save Caption
+                          </button>
+                          <button
+                            onClick={() => setEditingCaptionOrderId(null)}
+                            className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      </div>
+                    )}
 
                     {/* Display existing Query & Response text */}
                     {(o.adminQuery || o.userResponse) && (
@@ -1198,6 +1370,8 @@ export default function AdminPanel() {
                           currentUserId={user?.uid || ""}
                           currentUserName={user?.displayName || profile?.name || "Admin"}
                           currentUserRole="admin"
+                          currentUserDesignation={profile?.designation}
+                          currentUserDepartment={profile?.department}
                         />
                       )}
                     </div>
@@ -1331,6 +1505,44 @@ export default function AdminPanel() {
                     </motion.span>
                   )}
                 </div>
+              </div>
+
+              {/* Notification History List */}
+              <div className="mt-8 pt-8 border-t border-white/5 space-y-4">
+                <h3 className="text-sm font-semibold text-white">Notification History</h3>
+                {notifications.length === 0 ? (
+                  <p className="text-xs text-zinc-500 italic">No notifications have been sent yet.</p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {notifications.map((n) => (
+                      <div key={n.id} className="p-4 rounded-xl bg-black/40 border border-white/5">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="text-sm font-semibold text-white">{n.title}</h4>
+                          <span className="text-[10px] text-zinc-500">
+                            {n.createdAt?._seconds
+                              ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(n.createdAt._seconds * 1000))
+                              : n.createdAt?.seconds 
+                                ? new Intl.DateTimeFormat("en", { dateStyle: "medium", timeStyle: "short" }).format(new Date(n.createdAt.seconds * 1000))
+                                : "Recent"}
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-400 mb-3 whitespace-pre-wrap">{n.message}</p>
+                        <div className="flex justify-between items-center pt-3 border-t border-white/5 text-[10px]">
+                          <span className="text-zinc-500">
+                            By: <span className="text-zinc-300 font-medium">{n.adminName || n.adminEmail || "Admin"}</span>
+                          </span>
+                          <span className={`px-2 py-0.5 rounded-full uppercase font-bold tracking-wider ${
+                            n.type === "broadcast"
+                              ? "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20"
+                              : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+                          }`}>
+                            {n.type === "broadcast" ? "Broadcast" : `To: ${n.targetUserId}`}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -1548,6 +1760,46 @@ export default function AdminPanel() {
                               </button>
                             );
                           })}
+                        </div>
+                        
+                        {/* Designation and Department Inputs */}
+                        <div className="flex gap-2 mt-4 pt-3 border-t border-white/5">
+                          <input 
+                            type="text" 
+                            defaultValue={admin.designation || ""} 
+                            placeholder="Designation (e.g. Lead Developer)"
+                            className="flex-1 bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                            onBlur={async (e) => {
+                              const newVal = e.target.value;
+                              if(newVal !== admin.designation) {
+                                setSavingPermissions(admin.id);
+                                try {
+                                  await updateDoc(doc(db, "users", admin.id), { designation: newVal });
+                                  setUsers((prev: any[]) => prev.map((u: any) => u.id === admin.id ? { ...u, designation: newVal } : u));
+                                  logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "UPDATED_ADMIN_DESIGNATION", details: { targetAdminId: admin.id, designation: newVal } });
+                                } catch { alert("Failed to update designation"); }
+                                finally { setSavingPermissions(null); }
+                              }
+                            }}
+                          />
+                          <input 
+                            type="text" 
+                            defaultValue={admin.department || ""} 
+                            placeholder="Department (e.g. Engineering)"
+                            className="flex-1 bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
+                            onBlur={async (e) => {
+                              const newVal = e.target.value;
+                              if(newVal !== admin.department) {
+                                setSavingPermissions(admin.id);
+                                try {
+                                  await updateDoc(doc(db, "users", admin.id), { department: newVal });
+                                  setUsers((prev: any[]) => prev.map((u: any) => u.id === admin.id ? { ...u, department: newVal } : u));
+                                  logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "UPDATED_ADMIN_DEPARTMENT", details: { targetAdminId: admin.id, department: newVal } });
+                                } catch { alert("Failed to update department"); }
+                                finally { setSavingPermissions(null); }
+                              }
+                            }}
+                          />
                         </div>
                       </div>
                     );

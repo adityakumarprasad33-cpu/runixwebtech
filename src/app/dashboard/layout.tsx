@@ -365,9 +365,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           else timeStr = new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(new Date(n.createdAt));
                         } catch { timeStr = ""; }
 
-                        // Compose sender label: "[Name] • [Role]"
+                        // Compose sender label: "[Name] • [Role/Designation]"
+                        const officialTitle = n.senderDesignation 
+                          ? `${n.senderDesignation}${n.senderDepartment ? ` (${n.senderDepartment})` : ""}`
+                          : (n.senderRole || "Admin");
+                          
                         const senderLabel = n.senderName
-                          ? `${n.senderName} • ${n.senderRole || "Admin"}`
+                          ? `${n.senderName} • ${officialTitle}`
                           : n.targetType === "broadcast"
                           ? "Runix Team • Admin"
                           : "Admin";

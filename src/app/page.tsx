@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import ShowcaseViewer from "@/components/showcase/ShowcaseViewer";
+import Hero3DScroll from "@/components/hero/Hero3DScroll";
 import { type Project, projects as defaultProjects } from "@/data/projects";
 import { collection, getDocs, doc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -23,13 +24,6 @@ import { db } from "@/lib/firebase";
 export default function Home() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [dbProjects, setDbProjects] = useState<Project[]>([]);
-  const [heroStats, setHeroStats] = useState({
-    stat1Value: "50+", stat1Label: "PROJECTS COMPLETED",
-    stat2Value: "100%", stat2Label: "CLIENT SATISFACTION",
-    stat3Value: "< 2 Wks", stat3Label: "AVERAGE DELIVERY",
-    stat4Value: "Next.js 16", stat4Label: "MODERN STACK",
-  });
-
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -43,21 +37,6 @@ export default function Home() {
       } catch (e) {
         setDbProjects(defaultProjects);
       }
-
-      try {
-        const docSnap = await getDoc(doc(db, "settings", "hero_stats"));
-        if (docSnap.exists()) {
-          const d = docSnap.data();
-          setHeroStats({
-            stat1Value: d.stat1Value || "50+", stat1Label: d.stat1Label || "PROJECTS COMPLETED",
-            stat2Value: d.stat2Value || "100%", stat2Label: d.stat2Label || "CLIENT SATISFACTION",
-            stat3Value: d.stat3Value || "< 2 Wks", stat3Label: d.stat3Label || "AVERAGE DELIVERY",
-            stat4Value: d.stat4Value || "Next.js 16", stat4Label: d.stat4Label || "MODERN STACK",
-          });
-        }
-      } catch (e) {
-        console.error("Error fetching hero stats:", e);
-      }
     };
     fetchData();
   }, []);
@@ -65,95 +44,17 @@ export default function Home() {
   const displayProjects = dbProjects.length > 0 ? dbProjects : defaultProjects;
 
   return (
-    <div className="flex flex-col w-full items-center bg-[#050505] overflow-hidden">
+    <div className="flex flex-col w-full items-center bg-[#050505] overflow-x-clip">
       {/* Background Abstract Glow */}
       <div className="fixed inset-0 z-0 pointer-events-none flex items-center justify-center overflow-hidden">
-        <div className="w-[80vw] h-[80vw] max-w-[800px] max-h-[800px] rounded-full bg-indigo-600/10 blur-[140px] animate-pulse" />
+        <div className="w-[80vw] h-[80vw] max-w-[800px] max-h-[800px] rounded-full bg-indigo-600/10 blur-[140px]" />
         <div className="absolute w-[60vw] h-[60vw] max-w-[600px] max-h-[600px] rounded-full bg-purple-600/10 blur-[120px] translate-x-1/4 -translate-y-1/4" />
       </div>
 
       <div className="fixed inset-0 z-0 pointer-events-none bg-grid opacity-20" />
 
-      {/* ── Hero Section ── */}
-      <section className="relative w-full min-h-[90vh] flex flex-col items-center justify-center pt-36 pb-20 px-4 z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          className="max-w-7xl mx-auto w-full flex flex-col items-center text-center"
-        >
-          {/* Trust Pill */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1, duration: 0.6 }}
-            className="inline-flex items-center gap-2.5 px-5 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8 shadow-[0_0_25px_rgba(99,102,241,0.15)]"
-          >
-            <Sparkles className="w-4 h-4 text-indigo-400" />
-            <span className="text-xs font-bold text-zinc-300 uppercase tracking-[0.2em]">
-              Next-Gen Web Agency
-            </span>
-          </motion.div>
-
-          <h1 className="font-jakarta text-6xl sm:text-7xl md:text-8xl lg:text-[9rem] text-white tracking-tighter mb-8 leading-[0.85] font-black uppercase text-glow">
-            Digital<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-white to-purple-400">
-              Engineering
-            </span>
-          </h1>
-
-          <p className="text-lg sm:text-xl md:text-2xl text-zinc-400 max-w-3xl mx-auto mb-12 font-medium leading-relaxed tracking-tight">
-            Runix Web Tech designs and develops bespoke websites, high-performance web applications, and custom admin dashboards engineered to grow your business.
-          </p>
-
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-5 w-full sm:w-auto">
-            <Link href="/contact" className="w-full sm:w-auto">
-              <Button
-                size="lg"
-                variant="accent"
-                className="w-full sm:w-auto h-16 px-10 text-lg rounded-full shadow-[0_0_35px_rgba(99,102,241,0.3)] hover:shadow-[0_0_50px_rgba(99,102,241,0.5)]"
-              >
-                Start Your Project <ArrowRight className="w-5 h-5 ml-2" />
-              </Button>
-            </Link>
-            <Link href="/work" className="w-full sm:w-auto">
-              <Button
-                size="lg"
-                variant="outline"
-                className="w-full sm:w-auto h-16 px-10 text-lg border-white/20 hover:border-white/40 rounded-full"
-              >
-                Explore Works
-              </Button>
-            </Link>
-          </div>
-
-          {/* Social Proof & Trust Metrics Bar */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-12 mt-20 pt-12 border-t border-white/10 w-full max-w-4xl">
-            {[
-              { label: heroStats.stat1Label, value: heroStats.stat1Value, icon: Award },
-              { label: heroStats.stat2Label, value: heroStats.stat2Value, icon: ShieldCheck },
-              { label: heroStats.stat3Label, value: heroStats.stat3Value, icon: Zap },
-              { label: heroStats.stat4Label, value: heroStats.stat4Value, icon: Layers },
-            ].map((stat, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 + i * 0.1, duration: 0.6 }}
-                className="flex flex-col items-center text-center p-3"
-              >
-                <stat.icon className="w-5 h-5 text-indigo-400 mb-2" />
-                <span className="text-2xl md:text-3xl font-black text-white font-jakarta">
-                  {stat.value}
-                </span>
-                <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mt-1">
-                  {stat.label}
-                </span>
-              </motion.div>
-            ))}
-          </div>
-        </motion.div>
-      </section>
+      {/* ── 3D Interactive Scroll Hero Section ── */}
+      <Hero3DScroll />
 
       {/* ── What We Do / Services Highlights ── */}
       <section className="w-full max-w-7xl px-4 sm:px-6 lg:px-8 py-28 relative z-10 border-t border-white/5">
@@ -175,17 +76,17 @@ export default function Home() {
               {
                 num: "01",
                 title: "Bespoke Web Design",
-                desc: "High-converting, mobile-perfect websites crafted with custom UI tokens, sleek dark modes, and glassmorphism detail.",
+                desc: "We build high-performance web applications, bespoke digital products, and complex user interfaces.",
               },
               {
                 num: "02",
                 title: "Full-Stack Web Applications",
-                desc: "Scalable MVPs and custom software built with React 19, Next.js, and secure cloud authentication.",
+                desc: "Scalable architectures, modern runtimes, and secure backend integrations.",
               },
               {
                 num: "03",
                 title: "Custom Dashboards & Panels",
-                desc: "Data-driven admin interfaces, role-based controls, and real-time operational workflows.",
+                desc: "Data-driven administration panels and operational workflows.",
               },
             ].map((service, i) => (
               <motion.div
@@ -268,10 +169,7 @@ export default function Home() {
                 {/* Styled Visual UI Preview Card (Lightweight) */}
                 <div className="w-full h-48 bg-zinc-900/80 border border-white/10 rounded-2xl p-4 flex flex-col justify-between group-hover:bg-zinc-800/80 transition-colors">
                   <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-                    <div className="w-3 h-3 rounded-full bg-red-500/60" />
-                    <div className="w-3 h-3 rounded-full bg-yellow-500/60" />
-                    <div className="w-3 h-3 rounded-full bg-green-500/60" />
-                    <span className="text-[10px] text-zinc-500 font-mono ml-2 truncate">
+                    <span className="text-[10px] text-zinc-500 font-mono truncate">
                       {project.live_url || project.slug}
                     </span>
                   </div>
@@ -311,7 +209,7 @@ export default function Home() {
             <Button
               size="lg"
               variant="accent"
-              className="rounded-full h-16 px-14 text-lg shadow-[0_0_40px_rgba(99,102,241,0.3)] hover:scale-105 transition-all w-full sm:w-auto"
+              className="rounded-full h-16 px-14 text-lg hover:scale-105 transition-all w-full sm:w-auto"
             >
               Start The Conversation <ArrowRight className="w-5 h-5 ml-2" />
             </Button>

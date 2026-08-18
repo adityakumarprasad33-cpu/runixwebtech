@@ -19,7 +19,8 @@ export async function logLoginEvent({ email, action, userId }: LoginLogData) {
       const res = await fetch("https://ipapi.co/json/");
       ipData = await res.json();
     } catch (e) {
-      console.error("Failed to fetch IP data for login log:", e);
+      // Ad-blockers or privacy extensions often block ipapi.co. We fallback gracefully.
+      console.warn("Client IP fetch blocked (likely by an ad-blocker). Using fallback values.");
     }
 
     await addDoc(collection(db, "login_logs"), {

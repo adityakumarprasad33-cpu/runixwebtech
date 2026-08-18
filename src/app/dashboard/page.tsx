@@ -24,7 +24,8 @@ import {
   Clock,
   TrendingUp,
   ArrowRight,
-  Sparkles,
+  LayoutDashboard,
+  PlusCircle,
   ExternalLink,
   IndianRupee,
   Copy,
@@ -44,6 +45,9 @@ interface UserProfile {
   email: string;
   phone: string;
   location: string;
+  designation?: string;
+  department?: string;
+  role?: string;
 }
 
 interface Order {
@@ -217,6 +221,20 @@ export default function DashboardOverview() {
     fetchData();
   }, [user]);
 
+  const hasActiveProject = orders.some(
+    (o) => !["completed", "cancelled", "rejected"].includes(o.status)
+  );
+
+  // Auto-dismiss the payment success screen after 3 seconds
+  useEffect(() => {
+    if (step === "done") {
+      const timer = setTimeout(() => {
+        resetForm();
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [step]);
+
   const handleFormSubmit = () => {
     if (!formData.name || !formData.email || !formData.projectType || !formData.budget || !formData.details) {
       alert("Please fill all required fields");
@@ -317,13 +335,11 @@ export default function DashboardOverview() {
       {/* ── Welcome Banner ── */}
       <motion.div
         {...fadeUp}
-        className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-600/20 via-[#111] to-purple-600/10 border border-white/5 p-8 sm:p-10"
+        className="relative overflow-hidden rounded-2xl bg-[#111] border border-white/5 p-8 sm:p-10"
       >
-        <div className="absolute top-0 right-0 w-72 h-72 bg-indigo-500/10 rounded-full blur-[100px] pointer-events-none" />
-        <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/10 rounded-full blur-[80px] pointer-events-none" />
         <div className="relative z-10">
           <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-[0.2em] mb-3">
-            <Sparkles className="w-3.5 h-3.5" />
+            <LayoutDashboard className="w-3.5 h-3.5" />
             Dashboard
           </div>
           <h1 className="font-jakarta text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">
@@ -338,17 +354,17 @@ export default function DashboardOverview() {
 
       {/* ── Multi-Step Project & Payment Flow ── */}
       <AnimatePresence mode="wait">
-        {step === "idle" && (
+        {step === "idle" && !hasActiveProject && (
           <motion.div
             key="start-project"
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
-            className="bg-gradient-to-r from-indigo-900/20 to-purple-900/10 border border-indigo-500/20 rounded-2xl p-6 sm:p-8"
+            className="bg-[#111] border border-white/5 rounded-2xl p-6 sm:p-8"
           >
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-              <div className="w-12 h-12 rounded-xl bg-indigo-500/20 flex items-center justify-center shrink-0">
-                <Sparkles className="w-5 h-5 text-indigo-400" />
+              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
+                <PlusCircle className="w-5 h-5 text-indigo-400" />
               </div>
               <div className="flex-1">
                 <h3 className="text-lg font-bold text-white mb-1">
@@ -362,7 +378,7 @@ export default function DashboardOverview() {
               <Button
                 onClick={() => setStep("form")}
                 variant="accent"
-                className="rounded-xl h-11 px-6 text-sm shrink-0 shadow-[0_0_20px_rgba(99,102,241,0.2)]"
+                className="rounded-xl h-11 px-6 text-sm shrink-0"
               >
                 Get Started <ArrowRight className="w-4 h-4 ml-1.5" />
               </Button>
@@ -554,7 +570,7 @@ export default function DashboardOverview() {
                 <Button
                   onClick={handleFormSubmit}
                   variant="accent"
-                  className="rounded-xl h-12 px-8 text-sm shadow-[0_0_20px_rgba(99,102,241,0.2)]"
+                  className="rounded-xl h-12 px-8 text-sm"
                 >
                   Continue to Payment{" "}
                   <ArrowRight className="w-4 h-4 ml-1.5" />
@@ -787,7 +803,7 @@ export default function DashboardOverview() {
                 <Button
                   onClick={handleUtrSubmit}
                   variant="accent"
-                  className="w-full rounded-xl h-12 text-sm shadow-[0_0_20px_rgba(99,102,241,0.2)]"
+                  className="w-full rounded-xl h-12 text-sm"
                   disabled={isSubmitting || !utrNumber.trim()}
                 >
                   {isSubmitting ? (
@@ -981,6 +997,13 @@ export default function DashboardOverview() {
                     </div>
                   </div>
 
+                  {(order as any).statusCaption && (
+                    <div className="bg-white/[0.03] border border-white/5 rounded-lg px-3 py-2 text-xs text-zinc-300 mt-2 italic">
+                      <span className="text-zinc-500 font-semibold not-italic mr-1">Latest Update:</span>
+                      {(order as any).statusCaption}
+                    </div>
+                  )}
+
                   {/* UTR Status & Submission Bar */}
                   <div className="flex flex-wrap items-center justify-between text-xs pt-1 border-t border-white/5 gap-2">
                     {order.utrNumber ? (
@@ -1138,6 +1161,8 @@ export default function DashboardOverview() {
                           currentUserId={user?.uid || ""}
                           currentUserName={user?.displayName || profile?.name || "Client"}
                           currentUserRole="user"
+                          currentUserDesignation={profile?.designation}
+                          currentUserDepartment={profile?.department}
                         />
                       )}
                     </div>
@@ -1156,23 +1181,25 @@ export default function DashboardOverview() {
             Quick Actions
           </h2>
           <div className="space-y-3">
-            <button
-              onClick={() => setStep("form")}
-              className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/10 transition-all text-left group"
-            >
-              <div className="w-9 h-9 rounded-lg bg-purple-500/10 flex items-center justify-center shrink-0">
-                <Sparkles className="w-4 h-4 text-purple-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">
-                  Start a Project
-                </p>
-                <p className="text-xs text-zinc-500">
-                  Describe your requirements & pay
-                </p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
-            </button>
+            {!hasActiveProject && (
+              <button
+                onClick={() => setStep("form")}
+                className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/10 transition-all text-left group"
+              >
+                <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
+                  <PlusCircle className="w-4 h-4 text-indigo-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-white">
+                    Start a Project
+                  </p>
+                  <p className="text-xs text-zinc-500">
+                    Describe your requirements & pay
+                  </p>
+                </div>
+                <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
+              </button>
+            )}
 
             <button
               onClick={() => router.push("/services")}

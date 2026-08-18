@@ -10,7 +10,8 @@ import { auth, db } from "@/lib/firebase";
 import { logLoginEvent } from "@/lib/logLoginEvent";
 import { Button } from "@/components/ui/Button";
 import { motion } from "framer-motion";
-import { ArrowLeft, Rocket, Globe } from "lucide-react";
+import { ArrowLeft } from "lucide-react";
+import { useAuthHero } from "@/components/auth/AuthHeroContext";
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -24,6 +25,8 @@ export default function RegisterPage() {
   const [error, setError] = useState("");
   const router = useRouter();
 
+  const { updateHeroState, heroHandleRef } = useAuthHero();
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
@@ -32,6 +35,8 @@ export default function RegisterPage() {
     e.preventDefault();
     setLoading(true);
     setError("");
+    const authStartTime = Date.now();
+    updateHeroState("authenticating");
 
     // Log register event immediately to capture attempts (IP, location, timezone, time)
     logLoginEvent({ email: formData.email, action: "register" });
@@ -67,6 +72,17 @@ export default function RegisterPage() {
         body: JSON.stringify({ action: "register", email: formData.email, status: "success" }),
       }).catch(console.error);
 
+      // Ensure the authenticating animation is visible for at least 1500ms
+      const elapsed = Date.now() - authStartTime;
+      const minVisualDelay = 1500;
+      if (elapsed < minVisualDelay) {
+        await new Promise((resolve) => setTimeout(resolve, minVisualDelay - elapsed));
+      }
+
+      if (heroHandleRef.current) {
+        await heroHandleRef.current.playSuccessSequence();
+      }
+
       const cartItem = localStorage.getItem("pending_cart");
       if (cartItem) {
         router.push("/dashboard?checkout=true");
@@ -76,78 +92,32 @@ export default function RegisterPage() {
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Failed to create account. Please try again.");
+      updateHeroState("error");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen flex bg-[#050505]">
-      {/* Left Side - Animated Branding */}
-      <div className="hidden lg:flex w-5/12 relative bg-zinc-900 border-r border-white/5 items-center justify-center overflow-hidden">
-        {/* Background Grid & Glows */}
-        <div className="absolute inset-0 bg-grid opacity-20 pointer-events-none" />
-        <div className="absolute top-1/4 -right-1/4 w-[150%] aspect-square bg-purple-500/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
-        <div className="absolute bottom-1/4 -left-1/4 w-[150%] aspect-square bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none mix-blend-screen" />
+    <div className="w-full h-full flex flex-col justify-center px-6 py-12 sm:px-12 relative bg-zinc-950 overflow-y-auto">
+      <Link href="/" className="absolute top-8 left-8 inline-flex items-center gap-2 text-zinc-400 hover:text-white transition-colors z-20">
+        <ArrowLeft className="w-4 h-4" />
+        <span className="text-xs font-bold uppercase tracking-widest">Home</span>
+      </Link>
 
-        <div className="relative z-10 w-full max-w-lg px-12 flex flex-col items-start">
-          <Link href="/" className="inline-flex items-center gap-2 text-zinc-400 hover:text-white transition-colors mb-16">
-            <ArrowLeft className="w-4 h-4" />
-            <span className="text-sm font-bold uppercase tracking-widest">Back to Home</span>
-          </Link>
-          
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-          >
-            <div className="relative w-20 h-20 mb-8 drop-shadow-[0_0_40px_rgba(255,255,255,0.2)]">
-              <Image src="/logo-v2.png" alt="Runix Logo" fill className="object-contain" />
-            </div>
-            <h1 className="font-jakarta text-5xl font-black text-white leading-tight mb-6 tracking-tight">
-              Start your journey with <br/>
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Runix</span>
-            </h1>
-            <p className="text-lg text-zinc-400 font-medium leading-relaxed max-w-md">
-              Create an account to purchase premium services and unlock your very own digital dashboard.
-            </p>
-          </motion.div>
-
-          {/* Floating Elements Animation */}
-          <motion.div 
-            animate={{ y: [0, -20, 0], rotate: [0, 10, 0] }}
-            transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute right-10 bottom-1/3 opacity-30 pointer-events-none"
-          >
-            <Globe className="w-24 h-24 text-purple-500" strokeWidth={1} />
-          </motion.div>
-          <motion.div 
-            animate={{ y: [0, 20, 0], scale: [1, 1.1, 1] }}
-            transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-            className="absolute left-10 top-1/4 opacity-30 pointer-events-none"
-          >
-            <Rocket className="w-16 h-16 text-indigo-500" strokeWidth={1} />
-          </motion.div>
-        </div>
-      </div>
-
-      {/* Right Side - Form */}
-      <div className="w-full lg:w-7/12 flex items-center justify-center p-6 sm:p-12 relative overflow-y-auto h-screen">
-        <Link href="/" className="lg:hidden absolute top-8 left-8 inline-flex items-center gap-2 text-zinc-400 hover:text-white transition-colors z-20">
-          <ArrowLeft className="w-4 h-4" />
-          <span className="text-xs font-bold uppercase tracking-widest">Home</span>
-        </Link>
-
-        <motion.div 
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
-          className="w-full max-w-xl py-20 lg:py-0"
-        >
-          <div className="text-center lg:text-left mb-10">
-            <h2 className="font-jakarta text-3xl font-bold text-white mb-3">Create an Account</h2>
-            <p className="text-zinc-400 font-medium">Join us to start building your digital future.</p>
+      <motion.div 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.6, delay: 0.2, ease: [0.16, 1, 0.3, 1] }}
+        className="w-full max-w-xl mx-auto py-20 lg:py-0"
+      >
+        <div className="text-center lg:text-left mb-10">
+          <div className="lg:hidden relative w-12 h-12 mb-6 mx-auto">
+            <Image src="/logo-v2.png" alt="Runix Logo" fill className="object-contain" />
           </div>
+          <h2 className="font-jakarta text-3xl font-bold text-white mb-3">Create an Account</h2>
+          <p className="text-zinc-400 font-medium">Join us to start building your digital future.</p>
+        </div>
 
           <form onSubmit={handleRegister} className="space-y-6">
             
@@ -173,6 +143,8 @@ export default function RegisterPage() {
                   required 
                   value={formData.email}
                   onChange={handleChange}
+                  onFocus={() => updateHeroState("email-focus")}
+                  onBlur={() => updateHeroState("idle")}
                   className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all font-medium hover:bg-white/10" 
                   placeholder="name@example.com"
                 />
@@ -216,6 +188,8 @@ export default function RegisterPage() {
                 minLength={6}
                 value={formData.password}
                 onChange={handleChange}
+                onFocus={() => updateHeroState("password-focus")}
+                onBlur={() => updateHeroState("idle")}
                 className="w-full bg-white/5 border border-white/10 rounded-xl px-5 py-4 text-white focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all font-medium hover:bg-white/10" 
                 placeholder="••••••••"
               />
@@ -228,7 +202,7 @@ export default function RegisterPage() {
               </div>
             )}
 
-            <Button type="submit" variant="default" className="w-full rounded-xl h-14 text-base shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_30px_rgba(255,255,255,0.2)] transition-all" disabled={loading}>
+            <Button type="submit" variant="default" className="w-full rounded-xl h-14 text-base transition-all" disabled={loading}>
               {loading ? "Creating Account..." : "Register Now"}
             </Button>
           </form>
@@ -241,8 +215,7 @@ export default function RegisterPage() {
               </Link>
             </p>
           </div>
-        </motion.div>
-      </div>
+      </motion.div>
     </div>
   );
 }

@@ -49,10 +49,6 @@ export default function WorkPage() {
           transition={{ duration: 1, ease: [0.16, 1, 0.3, 1] }}
           className="max-w-7xl mx-auto w-full text-center flex flex-col items-center"
         >
-          <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-white/5 border border-white/10 backdrop-blur-md mb-8">
-            <span className="text-xs font-bold text-zinc-300 uppercase tracking-[0.2em]">Portfolio</span>
-          </div>
-          
           <h1 className="font-jakarta text-6xl md:text-8xl lg:text-[9rem] text-white tracking-tighter mb-8 leading-[0.85] font-black uppercase text-glow">
             The <span className="text-transparent bg-clip-text bg-gradient-to-r from-zinc-500 to-white">Archive</span>
           </h1>
@@ -172,7 +168,7 @@ export default function WorkPage() {
             If you’ve seen a project direction you like, we can build a tailored, high-performance version for your own business or platform.
           </p>
           <Link href="/contact" className="relative z-10">
-            <Button size="lg" variant="default" className="rounded-full h-16 px-12 text-lg shadow-[0_0_30px_rgba(255,255,255,0.1)] hover:scale-105">
+            <Button size="lg" variant="default" className="rounded-full h-16 px-12 text-lg hover:scale-105">
               Discuss Your Project
             </Button>
           </Link>

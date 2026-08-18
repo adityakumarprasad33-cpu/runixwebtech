@@ -117,7 +117,7 @@ export default function ContactPage() {
             <Button
               variant="accent"
               size="lg"
-              className="rounded-full h-14 px-8 shadow-[0_0_30px_rgba(99,102,241,0.2)]"
+              className="rounded-full h-14 px-8"
             >
               Go to Dashboard <ArrowRight className="w-5 h-5 ml-2" />
             </Button>

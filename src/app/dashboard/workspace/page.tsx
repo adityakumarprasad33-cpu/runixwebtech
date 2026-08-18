@@ -112,32 +112,36 @@ export default function WorkspacePage() {
         </div>
       </motion.div>
 
-      {/* Legend */}
-      <motion.div
-        {...fadeUp}
-        className="flex flex-wrap items-center gap-3 text-[11px] px-4 py-3 rounded-xl bg-white/[0.02] border border-white/5"
-      >
-        <span className="text-zinc-500 font-medium">Room Status:</span>
-        <span className="flex items-center gap-1.5 text-emerald-400">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Unlocked (Active Project)
-        </span>
-        <span className="flex items-center gap-1.5 text-amber-400">
-          <Lock className="w-3 h-3" /> Locked (Awaiting Payment Verification)
-        </span>
-      </motion.div>
-
-      {/* Orders List */}
+      {/* Orders List & Legend */}
       {orders.length === 0 ? (
         <motion.div
           {...fadeUp}
-          className="text-center py-20 text-zinc-500 border border-white/5 rounded-2xl bg-white/[0.02]"
+          className="text-center py-24 px-6 text-zinc-500 border border-white/5 rounded-2xl bg-white/[0.02] flex flex-col items-center justify-center min-h-[300px]"
         >
-          <FolderKanban className="w-10 h-10 mx-auto mb-3 text-zinc-700" />
-          <p className="text-sm font-medium">No projects found</p>
-          <p className="text-xs mt-1">Submit a project inquiry from your dashboard to get started.</p>
+          <div className="w-16 h-16 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center mb-4">
+            <FolderKanban className="w-8 h-8 text-zinc-600" />
+          </div>
+          <p className="text-sm font-semibold text-white mb-2">No active workspaces</p>
+          <p className="text-sm">Submit a project inquiry from your dashboard to get started.</p>
         </motion.div>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          {/* Legend */}
+          <motion.div
+            {...fadeUp}
+            className="flex flex-wrap items-center gap-3 text-[11px] px-4 py-3 rounded-xl bg-white/[0.02] border border-white/5"
+          >
+            <span className="text-zinc-500 font-medium">Room Status:</span>
+            <span className="flex items-center gap-1.5 text-emerald-400">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Unlocked (Active Project)
+            </span>
+            <span className="flex items-center gap-1.5 text-amber-400">
+              <Lock className="w-3 h-3" /> Locked (Awaiting Payment Verification)
+            </span>
+          </motion.div>
+
+          <div className="space-y-4">
+
           {orders.map((order, i) => {
             const isLocked = LOCKED_STATUSES.includes(order.status);
             const isOpen = openOrderId === order.id;
@@ -195,6 +199,12 @@ export default function WorkspacePage() {
                           </span>
                         )}
                       </div>
+                      {(order as any).statusCaption && (
+                        <div className="mt-2 text-[11px] text-zinc-400 bg-white/[0.03] px-2 py-1 rounded border border-white/5 inline-block">
+                          <span className="font-semibold text-zinc-300">Latest Update: </span>
+                          {(order as any).statusCaption}
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -226,12 +236,15 @@ export default function WorkspacePage() {
                         (profile?.role === "admin" ? "Admin" : "Client")
                       }
                       currentUserRole={profile?.role === "admin" ? "admin" : "user"}
+                      currentUserDesignation={profile?.designation}
+                      currentUserDepartment={profile?.department}
                     />
                   </div>
                 )}
               </motion.div>
             );
           })}
+          </div>
         </div>
       )}
     </div>

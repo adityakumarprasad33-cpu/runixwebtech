@@ -116,8 +116,9 @@ export async function POST(req: Request) {
     await logToFirestore({ ip, action, email, status, metadata });
     return NextResponse.json({ success: true, attemptsRemaining: Math.max(0, 3 - count) });
   } catch (error) {
-    console.error("Error in check-limit API:", error);
-    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
+    console.error("Warning: check-limit rate limiter encountered an issue:", error);
+    // Fail-open so security logging / rate-limit failures do not brick legitimate login/signup
+    return NextResponse.json({ success: true, attemptsRemaining: 3, fallback: true });
   }
 }
 
