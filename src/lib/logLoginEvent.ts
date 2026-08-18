@@ -3,7 +3,7 @@ import { db } from "@/lib/firebase";
 
 interface LoginLogData {
   email: string;
-  action: "login" | "register";
+  action: "login" | "register" | "login_google" | "register_google" | string;
   userId?: string;
 }
 
