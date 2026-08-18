@@ -47,67 +47,67 @@ export function Hero3DAuth() {
   // ─── MASTER SCENE VARIANTS ───
   // Rebalanced scales and deep Z-space for strong hierarchy
   const sceneVariants: Variants = {
-    static: { rotateX: 15, rotateY: -15, rotateZ: 0, scale: 0.9 },
+    static: { rotateX: 15, rotateY: -15, rotateZ: 0, scale: 1 },
     idle: {
       rotateX: [15, 16, 14, 15],
       rotateY: [-15, -14, -16, -15],
       rotateZ: [0, 1, -1, 0],
-      scale: 0.9,
+      scale: 1,
       transition: { duration: 12, repeat: Infinity, ease: "easeInOut" }
     },
-    focusEmail: { rotateX: 12, rotateY: -10, rotateZ: -1, scale: 0.92, transition: { duration: 1, ease: "easeOut" } },
-    focusPassword: { rotateX: 18, rotateY: -20, rotateZ: 2, scale: 0.92, transition: { duration: 1, ease: "easeOut" } },
-    authenticating: { rotateX: 15, rotateY: -15, rotateZ: 0, scale: 0.9, transition: { duration: 1.5, ease: "easeInOut" } },
+    focusEmail: { rotateX: 12, rotateY: -10, rotateZ: -1, scale: 1.02, transition: { duration: 1, ease: "easeOut" } },
+    focusPassword: { rotateX: 18, rotateY: -20, rotateZ: 2, scale: 1.02, transition: { duration: 1, ease: "easeOut" } },
+    authenticating: { rotateX: 15, rotateY: -15, rotateZ: 0, scale: 1.02, transition: { duration: 1.5, ease: "easeInOut" } },
     error: { x: [-5, 5, -5, 5, 0], transition: { duration: 0.5 } },
-    burst: { rotateX: 5, rotateY: -5, rotateZ: 0, scale: 1.05, transition: { duration: 1.2, ease: "circOut" } }
+    burst: { rotateX: 5, rotateY: -5, rotateZ: 0, scale: 1.1, transition: { duration: 1.2, ease: "circOut" } }
   };
 
   // ─── LAYER 1: BLUEPRINT (z: -300) ───
   const layer1Variants: Variants = {
-    idle: { y: 200, z: -300, scale: 1.2, opacity: 0.6 },
-    focusPassword: { y: 200, z: -320, opacity: 0.8 },
-    authenticating: { y: 200, z: -300, scale: 1.2, opacity: 1, transition: { delay: 0 } },
-    burst: { y: 300, z: -400, opacity: 0 }
+    idle: { y: 160, z: -300, scale: 1.15, opacity: 0.6 },
+    focusPassword: { y: 160, z: -320, opacity: 0.8 },
+    authenticating: { y: 160, z: -300, scale: 1.15, opacity: 1, transition: { delay: 0 } },
+    burst: { y: 260, z: -400, opacity: 0 }
   };
 
   // ─── LAYER 2: TERMINAL (z: -150) ───
   const layer2Variants: Variants = {
-    idle: { x: -160, y: 80, z: -150, opacity: 0.8 },
-    focusPassword: { x: -140, y: 80, z: -100, opacity: 1 },
-    authenticating: { x: -160, y: 80, z: -150, opacity: 1, transition: { delay: 0.1 } },
-    burst: { x: -250, y: 150, z: -250, opacity: 0 }
+    idle: { x: -140, y: 70, z: -150, opacity: 0.85 },
+    focusPassword: { x: -120, y: 70, z: -100, opacity: 1 },
+    authenticating: { x: -140, y: 70, z: -150, opacity: 1, transition: { delay: 0.1 } },
+    burst: { x: -220, y: 140, z: -250, opacity: 0 }
   };
 
   // ─── LAYER 3: METRICS (z: -50) ───
   const layer3Variants: Variants = {
-    idle: { x: 140, y: 20, z: -50, opacity: 0.8 },
-    focusEmail: { x: 120, y: 20, z: -20, opacity: 1 },
-    authenticating: { x: 140, y: 20, z: -50, opacity: 1, transition: { delay: 0.2 } },
-    burst: { x: 250, y: 50, z: -150, opacity: 0 }
+    idle: { x: 130, y: 15, z: -50, opacity: 0.85 },
+    focusEmail: { x: 110, y: 15, z: -20, opacity: 1 },
+    authenticating: { x: 130, y: 15, z: -50, opacity: 1, transition: { delay: 0.2 } },
+    burst: { x: 220, y: 45, z: -150, opacity: 0 }
   };
 
   // ─── LAYER 3b: WAVE GRAPH (z: -100) ───
   const graphLayerVariants: Variants = {
-    idle: { x: 0, y: -100, z: -100, opacity: 0.3 },
-    authenticating: { x: 0, y: -100, z: -100, opacity: 0.9, transition: { delay: 0.3 } },
+    idle: { x: 0, y: -90, z: -100, opacity: 0.35 },
+    authenticating: { x: 0, y: -90, z: -100, opacity: 0.9, transition: { delay: 0.3 } },
     burst: { opacity: 0 }
   };
 
   // ─── LAYER 4: BROWSER (z: 50) - Focal Point ───
   const layer4Variants: Variants = {
-    idle: { y: -20, z: 50, scale: 0.85, opacity: 0.95 },
-    focusEmail: { y: -10, z: 80, scale: 0.88, opacity: 1 },
-    authenticating: { y: -20, z: 50, scale: 0.85, opacity: 1, transition: { delay: 0.4 } },
-    burst: { y: 0, z: 150, scale: 1, opacity: 1 }
+    idle: { y: -20, z: 50, scale: 0.9, opacity: 0.95 },
+    focusEmail: { y: -10, z: 80, scale: 0.92, opacity: 1 },
+    authenticating: { y: -20, z: 50, scale: 0.9, opacity: 1, transition: { delay: 0.4 } },
+    burst: { y: 0, z: 150, scale: 1.05, opacity: 1 }
   };
 
   // ─── LAYER 5: TRUST INDICATORS (z: 100) ───
   const layer5Variants: Variants = {
-    idle: { y: 160, z: 80, scale: 0.9, opacity: 0.7 },
-    focusEmail: { y: 170, z: 100, scale: 0.95, opacity: 1 },
-    focusPassword: { y: 170, z: 100, scale: 0.95, opacity: 1 },
-    authenticating: { y: 160, z: 80, scale: 0.9, opacity: 1, transition: { delay: 0.5 } },
-    burst: { y: 220, z: 200, scale: 1.1, opacity: 0 }
+    idle: { y: 155, z: 80, scale: 0.9, opacity: 0.7 },
+    focusEmail: { y: 165, z: 100, scale: 0.95, opacity: 1 },
+    focusPassword: { y: 165, z: 100, scale: 0.95, opacity: 1 },
+    authenticating: { y: 155, z: 80, scale: 0.9, opacity: 1, transition: { delay: 0.5 } },
+    burst: { y: 210, z: 200, scale: 1.1, opacity: 0 }
   };
 
   // ─── SECURITY PATHS (z: 0) ───
@@ -142,32 +142,32 @@ export function Hero3DAuth() {
   };
 
   return (
-    <div className="relative w-full h-full flex items-center justify-center overflow-hidden bg-[#050505]">
+    <div className="relative w-full h-full min-h-[460px] sm:min-h-[520px] lg:min-h-screen flex items-center justify-center overflow-visible bg-[#050505]">
       {/* Background Ambient Lighting */}
       <motion.div
         variants={{
           idle: { opacity: 0.4, scale: 1 },
-          authenticating: { opacity: 0.8, scale: 1.2, transition: { duration: 2 } },
-          burst: { opacity: 1, scale: 1.8, background: "rgba(99, 102, 241, 0.2)" }
+          authenticating: { opacity: 0.85, scale: 1.3, transition: { duration: 2 } },
+          burst: { opacity: 1, scale: 2, background: "rgba(99, 102, 241, 0.25)" }
         }}
         initial="idle"
         animate={animationState}
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] max-w-[800px] h-[70vh] bg-indigo-600/10 blur-[120px] rounded-full pointer-events-none"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-[900px] h-[80vh] bg-indigo-600/12 blur-[140px] rounded-full pointer-events-none"
       />
 
       {/* 3D Scene Canvas */}
-      <div className="w-full h-full relative [perspective:1400px] flex items-center justify-center pointer-events-none">
+      <div className="w-full h-full relative [perspective:1400px] sm:[perspective:1600px] flex items-center justify-center pointer-events-none overflow-visible">
         <motion.div
           variants={sceneVariants}
           initial="idle"
           animate={animationState}
-          className="relative w-full max-w-[700px] aspect-video transform-style-preserve-3d"
+          className="relative w-full max-w-[780px] h-[400px] sm:h-[460px] lg:h-[500px] transform-style-preserve-3d flex items-center justify-center"
           style={{ transformStyle: "preserve-3d" }}
         >
           {/* ─── LAYER 1: BLUEPRINT ─── */}
           <motion.div
             variants={layer1Variants}
-            className="absolute inset-0 rounded-3xl bg-zinc-900/20 border border-white/5 backdrop-blur-sm p-6 shadow-[0_30px_60px_rgba(0,0,0,0.8)] overflow-hidden"
+            className="absolute inset-2 sm:inset-0 rounded-3xl bg-zinc-900/25 border border-white/8 backdrop-blur-sm p-6 shadow-[0_30px_60px_rgba(0,0,0,0.8)] overflow-hidden"
             style={{ transformStyle: "preserve-3d" }}
           >
             <div className="absolute inset-0 bg-grid opacity-20" />

@@ -65,6 +65,13 @@ export default function Hero3DScroll() {
   const rotateZ = useTransform(smoothProgress, [0, 0.20, 0.52, 0.70, 0.85, 0.95, 1], [3, 3, 5, 5, 1, 0, 0]);
   const overallScale = useTransform(smoothProgress, [0, 0.20, 0.45, 0.56, 0.85, 0.95, 1], [0.88, 0.88, 0.88, 1.0, 1.04, 1.0, 0.98]);
 
+  // 3D Scene Opacity: on mobile hidden (0) until text disappears on scroll (0.28 -> 0.42), desktop always 1
+  const sceneOpacity = useTransform(
+    smoothProgress,
+    [0, 0.25, 0.42, 0.95, 1],
+    [isDesktop ? 1 : 0, isDesktop ? 1 : 0, 1, 1, 0.8]
+  );
+
   // ═════════════════════════════════════════════════════════════════════════
   // 6. CENTER-AXIS EXPLODED 3D LAYERS (0.55 -> 0.80 AFTER BURST REVEAL)
   // ═════════════════════════════════════════════════════════════════════════
@@ -89,8 +96,6 @@ export default function Hero3DScroll() {
   const layer4Y = useTransform(smoothProgress, [0, 0.54, 0.66, 0.76, 0.85, 1], [0, 0, -80, -80, 0, 0]);
   const layer4Z = useTransform(smoothProgress, [0, 0.54, 0.66, 0.76, 0.85, 1], [0, 0, 105, 105, 0, 0]);
 
-
-
   return (
     <div ref={containerRef} className="relative w-full h-[280vh]">
       {/* Sticky Full-Viewport Container */}
@@ -110,10 +115,8 @@ export default function Hero3DScroll() {
               y: leftColY,
               opacity: leftColOpacity,
             }}
-            className="absolute left-0 w-full max-w-lg lg:max-w-xl flex flex-col justify-center text-left z-20 pointer-events-auto"
+            className="absolute left-0 right-0 lg:right-auto mx-auto lg:mx-0 w-full max-w-lg lg:max-w-xl flex flex-col justify-center text-center lg:text-left z-20 pointer-events-auto px-2 sm:px-0"
           >
-
-
             {/* Main Headline */}
             <h1 className="font-jakarta text-5xl sm:text-6xl md:text-7xl lg:text-[4.5rem] text-white tracking-tighter mb-6 leading-[0.88] font-black uppercase">
               Digital<br />
@@ -123,12 +126,12 @@ export default function Hero3DScroll() {
             </h1>
 
             {/* Subtitle */}
-            <p className="text-base sm:text-lg text-zinc-400 max-w-md mb-8 font-medium leading-relaxed tracking-tight">
+            <p className="text-base sm:text-lg text-zinc-400 max-w-md mx-auto lg:mx-0 mb-8 font-medium leading-relaxed tracking-tight">
               We design and build bespoke websites, high-velocity web platforms, and custom dashboards engineered to scale your digital presence.
             </p>
 
             {/* CTAs */}
-            <div className="flex flex-wrap items-center gap-4 mb-10">
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-4 mb-10">
               <Link href="/contact">
                 <Button
                   size="lg"
@@ -151,8 +154,6 @@ export default function Hero3DScroll() {
 
           </motion.div>
 
-
-
           {/* ═════════════════════════════════════════════════════════════════ */}
           {/* COMPLETE 3D SCENE WRAPPER (CENTERED BOUNDING BOX) */}
           {/* ═════════════════════════════════════════════════════════════════ */}
@@ -167,9 +168,10 @@ export default function Hero3DScroll() {
               rotateY,
               rotateZ,
               scale: overallScale,
+              opacity: sceneOpacity,
               transformStyle: "preserve-3d",
             }}
-            className="absolute w-[92vw] max-w-[580px] md:max-w-[640px] xl:max-w-[720px] aspect-[16/10] [perspective:1400px] flex items-center justify-center z-15"
+            className="absolute w-[92vw] max-w-[580px] md:max-w-[640px] xl:max-w-[720px] aspect-[16/10] [perspective:1400px] flex items-center justify-center z-15 pointer-events-none"
           >
 
 
