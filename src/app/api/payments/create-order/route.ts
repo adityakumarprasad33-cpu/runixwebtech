@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminAuth } from "@/lib/server/firebase-admin";
 
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
+
 const ADDON_PRICES: Record<string, number> = {
   "addon-express": 2500,
   "addon-seo": 2000,
@@ -26,6 +29,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { success: false, error: "Please fill in all required project information." },
         { status: 400 }
+      );
+    }
+
+    if (!adminDb) {
+      return NextResponse.json(
+        {
+          success: false,
+          fallbackToClient: true,
+          error: "Firebase Admin not configured on this environment. Fallback to client checkout.",
+        },
+        { status: 200 }
       );
     }
 
