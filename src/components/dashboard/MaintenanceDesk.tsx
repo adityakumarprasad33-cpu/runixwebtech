@@ -6,13 +6,11 @@ import {
   query,
   orderBy,
   onSnapshot,
-  addDoc,
-  updateDoc,
   doc,
   getDocs,
   where,
 } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Wrench,
@@ -244,34 +242,27 @@ export default function MaintenanceDesk({
 
     setSubmittingTask(true);
     try {
-      await addDoc(collection(db, "orders", order.id, "maintenance_tasks"), {
-        title: taskTitle.trim(),
-        description: taskDescription.trim(),
-        category: taskCategory,
-        priority: taskPriority,
-        status: "investigating",
-        createdAt: new Date().toISOString(),
-        createdBy: currentUserId,
-        createdByName: currentUserName,
+      const user = auth?.currentUser;
+      const token = await user?.getIdToken();
+
+      const res = await fetch("/api/maintenance/tasks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          title: taskTitle.trim(),
+          description: taskDescription.trim(),
+          category: taskCategory,
+          priority: taskPriority,
+        }),
       });
 
-      // Notification for assigned developer / admin (No emojis)
-      const targetDevId = order.maintenanceAssignedDevId || order.assignedDeveloperId;
-      if (targetDevId) {
-        await addDoc(collection(db, "notifications"), {
-          title: `New Maintenance Task: ${taskTitle.trim()}`,
-          message: `${currentUserName} submitted a new maintenance ticket for "${order.planName || "Website"}". Priority: ${taskPriority.toUpperCase()}.`,
-          actionLink: "/dashboard/workspace",
-          actionText: "Open Maintenance Desk",
-          targetType: "user",
-          targetUserId: targetDevId,
-          targetEmail: order.maintenanceAssignedDevEmail || null,
-          senderName: currentUserName,
-          senderRole: "Client",
-          createdAt: new Date().toISOString(),
-          readBy: [],
-          clearedBy: [],
-        });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to submit task ticket.");
       }
 
       setTaskTitle("");
@@ -279,9 +270,9 @@ export default function MaintenanceDesk({
       setTaskCategory("bug_fix");
       setTaskPriority("medium");
       setIsNewTaskModalOpen(false);
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to create maintenance task:", err);
-      alert("Failed to submit task ticket.");
+      alert(err.message || "Failed to submit task ticket.");
     } finally {
       setSubmittingTask(false);
     }
@@ -290,35 +281,29 @@ export default function MaintenanceDesk({
   // Handler: Update Task Status (Dev / Admin)
   const handleUpdateTaskStatus = async (taskId: string, newStatus: MaintenanceTask["status"]) => {
     try {
-      const updatePayload: Record<string, any> = {
-        status: newStatus,
-      };
-      if (newStatus === "resolved") {
-        updatePayload.resolvedAt = new Date().toISOString();
-      }
+      const user = auth?.currentUser;
+      const token = await user?.getIdToken();
 
-      await updateDoc(doc(db, "orders", order.id, "maintenance_tasks", taskId), updatePayload);
+      const res = await fetch("/api/maintenance/tasks", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: order.id,
+          taskId,
+          status: newStatus,
+        }),
+      });
 
-      // Notify client if resolved (No emojis)
-      if (newStatus === "resolved" && order.userId) {
-        await addDoc(collection(db, "notifications"), {
-          title: "Maintenance Task Resolved",
-          message: `Your maintenance ticket on "${order.planName || "Website"}" has been marked as resolved by your dedicated engineer.`,
-          actionLink: "/dashboard/workspace",
-          actionText: "View Resolution",
-          targetType: "user",
-          targetUserId: order.userId,
-          targetEmail: order.userEmail || null,
-          senderName: currentUserName,
-          senderRole: currentUserRole === "developer" ? "Maintenance Engineer" : "Admin",
-          createdAt: new Date().toISOString(),
-          readBy: [],
-          clearedBy: [],
-        });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update status.");
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to update task status:", err);
-      alert("Failed to update status.");
+      alert(err.message || "Failed to update status.");
     }
   };
 

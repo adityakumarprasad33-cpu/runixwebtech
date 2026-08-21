@@ -32,8 +32,7 @@ import { Button } from "@/components/ui/Button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
-import { signInWithCustomToken } from "firebase/auth";
-import { addDoc, collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import Link from "next/link";
 
 interface PlanTier {
@@ -545,73 +544,33 @@ function PricingContent() {
 
     setIsSubmitting(true);
     try {
-      const rawTotal = getRawTotal(selectedPlan);
-      const discountedTotal = calculateTotal(selectedPlan);
-      const advance = calculateAdvance(selectedPlan);
-      const final = calculateFinal(selectedPlan);
       const userEmail = email.trim().toLowerCase();
 
-      let newOrderId = "";
-
-      // 1. Try creating order via Server API (with atomic coupon verification)
-      try {
-        const res = await fetch("/api/payments/create-order", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            planName: selectedPlan.name,
-            totalPrice: rawTotal,
-            advancePrice: advance,
-            finalPrice: final,
-            userId: user?.uid || null,
-            userEmail,
-            couponCode: appliedCoupon?.code || null,
-            formData: {
-              name: name.trim(),
-              email: userEmail,
-              company: company.trim(),
-              projectType: selectedPlan.name,
-              timeline,
-              details: details.trim(),
-              addons: selectedAddons,
-            },
-          }),
-        });
-
-        const contentType = res.headers.get("content-type") || "";
-        if (contentType.includes("application/json")) {
-          const data = await res.json();
-          if (data.success && data.orderId) {
-            newOrderId = data.orderId;
-            if (data.customAuthToken && !user) {
-              try {
-                await signInWithCustomToken(auth, data.customAuthToken);
-              } catch (tokenErr) {
-                console.warn("Auto sign-in notice:", tokenErr);
-              }
-            }
-          } else if (data.error && !data.fallbackToClient) {
-            console.warn("Server API error response:", data.error);
-          }
+      // Retrieve optional auth token if logged in
+      let authToken: string | null = null;
+      if (user) {
+        try {
+          authToken = await user.getIdToken();
+        } catch (e) {
+          // Token retrieval optional
         }
-      } catch (apiErr: any) {
-        console.warn("API route notice, using client fallback:", apiErr);
       }
 
-      // 2. Client-side Firestore Fallback (if server API is unconfigured / serverless cold-start)
-      if (!newOrderId) {
-        const orderData: Record<string, any> = {
-          userId: user?.uid || "GUEST_" + Date.now(),
-          userEmail,
-          planName: selectedPlan.name,
-          originalTotalPrice: rawTotal,
-          totalPrice: discountedTotal,
-          advancePrice: advance,
-          advancePaid: false,
-          finalPrice: final,
-          finalPaid: false,
-          currency: "₹",
-          status: "awaiting_advance",
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (authToken) {
+        headers["Authorization"] = `Bearer ${authToken}`;
+      }
+
+      // Authoritative Server Order Creation (Client sends only planId, addonIds, couponCode, and form data)
+      const res = await fetch("/api/payments/create-order", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          planId: selectedPlan.id,
+          addonIds: selectedAddons,
+          couponCode: appliedCoupon?.code || null,
           formData: {
             name: name.trim(),
             email: userEmail,
@@ -619,43 +578,16 @@ function PricingContent() {
             projectType: selectedPlan.name,
             timeline,
             details: details.trim(),
-            addons: selectedAddons,
           },
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
+        }),
+      });
 
-        if (appliedCoupon) {
-          orderData.couponCode = appliedCoupon.code;
-          orderData.couponId = appliedCoupon.id;
-          orderData.discountType = appliedCoupon.type;
-          orderData.discountValue = appliedCoupon.value;
-          orderData.discountAmount = getDiscountForPlan(selectedPlan);
-          orderData.discountScope = appliedCoupon.scope;
-        }
-
-        const docRef = await addDoc(collection(db, "orders"), orderData);
-        newOrderId = docRef.id;
-
-        // Also add notification for admins
-        try {
-          await addDoc(collection(db, "notifications"), {
-            title: `New Project Submitted: ${selectedPlan.name}`,
-            message: `${name.trim()} (${userEmail}) submitted a new project with Total Fee: ₹${discountedTotal.toLocaleString()} (50% Advance Due: ₹${advance.toLocaleString()}).`,
-            targetType: "admin_dev",
-            targetRoles: ["admin", "super_admin", "developer"],
-            senderName: "Project Booking Engine",
-            senderRole: "System",
-            createdAt: new Date().toISOString(),
-            readBy: [],
-            clearedBy: [],
-          });
-        } catch (notifErr) {
-          console.warn("Notification notice:", notifErr);
-        }
+      const data = await res.json();
+      if (!res.ok || !data.success || !data.orderId) {
+        throw new Error(data.error || "Failed to create project booking. Please try again.");
       }
 
-      setCreatedOrderId(newOrderId);
+      setCreatedOrderId(data.orderId);
       setCheckoutStep("payment");
     } catch (err: any) {
       console.error("Order creation error:", err);
@@ -1509,12 +1441,19 @@ function PricingContent() {
                             if (!createdOrderId) return;
                             setSubmittingUtr(true);
                             try {
-                              await updateDoc(doc(db, "orders", createdOrderId), {
-                                utrNumber: utrInput.trim(),
-                                paymentMethod: "upi_manual",
-                                status: "awaiting_verification",
-                                updatedAt: new Date().toISOString(),
+                              const res = await fetch("/api/orders/submit-utr", {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                  orderId: createdOrderId,
+                                  utrNumber: utrInput.trim(),
+                                  milestone: "advance",
+                                }),
                               });
+                              const data = await res.json();
+                              if (!res.ok || !data.success) {
+                                throw new Error(data.error || "Failed to submit UTR reference.");
+                              }
                               setCheckoutStep("success");
                             } catch (err: any) {
                               console.error("UTR submission error:", err);

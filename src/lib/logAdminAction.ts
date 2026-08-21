@@ -1,5 +1,4 @@
-import { collection, addDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase";
+import { auth } from "@/lib/firebase";
 
 interface AdminActionPayload {
   adminId: string;
@@ -10,38 +9,26 @@ interface AdminActionPayload {
 }
 
 /**
- * Logs an admin action to Firestore `admin_activity_logs` collection.
- * Also attempts to capture the admin's public IP via ipapi.co.
+ * Sends an admin audit log to the secure server API /api/admin/logs/record.
  */
 export async function logAdminAction(payload: AdminActionPayload): Promise<void> {
   try {
-    // Fetch IP + geo info (best-effort, no throw on fail)
-    let ip = "Unknown";
-    let location = "Unknown";
-    try {
-      const res = await fetch("https://ipapi.co/json/", { cache: "no-store" });
-      if (res.ok) {
-        const geo = await res.json();
-        ip = geo.ip || "Unknown";
-        location = [geo.city, geo.region, geo.country_name]
-          .filter(Boolean)
-          .join(", ") || "Unknown";
-      }
-    } catch {
-      // Silent fail — IP logging is non-critical
-    }
+    const user = auth?.currentUser;
+    if (!user) return;
+    const token = await user.getIdToken();
 
-    await addDoc(collection(db, "admin_activity_logs"), {
-      adminId: payload.adminId,
-      adminName: payload.adminName,
-      adminEmail: payload.adminEmail,
-      ip,
-      location,
-      action: payload.action,
-      details: payload.details || {},
-      timestamp: new Date().toISOString(),
+    await fetch("/api/admin/logs/record", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        action: payload.action,
+        details: payload.details || {},
+      }),
     });
   } catch (e) {
-    console.error("[logAdminAction] Failed to write audit log:", e);
+    // Non-blocking
   }
 }

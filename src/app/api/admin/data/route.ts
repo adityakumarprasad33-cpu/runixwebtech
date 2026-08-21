@@ -1,35 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
+import { adminDb } from "@/lib/server/firebase-admin";
+import { requireAuthAndPermission, Permission } from "@/lib/server/authGuard";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function GET(req: NextRequest) {
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const authResult = await requireAuthAndPermission(req, Permission.ORDER_READ_ALL);
+    if (authResult instanceof NextResponse) return authResult;
+
+    if (!adminDb) {
+      return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });
     }
 
-    const token = authHeader.split("Bearer ")[1];
-    
-    // 0. Check if admin SDK is initialized
-    if (!adminAuth || !adminDb) {
-      return NextResponse.json({ error: "Firebase Admin SDK not initialized. Missing credentials in environment variables." }, { status: 500 });
-    }
-
-    // 1. Verify token
-    const decodedToken = await adminAuth.verifyIdToken(token);
-    const uid = decodedToken.uid;
-
-    // 2. Check if user is an admin
-    const userDoc = await adminDb.collection("users").doc(uid).get();
-    if (!userDoc.exists) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-    const userData = userDoc.data();
-    if (userData?.role !== "admin" && userData?.role !== "super_admin") {
-      return NextResponse.json({ error: "Forbidden: Admins only" }, { status: 403 });
-    }
-
-    // 3. Fetch all required collections in parallel using admin SDK
+    // Fetch collections bounded and in parallel
     const [
       usersSnap,
       projectsSnap,
@@ -38,42 +23,57 @@ export async function GET(req: NextRequest) {
       adminLogsSnap,
       notificationsSnap,
       offersSnap,
-      couponsSnap
+      couponsSnap,
+      settingsSnap,
     ] = await Promise.all([
-      adminDb.collection("users").get(),
-      adminDb.collection("projects").get(),
-      adminDb.collection("orders").get(),
-      adminDb.collection("login_logs").get(),
-      adminDb.collection("admin_activity_logs").get(),
-      adminDb.collection("notifications").get(),
-      adminDb.collection("offers").get(),
-      adminDb.collection("coupons").get()
+      adminDb.collection("users").limit(100).get(),
+      adminDb.collection("projects").limit(100).get(),
+      adminDb.collection("orders").orderBy("createdAt", "desc").limit(100).get(),
+      adminDb.collection("login_logs").orderBy("timestamp", "desc").limit(50).get(),
+      adminDb.collection("admin_activity_logs").orderBy("timestamp", "desc").limit(50).get(),
+      adminDb.collection("notifications").orderBy("createdAt", "desc").limit(50).get(),
+      adminDb.collection("offers").limit(50).get(),
+      adminDb.collection("coupons").limit(50).get(),
+      adminDb.collection("settings").doc("payment").get(),
     ]);
 
-    const users = usersSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const users = usersSnap.docs.map((d: any) => ({
+      id: d.id,
+      name: d.data().name || "User",
+      email: d.data().email || "",
+      role: d.data().role || "user",
+      company: d.data().company || "",
+      activeProjectCount: d.data().activeProjectCount || 0,
+      maxProjects: d.data().maxProjects || 5,
+      createdAt: d.data().createdAt || "",
+    }));
+
     const dbProjects = projectsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
     const orders = ordersSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    const loginLogs = loginLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    const adminLogs = adminLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const logs = loginLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const activityLogs = adminLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
     const notifications = notificationsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
     const offers = offersSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
     const coupons = couponsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const paymentSettings = settingsSnap.exists ? settingsSnap.data() : null;
 
     return NextResponse.json({
       success: true,
       users,
       dbProjects,
       orders,
-      logs: loginLogs,
-      activityLogs: adminLogs,
+      logs,
+      activityLogs,
       notifications,
       offers,
-      coupons
+      coupons,
+      paymentSettings,
     });
   } catch (error: any) {
-    console.error("Admin data fetch error:", error);
+    console.error("Admin data fetch critical error:", error);
+    // Sanitize response — never leak raw internal stack trace or error.message to browser (SEC-014)
     return NextResponse.json(
-      { error: "Internal Server Error", details: error.message },
+      { success: false, error: "Internal server error while retrieving operational data." },
       { status: 500 }
     );
   }

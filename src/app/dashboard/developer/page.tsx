@@ -8,9 +8,6 @@ import {
   onSnapshot,
   query,
   where,
-  updateDoc,
-  doc,
-  addDoc,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { motion, AnimatePresence } from "framer-motion";
@@ -150,24 +147,26 @@ export default function DeveloperPortal() {
   const handleUpdateDevStage = async (orderId: string, stage: "in_progress" | "testing" | "staging_deployed") => {
     setUpdatingStageId(orderId);
     try {
-      const stageLabels: Record<string, string> = {
-        in_progress: "In Active Development 🔨",
-        testing: "Testing & Quality Assurance 🧪",
-        staging_deployed: "Staging Deployed & Review 🌐",
-      };
-
-      await updateDoc(doc(db, "orders", orderId), {
-        devStage: stage,
-        statusCaption: stageLabels[stage] || stage,
-        updatedAt: new Date().toISOString(),
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/developer/orders/update-stage", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId, stage }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update status stage");
+      }
 
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, devStage: stage, statusCaption: stageLabels[stage] } : o))
+        prev.map((o) => (o.id === orderId ? { ...o, devStage: stage, statusCaption: data.caption } : o))
       );
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to update dev stage:", e);
-      alert("Failed to update status stage");
+      alert(e.message || "Failed to update status stage");
     } finally {
       setUpdatingStageId(null);
     }
@@ -185,38 +184,25 @@ export default function DeveloperPortal() {
     try {
       const orderId = submittingWorkOrder.id;
       const stagingUrl = stagingUrlInput.trim();
-      const devName = profile?.name || user?.displayName || "Your Developer";
-      const totalAmount = submittingWorkOrder.totalPrice || submittingWorkOrder.price || 0;
-      const finalAmount =
-        submittingWorkOrder.finalPrice ||
-        (submittingWorkOrder.totalPrice
-          ? Math.round(submittingWorkOrder.totalPrice * 0.5)
-          : Math.round(totalAmount * 0.5));
+      const token = await user?.getIdToken();
 
-      await updateDoc(doc(db, "orders", orderId), {
-        status: "awaiting_final_payment",
-        stagingUrl,
-        devNotes: workNotesInput.trim() || null,
-        devCompletedAt: new Date().toISOString(),
-        statusCaption: "Work Completed — Staging Ready for Client Review 🚀",
-        updatedAt: new Date().toISOString(),
+      const res = await fetch("/api/developer/orders/submit-work", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId,
+          stagingUrl,
+          devNotes: workNotesInput.trim() || undefined,
+        }),
       });
 
-      // Send real-time notification to client
-      await addDoc(collection(db, "notifications"), {
-        title: "🚀 Project Completed by Developer — Final 50% Milestone Ready!",
-        message: `${devName} has completed the development sprint for "${submittingWorkOrder.planName}". Live staging demo is ready for review at: ${stagingUrl}. Settle the final 50% milestone (₹${finalAmount.toLocaleString()}) to unlock full code repository and handover assets.`,
-        actionLink: stagingUrl,
-        actionText: "Preview Staging",
-        targetType: "user",
-        targetUserId: submittingWorkOrder.userId || null,
-        targetEmail: submittingWorkOrder.userEmail || null,
-        senderName: devName,
-        senderRole: isDeveloper ? "Developer" : "Admin",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to submit work");
+      }
 
       setOrders((prev) =>
         prev.map((o) =>
@@ -235,9 +221,9 @@ export default function DeveloperPortal() {
       setStagingUrlInput("");
       setWorkNotesInput("");
       alert("Work submitted! The client has been notified to preview staging and settle the final 50% milestone.");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to submit work:", e);
-      alert("Failed to submit work");
+      alert(e.message || "Failed to submit work");
     } finally {
       setIsSubmittingWork(false);
     }

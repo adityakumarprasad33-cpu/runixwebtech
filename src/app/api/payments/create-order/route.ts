@@ -1,199 +1,216 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb, adminAuth } from "@/lib/server/firebase-admin";
+import { computeAuthoritativeOrderPrice, AUTHORITATIVE_ADDONS } from "@/lib/server/pricingCatalog";
+import { getTrustedClientIp } from "@/lib/server/clientIp";
+import { logSecurityEvent } from "@/lib/server/securityLogger";
+import { z } from "zod";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-const ADDON_PRICES: Record<string, number> = {
-  "addon-express": 2500,
-  "addon-seo": 2000,
-  "addon-cms": 3500,
-  "addon-paytm": 4000,
-};
+const CreateOrderSchema = z.object({
+  planId: z.string().min(1).max(50),
+  addonIds: z.array(z.string().max(50)).optional().default([]),
+  couponCode: z.string().max(50).optional().nullable(),
+  formData: z.object({
+    name: z.string().min(2).max(100),
+    email: z.string().email().max(150),
+    company: z.string().max(100).optional().default(""),
+    projectType: z.string().max(100).optional(),
+    timeline: z.string().max(50).optional().default("Within 2 weeks"),
+    details: z.string().max(2000).optional().default(""),
+  }),
+});
 
 export async function POST(req: NextRequest) {
-  try {
-    const body = await req.json();
-    const {
-      planName,
-      totalPrice: clientTotalPrice,
-      advancePrice,
-      finalPrice,
-      formData,
-      userId: passedUserId,
-      userEmail: passedUserEmail,
-      couponCode: clientCouponCode,
-    } = body;
+  const clientIp = getTrustedClientIp(req);
 
-    if (!planName || !clientTotalPrice || !formData?.name || !formData?.email) {
+  try {
+    if (!adminDb) {
       return NextResponse.json(
-        { success: false, error: "Please fill in all required project information." },
+        { success: false, error: "Order engine is temporarily unavailable. Missing backend configuration." },
+        { status: 503 }
+      );
+    }
+
+    const rawBody = await req.json();
+    const parseResult = CreateOrderSchema.safeParse(rawBody);
+
+    if (!parseResult.success) {
+      return NextResponse.json(
+        { success: false, error: "Invalid request payload. Please verify required fields.", details: parseResult.error.flatten() },
         { status: 400 }
       );
     }
 
-    if (!adminDb) {
+    const { planId, addonIds, couponCode, formData } = parseResult.data;
+    const userEmail = formData.email.trim().toLowerCase();
+
+    // 1. Authoritative Pricing Calculation (Client price inputs are completely ignored)
+    let calculated;
+    try {
+      calculated = computeAuthoritativeOrderPrice(planId, addonIds);
+    } catch (priceErr: any) {
       return NextResponse.json(
-        {
-          success: false,
-          fallbackToClient: true,
-          error: "Firebase Admin not configured on this environment. Fallback to client checkout.",
-        },
-        { status: 200 }
+        { success: false, error: priceErr.message || "Invalid package or add-on selected." },
+        { status: 400 }
       );
     }
 
-    let finalUserId = passedUserId || "";
-    let finalUserEmail = passedUserEmail || formData.email.trim().toLowerCase();
-    let customAuthToken: string | null = null;
+    const { plan, rawTotal } = calculated;
 
-    // If client is a guest (not authenticated yet), provision or fetch account seamlessly
-    if (!finalUserId && adminAuth) {
+    // 2. Authentication & Safe Account Provisioning (SEC-008 Fix)
+    // Extract optional Bearer token if user is already authenticated
+    let authenticatedUid: string | null = null;
+    const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
+    if (authHeader && authHeader.startsWith("Bearer ") && adminAuth) {
       try {
-        let userRecord;
-        try {
-          userRecord = await adminAuth.getUserByEmail(finalUserEmail);
-        } catch (e: any) {
-          if (e.code === "auth/user-not-found") {
-            // Create user account seamlessly
-            userRecord = await adminAuth.createUser({
-              email: finalUserEmail,
-              displayName: formData.name.trim(),
-              emailVerified: false,
-            });
-
-            // Store user document in Firestore
-            if (adminDb) {
-              await adminDb.collection("users").doc(userRecord.uid).set({
-                name: formData.name.trim(),
-                email: finalUserEmail,
-                role: "user",
-                company: formData.company || "",
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString(),
-              });
-            }
-          } else {
-            throw e;
-          }
-        }
-
-        finalUserId = userRecord.uid;
-        // Generate custom token so client can auto-sign-in on the frontend
-        customAuthToken = await adminAuth.createCustomToken(userRecord.uid);
+        const token = authHeader.split("Bearer ")[1].trim();
+        const decoded = await adminAuth.verifyIdToken(token);
+        authenticatedUid = decoded.uid;
       } catch (authErr) {
-        console.error("Auto account creation notice:", authErr);
+        // Unauthenticated guest checkout
       }
     }
 
-    // ── Coupon Validation & Atomic Redemption ──
-    let appliedTotalPrice = Number(clientTotalPrice);
-    let originalTotalPrice = appliedTotalPrice;
+    let finalUserId = authenticatedUid || "";
+    let customAuthToken: string | null = null;
+
+    if (!finalUserId && adminAuth) {
+      try {
+        // Check if account already exists
+        let existingUser = null;
+        try {
+          existingUser = await adminAuth.getUserByEmail(userEmail);
+        } catch (e: any) {
+          if (e.code !== "auth/user-not-found") {
+            console.error("Auth check error:", e);
+          }
+        }
+
+        if (existingUser) {
+          // SEC-008: Account exists — DO NOT mint a token for unauthenticated request
+          finalUserId = existingUser.uid;
+        } else {
+          // Account does not exist — safely create new customer account
+          const newUser = await adminAuth.createUser({
+            email: userEmail,
+            displayName: formData.name.trim(),
+            emailVerified: false,
+          });
+
+          finalUserId = newUser.uid;
+          await adminDb.collection("users").doc(newUser.uid).set({
+            name: formData.name.trim(),
+            email: userEmail,
+            role: "user",
+            company: formData.company || "",
+            activeProjectCount: 0,
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+
+          // Mint custom token exclusively for the newly created user session
+          customAuthToken = await adminAuth.createCustomToken(newUser.uid);
+        }
+      } catch (userProvisionErr) {
+        console.error("Account provisioning note:", userProvisionErr);
+      }
+    }
+
+    if (!finalUserId) {
+      finalUserId = "GUEST_" + Date.now();
+    }
+
+    // 3. Two-Phase Atomic Coupon Validation & Reservation
+    let appliedTotalPrice = rawTotal;
     let couponData: {
       couponId: string;
       code: string;
       type: string;
       value: number;
       discountAmount: number;
-      scope?: string;
+      scope: string;
     } | null = null;
 
-    if (clientCouponCode && adminDb) {
+    if (couponCode && couponCode.trim()) {
+      const cleanCouponCode = couponCode.toUpperCase().trim();
+
       try {
         const couponResult = await adminDb.runTransaction(async (transaction) => {
-          // 1. Query coupon by code
           const couponQuery = await adminDb!
             .collection("coupons")
-            .where("code", "==", clientCouponCode.toUpperCase().trim())
+            .where("code", "==", cleanCouponCode)
             .limit(1)
             .get();
 
           if (couponQuery.empty) {
-            throw new Error("Invalid coupon code. Please check and try again.");
+            throw new Error("Invalid promo code.");
           }
 
           const couponDoc = couponQuery.docs[0];
           const couponRef = couponDoc.ref;
-
-          // 2. Re-read inside transaction for consistency (prevents race conditions)
           const freshSnap = await transaction.get(couponRef);
+
           if (!freshSnap.exists) {
-            throw new Error("Coupon not found.");
+            throw new Error("Promo code not found.");
           }
+
           const freshCoupon = freshSnap.data()!;
 
-          // 3. Validate coupon
           if (!freshCoupon.isActive) {
-            throw new Error("This coupon is no longer active.");
+            throw new Error("This promo code is no longer active.");
           }
 
           const now = Date.now();
           if (freshCoupon.startDate && now < new Date(freshCoupon.startDate).getTime()) {
-            throw new Error("This coupon is not yet active.");
+            throw new Error("This promo code has not started yet.");
           }
           if (freshCoupon.endDate && now > new Date(freshCoupon.endDate).getTime()) {
-            throw new Error("This coupon has expired.");
+            throw new Error("This promo code has expired.");
           }
 
-          // Scope check: Maintenance coupons cannot be used for project build orders
           const scope = freshCoupon.scope || "all";
           if (scope === "maintenance") {
-            throw new Error("This promo code is exclusively valid for Website Maintenance Retainers.");
+            throw new Error("This promo code is exclusively for Website Maintenance Retainers.");
           }
 
-          // Usage limit check (0 = unlimited)
-          if (freshCoupon.usageLimit > 0 && (freshCoupon.usedCount || 0) >= freshCoupon.usageLimit) {
-            throw new Error("This coupon has been fully redeemed — no spots remaining.");
+          // Concurrency check: usedCount + pendingReservations < usageLimit
+          const usedCount = freshCoupon.usedCount || 0;
+          const pendingReservations = freshCoupon.pendingReservations || 0;
+          if (freshCoupon.usageLimit > 0 && usedCount + pendingReservations >= freshCoupon.usageLimit) {
+            throw new Error("This promo code has reached its maximum usage limit.");
           }
 
-          // Per-user check — no user can reuse the same coupon
-          const userIdentifier = finalUserId || finalUserEmail;
+          // Same-user reuse check
+          const userIdentifier = finalUserId || userEmail;
           if (freshCoupon.usedByUsers && freshCoupon.usedByUsers.includes(userIdentifier)) {
-            throw new Error("You have already used this coupon.");
+            throw new Error("You have already used this promo code.");
           }
 
-          // Add-on scope check
-          const selectedAddons: string[] = formData.addons || [];
+          // Scope calculation
+          let discountBaseAmount = rawTotal;
           if (scope === "addons") {
             const applicableAddons: string[] = freshCoupon.applicableAddons || ["all"];
-            const matchingSelectedAddons = applicableAddons.includes("all")
-              ? selectedAddons
-              : selectedAddons.filter((a) => applicableAddons.includes(a));
+            const matchingAddons = applicableAddons.includes("all")
+              ? addonIds
+              : addonIds.filter((a) => applicableAddons.includes(a));
 
-            if (matchingSelectedAddons.length === 0) {
-              throw new Error("This coupon is only valid when selecting applicable add-on boosters.");
+            discountBaseAmount = matchingAddons.reduce((sum, aId) => sum + (AUTHORITATIVE_ADDONS[aId]?.price || 0), 0);
+            if (matchingAddons.length === 0) {
+              throw new Error("This promo code applies only to selected add-on boosters.");
             }
           }
 
-          // Plan eligibility check
           if (scope === "plans") {
             const applicablePlans: string[] = freshCoupon.applicablePlans || ["all"];
-            if (
-              !applicablePlans.includes("all") &&
-              !applicablePlans.includes(planName.toLowerCase().trim())
-            ) {
-              throw new Error(`This coupon is not valid for the ${planName} package.`);
+            if (!applicablePlans.includes("all") && !applicablePlans.includes(planId.toLowerCase())) {
+              throw new Error(`This promo code is not valid for the ${plan.name} package.`);
             }
           }
 
-          // Minimum order value check
-          if (freshCoupon.minOrderValue && appliedTotalPrice < freshCoupon.minOrderValue) {
-            throw new Error(
-              `Minimum order of ₹${freshCoupon.minOrderValue.toLocaleString()} required for this coupon.`
-            );
-          }
-
-          // 4. Calculate discount server-side based on scope
-          let discountBaseAmount = appliedTotalPrice;
-          if (scope === "addons") {
-            const applicableAddons: string[] = freshCoupon.applicableAddons || ["all"];
-            const matchingSelectedAddons = applicableAddons.includes("all")
-              ? selectedAddons
-              : selectedAddons.filter((a) => applicableAddons.includes(a));
-            discountBaseAmount = matchingSelectedAddons.reduce(
-              (sum, addonId) => sum + (ADDON_PRICES[addonId] || 0),
-              0
-            );
+          if (freshCoupon.minOrderValue && rawTotal < freshCoupon.minOrderValue) {
+            throw new Error(`Minimum project value of ₹${freshCoupon.minOrderValue.toLocaleString()} required for this promo code.`);
           }
 
           let discount = 0;
@@ -203,17 +220,14 @@ export async function POST(req: NextRequest) {
               discount = Math.min(discount, freshCoupon.maxDiscount);
             }
           } else {
-            // flat discount
             discount = Math.min(freshCoupon.value, discountBaseAmount);
           }
 
-          // Ensure discount doesn't exceed total
-          discount = Math.min(discount, appliedTotalPrice);
+          discount = Math.min(discount, rawTotal);
 
-          // 5. ATOMIC UPDATE — increment usedCount + add user to usedByUsers
+          // Phase 1 Atomic Reservation: increment pendingReservations
           transaction.update(couponRef, {
-            usedCount: (freshCoupon.usedCount || 0) + 1,
-            usedByUsers: [...(freshCoupon.usedByUsers || []), userIdentifier],
+            pendingReservations: pendingReservations + 1,
             updatedAt: new Date().toISOString(),
           });
 
@@ -223,31 +237,30 @@ export async function POST(req: NextRequest) {
             type: freshCoupon.type as string,
             value: freshCoupon.value as number,
             discountAmount: discount,
-            scope: scope,
+            scope,
           };
         });
 
-        // Apply validated discount
         couponData = couponResult;
-        appliedTotalPrice = appliedTotalPrice - couponResult.discountAmount;
+        appliedTotalPrice = rawTotal - couponResult.discountAmount;
       } catch (couponErr: any) {
-        // Coupon validation failed — return clear error to client
         return NextResponse.json(
-          { success: false, error: couponErr.message || "Coupon validation failed." },
+          { success: false, error: couponErr.message || "Promo code validation failed." },
           { status: 400 }
         );
       }
     }
 
-    // Calculate 50/50 split on the discounted total
+    // 4. Server-Authoritative 50/50 Advance & Final Split Calculation
     const calculatedAdvance = Math.round(appliedTotalPrice * 0.5);
     const calculatedFinal = appliedTotalPrice - calculatedAdvance;
 
     const orderData: Record<string, any> = {
-      userId: finalUserId || "GUEST_" + Date.now(),
-      userEmail: finalUserEmail,
-      planName: planName.trim(),
-      originalTotalPrice: originalTotalPrice,
+      userId: finalUserId,
+      userEmail,
+      planId: plan.id,
+      planName: plan.name,
+      originalTotalPrice: rawTotal,
       totalPrice: appliedTotalPrice,
       advancePrice: calculatedAdvance,
       advancePaid: false,
@@ -257,18 +270,17 @@ export async function POST(req: NextRequest) {
       status: "awaiting_advance",
       formData: {
         name: formData.name.trim(),
-        email: finalUserEmail,
-        company: formData.company?.trim() || "",
-        projectType: formData.projectType || planName,
-        timeline: formData.timeline || "Within 2 weeks",
-        details: formData.details?.trim() || "",
-        addons: formData.addons || [],
+        email: userEmail,
+        company: formData.company || "",
+        projectType: formData.projectType || plan.name,
+        timeline: formData.timeline,
+        details: formData.details,
+        addons: addonIds,
       },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
 
-    // Attach coupon info to the order if applied
     if (couponData) {
       orderData.couponCode = couponData.code;
       orderData.couponId = couponData.couponId;
@@ -276,37 +288,40 @@ export async function POST(req: NextRequest) {
       orderData.discountValue = couponData.value;
       orderData.discountAmount = couponData.discountAmount;
       orderData.discountScope = couponData.scope;
+      orderData.couponReservedAt = new Date().toISOString();
     }
 
-    let orderId = "";
-    if (adminDb) {
-      const docRef = await adminDb.collection("orders").add(orderData);
-      orderId = docRef.id;
+    const docRef = await adminDb.collection("orders").add(orderData);
+    const orderId = docRef.id;
 
-      // Build notification message with coupon info if applicable
-      const couponNotice = couponData
-        ? ` | Coupon: ${couponData.code} (−₹${couponData.discountAmount.toLocaleString()})`
-        : "";
+    // Create server-side notification for operations team
+    await adminDb.collection("notifications").add({
+      title: `New Project Booking: ${plan.name}`,
+      message: `${formData.name} (${userEmail}) configured a ${plan.name} build (Total: ₹${appliedTotalPrice.toLocaleString()}, 50% Advance: ₹${calculatedAdvance.toLocaleString()}).`,
+      targetType: "admin_dev",
+      targetRoles: ["admin", "super_admin", "developer"],
+      senderName: "Booking Engine",
+      senderRole: "System",
+      createdAt: new Date().toISOString(),
+      readBy: [],
+      clearedBy: [],
+    });
 
-      // Create notification for admin & developers only (No emojis)
-      await adminDb.collection("notifications").add({
-        title: `New Project Submitted: ${planName}`,
-        message: `${formData.name} (${finalUserEmail}) submitted a new project with Total Fee: ₹${appliedTotalPrice.toLocaleString()} (50% Advance Due: ₹${calculatedAdvance.toLocaleString()})${couponNotice}.`,
-        targetType: "admin_dev",
-        targetRoles: ["admin", "super_admin", "developer"],
-        senderName: "Project Booking Engine",
-        senderRole: "System",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
-    }
+    await logSecurityEvent({
+      action: "order:create",
+      actorUid: finalUserId,
+      actorEmail: userEmail,
+      resourceId: orderId,
+      status: "success",
+      ip: clientIp,
+      metadata: { planId, appliedTotalPrice, calculatedAdvance, hasCoupon: !!couponData },
+    });
 
     return NextResponse.json({
       success: true,
       orderId,
       totalPrice: appliedTotalPrice,
-      originalTotalPrice: originalTotalPrice,
+      originalTotalPrice: rawTotal,
       advancePrice: calculatedAdvance,
       finalPrice: calculatedFinal,
       customAuthToken,
@@ -321,9 +336,16 @@ export async function POST(req: NextRequest) {
         : null,
     });
   } catch (error: any) {
-    console.error("Create order API error:", error);
+    console.error("Create order critical failure:", error);
+    await logSecurityEvent({
+      action: "order:create",
+      status: "failed",
+      ip: clientIp,
+      reason: error?.message || "Internal error",
+    });
+
     return NextResponse.json(
-      { success: false, error: error?.message || "Failed to create order" },
+      { success: false, error: "Failed to create project booking. Please try again or contact support." },
       { status: 500 }
     );
   }

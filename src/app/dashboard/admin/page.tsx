@@ -261,28 +261,19 @@ export default function AdminPanel() {
   ) => {
     setAssigningMaintLoading(true);
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        maintenanceAssignedDevId: devId,
-        maintenanceAssignedDevName: devName,
-        maintenanceAssignedDevEmail: devEmail,
-        maintenanceAssignedAt: new Date().toISOString(),
-        maintenanceAssignmentMode: "manual_admin",
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/orders/assign-developer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId, developerId: devId }),
       });
-
-      await addDoc(collection(db, "notifications"), {
-        title: "🛠️ Assigned as Maintenance Engineer!",
-        message: `You have been manually assigned by Admin as the Maintenance Engineer for "${order.planName || "Website"}".`,
-        actionLink: "/dashboard/workspace",
-        actionText: "Open Maintenance Desk",
-        targetType: "user",
-        targetUserId: devId,
-        targetEmail: devEmail || null,
-        senderName: user?.displayName || "Admin",
-        senderRole: "Admin",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to assign developer");
+      }
 
       setOrders((prev) =>
         prev.map((o) =>
@@ -299,9 +290,9 @@ export default function AdminPanel() {
 
       setAssigningMaintDevOrderId(null);
       alert(`Maintenance Engineer ${devName} assigned successfully!`);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to assign maintenance dev:", e);
-      alert("Failed to assign maintenance developer.");
+      alert(e.message || "Failed to assign maintenance developer.");
     } finally {
       setAssigningMaintLoading(false);
     }
@@ -309,16 +300,21 @@ export default function AdminPanel() {
 
   const handleGrantMaintenanceCoverage = async (order: any) => {
     try {
-      const expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-      await updateDoc(doc(db, "orders", order.id), {
-        maintenanceActive: true,
-        maintenanceExpiresAt: expirationDate,
-        maintenancePaid: true,
-        maintenancePaidAt: new Date().toISOString(),
-        maintenanceAmount: 1999,
-        maintenanceAssignmentMode: "admin_granted",
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/orders/grant-maintenance", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId: order.id, days: 30 }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to grant maintenance");
+      }
 
+      const expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
       setOrders((prev) =>
         prev.map((o) =>
           o.id === order.id
@@ -333,18 +329,28 @@ export default function AdminPanel() {
       );
 
       alert("30-Day Maintenance Retainer granted successfully!");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to grant maintenance coverage:", e);
-      alert("Failed to grant maintenance coverage.");
+      alert(e.message || "Failed to grant maintenance coverage.");
     }
   };
 
   const handleSaveUtr = async (orderId: string) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        utrNumber: editUtrValue.trim(),
-        status: "awaiting_verification",
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/orders/update-status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId, status: "awaiting_verification" }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update UTR");
+      }
+
       setOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
@@ -354,17 +360,33 @@ export default function AdminPanel() {
       );
       setEditingUtrOrderId(null);
       setEditUtrValue("");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to update UTR:", e);
-      alert("Failed to update UTR");
+      alert(e.message || "Failed to update UTR");
     }
   };
 
   const handleSaveCaption = async (orderId: string) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        statusCaption: captionValue.trim(),
+      const currentOrder = orders.find((o) => o.id === orderId);
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/orders/update-status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId,
+          status: currentOrder?.status || "in_progress",
+          statusCaption: captionValue.trim(),
+        }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update status caption");
+      }
+
       setOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
@@ -374,9 +396,9 @@ export default function AdminPanel() {
       );
       setEditingCaptionOrderId(null);
       setCaptionValue("");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to update caption:", e);
-      alert("Failed to update status caption");
+      alert(e.message || "Failed to update status caption");
     }
   };
 
@@ -691,20 +713,32 @@ export default function AdminPanel() {
   const handleSavePaymentSettings = async () => {
     setSavingPayment(true);
     try {
-      await setDoc(doc(db, "settings", "payment"), {
-        paymentMode,
-        upiId,
-        upiName,
-        upiNumber,
-        qrCodeUrl,
-        paymentInstructions,
-        updatedAt: new Date().toISOString(),
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/settings/payment", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          paymentMode,
+          upiId,
+          upiName,
+          upiNumber,
+          qrCodeUrl,
+          paymentInstructions,
+        }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to save payment settings");
+      }
+
       setPaymentSaved(true);
       setTimeout(() => setPaymentSaved(false), 3000);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to save payment settings:", e);
-      alert("Failed to save payment settings");
+      alert(e.message || "Failed to save payment settings");
     } finally {
       setSavingPayment(false);
     }
@@ -824,67 +858,41 @@ export default function AdminPanel() {
       const offerData = {
         title: offerForm.title.trim(),
         description: offerForm.description.trim(),
-        imageUrl: offerForm.imageUrl.trim() || null,
-        discountBadge: offerForm.discountBadge.trim() || null,
-        promoCode: offerForm.promoCode.trim().toUpperCase() || null,
+        imageUrl: offerForm.imageUrl.trim() || "",
+        discountBadge: offerForm.discountBadge.trim() || "",
+        promoCode: offerForm.promoCode.trim().toUpperCase() || "",
         actionLink: offerForm.actionLink.trim() || "/dashboard",
         buttonText: offerForm.buttonText.trim() || "Claim Offer",
         startDate: new Date(offerForm.startDate).toISOString(),
         endDate: new Date(offerForm.endDate).toISOString(),
         targetType: offerForm.targetType,
-        targetUserId: offerForm.targetType === "user" ? offerForm.targetUserId : null,
-        targetEmail: offerForm.targetType === "user" ? targetUserObj?.email || offerForm.targetEmail || null : null,
+        targetUserId: offerForm.targetType === "user" ? offerForm.targetUserId : undefined,
+        targetEmail: offerForm.targetType === "user" ? targetUserObj?.email || offerForm.targetEmail || undefined : undefined,
         isActive: offerForm.isActive,
-        createdBy: user?.displayName || profile?.name || "Admin",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
 
-      const docRef = await addDoc(collection(db, "offers"), offerData);
-      setOffers((prev) => dedupeById([{ id: docRef.id, ...offerData }, ...prev]));
-
-      // Automatically dispatch notification if checked
-      if (offerForm.sendNotification) {
-        await addDoc(collection(db, "notifications"), {
-          title: `🔥 Special Offer: ${offerForm.title.trim()}`,
-          message: offerForm.description.trim(),
-          imageUrl: offerForm.imageUrl.trim() || null,
-          actionLink: "/dashboard/offers",
-          actionText: "View Offer Details",
-          targetType: offerForm.targetType,
-          targetUserId: offerForm.targetType === "user" ? offerForm.targetUserId : null,
-          targetEmail: offerForm.targetType === "user" ? targetUserObj?.email || null : null,
-          senderName: user?.displayName || profile?.name || "Admin",
-          senderRole: "Admin",
-          senderDesignation: profile?.designation || null,
-          senderDepartment: profile?.department || null,
-          senderEmail: user?.email || "",
-          createdAt: new Date().toISOString(),
-          readBy: [],
-          clearedBy: [],
-        });
-      }
-
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "CREATED_OFFER",
-        details: {
-          offerId: docRef.id,
-          title: offerForm.title,
-          targetType: offerForm.targetType,
-          discountBadge: offerForm.discountBadge,
-          sendNotification: offerForm.sendNotification,
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/offers", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify(offerData),
       });
 
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to create offer");
+      }
+
+      setOffers((prev) => dedupeById([{ id: data.id, ...offerData }, ...prev]));
       setOfferForm(defaultOfferForm);
       setShowAddOfferModal(false);
       alert("Offer created and published successfully!");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to create offer:", e);
-      alert("Failed to create offer");
+      alert(e.message || "Failed to create offer");
     } finally {
       setIsSubmittingOffer(false);
     }
@@ -893,41 +901,48 @@ export default function AdminPanel() {
   const handleDeleteOffer = async (offerId: string, title: string) => {
     if (!confirm(`Are you sure you want to delete offer "${title}"? This cannot be undone.`)) return;
     try {
-      await deleteDoc(doc(db, "offers", offerId));
-      setOffers((prev) => prev.filter((o) => o.id !== offerId));
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "DELETED_OFFER",
-        details: { offerId, title },
+      const token = await user?.getIdToken();
+      const res = await fetch(`/api/admin/offers?id=${offerId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
-    } catch (e) {
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete offer");
+      }
+
+      setOffers((prev) => prev.filter((o) => o.id !== offerId));
+    } catch (e: any) {
       console.error("Failed to delete offer:", e);
-      alert("Failed to delete offer");
+      alert(e.message || "Failed to delete offer");
     }
   };
 
   const handleToggleOfferStatus = async (offerId: string, currentStatus: boolean, title: string) => {
     try {
       const nextStatus = !currentStatus;
-      await updateDoc(doc(db, "offers", offerId), {
-        isActive: nextStatus,
-        updatedAt: new Date().toISOString(),
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/offers", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: offerId, isActive: nextStatus }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update offer status");
+      }
+
       setOffers((prev) =>
         prev.map((o) => (o.id === offerId ? { ...o, isActive: nextStatus } : o))
       );
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "TOGGLED_OFFER_STATUS",
-        details: { offerId, title, isActive: nextStatus },
-      });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to toggle offer status:", e);
-      alert("Failed to update offer status");
+      alert(e.message || "Failed to update offer status");
     }
   };
 
@@ -947,17 +962,6 @@ export default function AdminPanel() {
     try {
       const normalizedCode = couponForm.code.trim().toUpperCase();
 
-      // Check uniqueness
-      const existingSnap = await getDocs(collection(db, "coupons"));
-      const isDuplicate = existingSnap.docs.some(
-        (d) => d.data().code === normalizedCode
-      );
-      if (isDuplicate) {
-        alert(`Coupon code "${normalizedCode}" already exists. Please use a different code.`);
-        setIsSubmittingCoupon(false);
-        return;
-      }
-
       const couponData = {
         code: normalizedCode,
         type: couponForm.type,
@@ -968,42 +972,33 @@ export default function AdminPanel() {
         applicablePlans: couponForm.scope === "plans" ? couponForm.applicablePlans : ["all"],
         applicableAddons: couponForm.scope === "addons" ? couponForm.applicableAddons : ["all"],
         usageLimit: couponForm.usageLimitMode === "unlimited" ? 0 : Number(couponForm.usageLimit) || 1,
-        usedCount: 0,
-        perUserLimit: 1,
-        usedByUsers: [],
-        showAsBanner: couponForm.showAsBanner,
-        bannerText: couponForm.showAsBanner ? couponForm.bannerText.trim() : "",
         isActive: couponForm.isActive,
         startDate: new Date(couponForm.startDate).toISOString(),
         endDate: new Date(couponForm.endDate).toISOString(),
-        createdBy: user?.displayName || profile?.name || "Admin",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
       };
 
-      const docRef = await addDoc(collection(db, "coupons"), couponData);
-      setCoupons((prev) => dedupeById([{ id: docRef.id, ...couponData }, ...prev]));
-
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "CREATED_COUPON",
-        details: {
-          couponId: docRef.id,
-          code: normalizedCode,
-          type: couponForm.type,
-          value: couponForm.value,
-          usageLimit: couponData.usageLimit,
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/coupons", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
+        body: JSON.stringify(couponData),
       });
 
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to create coupon");
+      }
+
+      setCoupons((prev) => dedupeById([{ id: data.id, ...couponData, usedCount: 0 }, ...prev]));
       setCouponForm(defaultCouponForm);
       setShowAddCouponModal(false);
       alert(`Coupon "${normalizedCode}" created successfully!`);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to create coupon:", e);
-      alert("Failed to create coupon");
+      alert(e.message || "Failed to create coupon");
     } finally {
       setIsSubmittingCoupon(false);
     }
@@ -1012,118 +1007,99 @@ export default function AdminPanel() {
   const handleDeleteCoupon = async (couponId: string, code: string) => {
     if (!confirm(`Are you sure you want to delete coupon "${code}"? This cannot be undone.`)) return;
     try {
-      await deleteDoc(doc(db, "coupons", couponId));
-      setCoupons((prev) => prev.filter((c) => c.id !== couponId));
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "DELETED_COUPON",
-        details: { couponId, code },
+      const token = await user?.getIdToken();
+      const res = await fetch(`/api/admin/coupons?id=${couponId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
-    } catch (e) {
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete coupon");
+      }
+
+      setCoupons((prev) => prev.filter((c) => c.id !== couponId));
+    } catch (e: any) {
       console.error("Failed to delete coupon:", e);
-      alert("Failed to delete coupon");
+      alert(e.message || "Failed to delete coupon");
     }
   };
 
   const handleToggleCouponStatus = async (couponId: string, currentStatus: boolean, code: string) => {
     try {
       const nextStatus = !currentStatus;
-      await updateDoc(doc(db, "coupons", couponId), {
-        isActive: nextStatus,
-        updatedAt: new Date().toISOString(),
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/coupons", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ id: couponId, isActive: nextStatus }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update coupon status");
+      }
+
       setCoupons((prev) =>
         prev.map((c) => (c.id === couponId ? { ...c, isActive: nextStatus } : c))
       );
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "TOGGLED_COUPON_STATUS",
-        details: { couponId, code, isActive: nextStatus },
-      });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to toggle coupon status:", e);
-      alert("Failed to update coupon status");
+      alert(e.message || "Failed to update coupon status");
     }
   };
 
-  const handleUpdateOrderStatus = async (orderId: string, newStatus: string, userEmail?: string, userId?: string) => {
+  const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), { status: newStatus });
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/orders/update-status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId, status: newStatus }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update order status");
+      }
+
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, status: newStatus } : o))
       );
-
-      // Send system notification to user
-      const statusLabel = newStatus === "completed" ? "Approved & Activated" : newStatus === "in_progress" ? "Approved (In Progress)" : "Rejected";
-      await addDoc(collection(db, "notifications"), {
-        title: `Payment ${statusLabel}`,
-        message: `Your project payment has been marked as ${statusLabel.toLowerCase()}. Check your dashboard for details.`,
-        targetType: "user",
-        targetUserId: userId || null,
-        targetEmail: userEmail || null,
-        senderName: user?.displayName || profile?.name || "Admin",
-        senderRole: "Admin",
-        senderDesignation: profile?.designation || null,
-        senderDepartment: profile?.department || null,
-        senderEmail: user?.email || "",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
-      // Audit log
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: newStatus === "rejected" ? "REJECTED_PAYMENT" : "APPROVED_PAYMENT",
-        details: { orderId, newStatus, targetUserId: userId, targetEmail: userEmail },
-      });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to update order status:", e);
-      alert("Failed to update order status");
+      alert(e.message || "Failed to update order status");
     }
   };
 
-  const handleVerifyAdvance = async (orderId: string, userEmail?: string, userId?: string, planName?: string, advanceAmount?: number) => {
+  const handleVerifyAdvance = async (orderId: string) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        advancePaid: true,
-        status: "in_progress",
-        advanceVerifiedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/orders/verify-advance", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to verify advance payment");
+      }
+
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, advancePaid: true, status: "in_progress" } : o))
       );
-
-      await addDoc(collection(db, "notifications"), {
-        title: "⚡ 50% Advance Verified — Development Started!",
-        message: `Your advance payment of ₹${advanceAmount?.toLocaleString() || ""} for "${planName || "Project"}" has been verified. Our developers are actively building your project sprint.`,
-        targetType: "user",
-        targetUserId: userId || null,
-        targetEmail: userEmail || null,
-        senderName: user?.displayName || profile?.name || "Admin",
-        senderRole: "Admin",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
-
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "VERIFIED_ADVANCE_PAYMENT",
-        details: { orderId, planName, targetEmail: userEmail },
-      });
       alert("50% Advance verified! Project marked in progress.");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to verify advance payment:", e);
-      alert("Failed to verify advance payment");
+      alert(e.message || "Failed to verify advance payment");
     }
   };
 
@@ -1146,109 +1122,40 @@ export default function AdminPanel() {
   const handleAssignDeveloper = async (orderId: string, devId: string, devName: string, devEmail: string, order: any) => {
     setAssigningDevLoading(true);
     try {
-      const oldDevId = order.assignedDeveloperId;
-
-      // Update order document
-      await updateDoc(doc(db, "orders", orderId), {
-        assignedDeveloperId: devId,
-        assignedDeveloperName: devName,
-        assignedDeveloperEmail: devEmail,
-        assignedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      const oldDevId = order?.assignedDeveloperId;
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/orders/assign-developer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ orderId, developerId: devId }),
       });
-
-      // Increment new developer's active project count
-      const devDoc = await getDoc(doc(db, "users", devId));
-      const currentCount = devDoc.data()?.activeProjectCount || 0;
-      await updateDoc(doc(db, "users", devId), {
-        activeProjectCount: currentCount + 1,
-      });
-
-      // Decrement old developer's active project count (if reassigning) & notify old dev
-      if (oldDevId && oldDevId !== devId) {
-        const oldDevDoc = await getDoc(doc(db, "users", oldDevId));
-        const oldCount = oldDevDoc.data()?.activeProjectCount || 0;
-        await updateDoc(doc(db, "users", oldDevId), {
-          activeProjectCount: Math.max(0, oldCount - 1),
-        });
-        setUsers((prev: any[]) =>
-          prev.map((u: any) => u.id === oldDevId ? { ...u, activeProjectCount: Math.max(0, oldCount - 1) } : u)
-        );
-
-        // Notify previous developer
-        await addDoc(collection(db, "notifications"), {
-          title: "ℹ️ Project Reassigned by Admin",
-          message: `Project "${order.planName}" has been transferred to another developer. Your active workload capacity has been updated.`,
-          targetType: "user",
-          targetUserId: oldDevId,
-          targetEmail: order.assignedDeveloperEmail || null,
-          senderName: user?.displayName || profile?.name || "Admin",
-          senderRole: "Admin",
-          createdAt: new Date().toISOString(),
-          readBy: [],
-          clearedBy: [],
-        });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to assign developer");
       }
 
-      // Update local state
       setOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
-            ? { ...o, assignedDeveloperId: devId, assignedDeveloperName: devName, assignedDeveloperEmail: devEmail, assignedAt: new Date().toISOString() }
+            ? {
+                ...o,
+                assignedDeveloperId: devId,
+                assignedDeveloperName: devName,
+                assignedDeveloperEmail: devEmail,
+                assignedAt: new Date().toISOString(),
+              }
             : o
         )
       );
-      setUsers((prev: any[]) =>
-        prev.map((u: any) => u.id === devId ? { ...u, activeProjectCount: currentCount + 1 } : u)
-      );
-
-      // Notify new developer
-      await addDoc(collection(db, "notifications"), {
-        title: "🛠️ New Project Assigned to You!",
-        message: `You have been assigned to "${order.planName}". Check your Developer Portal & Workspace to collaborate.`,
-        actionLink: "/dashboard/developer",
-        actionText: "Open Dev Portal",
-        targetType: "user",
-        targetUserId: devId,
-        targetEmail: devEmail,
-        senderName: user?.displayName || profile?.name || "Admin",
-        senderRole: "Admin",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
-
-      // Notify client
-      if (order.userId || order.userEmail) {
-        await addDoc(collection(db, "notifications"), {
-          title: "👨‍💻 Lead Developer Assigned to Your Project!",
-          message: `${devName} has been assigned to develop your project "${order.planName}". You can communicate directly and share requirements in your Developer Workspace.`,
-          actionLink: "/dashboard/workspace",
-          actionText: "Open Workspace",
-          targetType: "user",
-          targetUserId: order.userId || null,
-          targetEmail: order.userEmail || order.email || null,
-          senderName: user?.displayName || profile?.name || "Admin",
-          senderRole: "Admin",
-          createdAt: new Date().toISOString(),
-          readBy: [],
-          clearedBy: [],
-        });
-      }
-
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: oldDevId ? "TRANSFERRED_DEVELOPER" : "ASSIGNED_DEVELOPER",
-        details: { orderId, developerId: devId, developerEmail: devEmail, planName: order.planName, previousDeveloperId: oldDevId || null },
-      });
 
       setAssigningDevOrderId(null);
       alert(oldDevId ? `Project successfully transferred to ${devName}!` : `Project assigned to ${devName}!`);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to assign developer:", e);
-      alert("Failed to assign developer");
+      alert(e.message || "Failed to assign developer");
     } finally {
       setAssigningDevLoading(false);
     }
@@ -1263,48 +1170,35 @@ export default function AdminPanel() {
     try {
       const orderId = stagingModalOrder.id;
       const stagingUrl = stagingInputUrl.trim();
-      const finalAmount = stagingModalOrder.finalPrice || (stagingModalOrder.totalPrice ? Math.round(stagingModalOrder.totalPrice * 0.5) : 0);
+      const token = await user?.getIdToken();
 
-      await updateDoc(doc(db, "orders", orderId), {
-        stagingUrl,
-        status: "awaiting_final_payment",
-        stagingDeployedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+      const res = await fetch("/api/admin/orders/update-status", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId,
+          status: "awaiting_final_payment",
+          statusCaption: "Work Completed — Staging Ready for Client Review 🚀",
+        }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to update staging deployment");
+      }
 
       setOrders((prev) =>
         prev.map((o) => (o.id === orderId ? { ...o, stagingUrl, status: "awaiting_final_payment" } : o))
       );
 
-      await addDoc(collection(db, "notifications"), {
-        title: "🚀 Live Staging Demo Ready for Review!",
-        message: `Your project "${stagingModalOrder.planName}" is built and ready for preview at: ${stagingUrl}. Please review and settle the final 50% milestone (₹${finalAmount.toLocaleString()}) to release full code & deployment handover.`,
-        actionLink: stagingUrl,
-        actionText: "Preview Demo",
-        targetType: "user",
-        targetUserId: stagingModalOrder.userId || null,
-        targetEmail: stagingModalOrder.userEmail || null,
-        senderName: user?.displayName || profile?.name || "Admin",
-        senderRole: "Admin",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
-
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "DEPLOYED_STAGING_DEMO",
-        details: { orderId, stagingUrl, planName: stagingModalOrder.planName },
-      });
-
       setStagingModalOrder(null);
       setStagingInputUrl("");
       alert("Staging link attached and final payment requested from client!");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to deploy staging:", e);
-      alert("Failed to update order with staging link");
+      alert(e.message || "Failed to update order with staging link");
     } finally {
       setDeployingStaging(false);
     }
@@ -1315,18 +1209,20 @@ export default function AdminPanel() {
     setCompletingHandover(true);
     try {
       const orderId = handoverModalOrder.id;
-      await updateDoc(doc(db, "orders", orderId), {
-        finalPaid: true,
-        status: "completed",
-        handoverLinks: {
-          githubRepo: handoverForm.githubRepo.trim() || null,
-          liveUrl: handoverForm.liveUrl.trim() || null,
-          driveZip: handoverForm.driveZip.trim() || null,
+      const token = await user?.getIdToken();
+
+      const res = await fetch("/api/admin/orders/verify-final", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
         },
-        handoverNotes: handoverForm.handoverNotes.trim() || null,
-        completedAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        body: JSON.stringify({ orderId }),
       });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to complete handover");
+      }
 
       setOrders((prev) =>
         prev.map((o) =>
@@ -1346,55 +1242,12 @@ export default function AdminPanel() {
         )
       );
 
-      // Auto-decrement assigned developer's active project count
-      if (handoverModalOrder.assignedDeveloperId) {
-        try {
-          const devDoc = await getDoc(doc(db, "users", handoverModalOrder.assignedDeveloperId));
-          const devCount = devDoc.data()?.activeProjectCount || 0;
-          await updateDoc(doc(db, "users", handoverModalOrder.assignedDeveloperId), {
-            activeProjectCount: Math.max(0, devCount - 1),
-          });
-          setUsers((prev: any[]) =>
-            prev.map((u: any) =>
-              u.id === handoverModalOrder.assignedDeveloperId
-                ? { ...u, activeProjectCount: Math.max(0, devCount - 1) }
-                : u
-            )
-          );
-        } catch (devErr) {
-          console.warn("Failed to decrement developer capacity:", devErr);
-        }
-      }
-
-      await addDoc(collection(db, "notifications"), {
-        title: "🎁 Project Handover Complete & Assets Released!",
-        message: `Your final milestone for "${handoverModalOrder.planName}" is settled and verified. All source code repositories, deployment links, and project files are now unlocked in your workspace!`,
-        actionLink: "/dashboard",
-        actionText: "View Handover Assets",
-        targetType: "user",
-        targetUserId: handoverModalOrder.userId || null,
-        targetEmail: handoverModalOrder.userEmail || null,
-        senderName: user?.displayName || profile?.name || "Admin",
-        senderRole: "Admin",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
-
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "COMPLETED_PROJECT_HANDOVER",
-        details: { orderId, planName: handoverModalOrder.planName, assignedDeveloperId: handoverModalOrder.assignedDeveloperId || null },
-      });
-
       setHandoverModalOrder(null);
       setHandoverForm({ githubRepo: "", liveUrl: "", driveZip: "", handoverNotes: "" });
       alert("Project marked completed and handover assets unlocked for client!");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to complete handover:", e);
-      alert("Failed to complete project handover");
+      alert(e.message || "Failed to complete project handover");
     } finally {
       setCompletingHandover(false);
     }
@@ -1462,18 +1315,22 @@ export default function AdminPanel() {
     )
       return;
     try {
-      await deleteDoc(doc(db, "projects", projectId));
-      setDbProjects((prev) => prev.filter((p) => p.id !== projectId));
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "DELETED_PROJECT",
-        details: { projectId, title },
+      const token = await user?.getIdToken();
+      const res = await fetch(`/api/admin/projects?id=${projectId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
-    } catch (e) {
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to delete project");
+      }
+
+      setDbProjects((prev) => prev.filter((p) => p.id !== projectId));
+    } catch (e: any) {
       console.error(e);
-      alert("Failed to delete project");
+      alert(e.message || "Failed to delete project");
     }
   };
 
@@ -1494,30 +1351,36 @@ export default function AdminPanel() {
     setIsSubmitting(true);
     try {
       const projectData = {
-        title: projectForm.title,
-        slug: projectForm.slug,
-        description: projectForm.description,
-        websiteLink: projectForm.websiteLink,
-        status: projectForm.status,
-        createdAt: new Date().toISOString(),
+        title: projectForm.title.trim(),
+        category: projectForm.status || "Web Application",
+        description: projectForm.description.trim(),
+        client: projectForm.websiteLink.trim(),
       };
-      await setDoc(doc(db, "projects", projectForm.slug), projectData);
+
+      const token = await user?.getIdToken();
+      const res = await fetch("/api/admin/projects", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(projectData),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Failed to add project");
+      }
+
       setDbProjects((prev) => [
         ...prev,
-        { id: projectForm.slug, ...projectData },
+        { id: data.id, ...projectData },
       ]);
-      logAdminAction({
-        adminId: user?.uid || "",
-        adminName: user?.displayName || profile?.name || "Admin",
-        adminEmail: user?.email || "",
-        action: "ADDED_PROJECT",
-        details: { slug: projectForm.slug, title: projectForm.title },
-      });
       setProjectForm(emptyProject);
       setShowAddModal(false);
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      alert("Failed to add project");
+      alert(e.message || "Failed to add project");
     } finally {
       setIsSubmitting(false);
     }
@@ -2675,7 +2538,7 @@ export default function AdminPanel() {
                           {/* 1. Advance Verification Button */}
                           {!isAdvancePaid && o.status !== "rejected" && (
                             <button
-                              onClick={() => handleVerifyAdvance(o.id, o.userEmail || o.email, o.userId, o.planName, advanceAmount)}
+                              onClick={() => handleVerifyAdvance(o.id)}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition-all cursor-pointer shadow-md"
                             >
                               <Check className="w-3.5 h-3.5" /> Verify 50% Advance
@@ -3770,10 +3633,19 @@ export default function AdminPanel() {
                               onClick={async () => {
                                 setPromotingUser(u.id);
                                 try {
-                                  await updateDoc(doc(db, "users", u.id), { role: "developer", activeProjectCount: u.activeProjectCount || 0, maxProjects: u.maxProjects || 5 });
+                                  const token = await user?.getIdToken();
+                                  const res = await fetch("/api/admin/users", {
+                                    method: "PUT",
+                                    headers: {
+                                      "Content-Type": "application/json",
+                                      Authorization: `Bearer ${token}`,
+                                    },
+                                    body: JSON.stringify({ targetUserId: u.id, role: "developer" }),
+                                  });
+                                  const data = await res.json();
+                                  if (!res.ok || !data.success) throw new Error(data.error);
                                   setUsers((prev: any[]) => prev.map((x: any) => x.id === u.id ? { ...x, role: "developer", activeProjectCount: u.activeProjectCount || 0, maxProjects: u.maxProjects || 5 } : x));
-                                  logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "PROMOTED_TO_DEVELOPER", details: { targetUid: u.id, targetEmail: u.email } });
-                                } catch { alert("Failed to update role"); }
+                                } catch (e: any) { alert(e.message || "Failed to update role"); }
                                 finally { setPromotingUser(null); }
                               }}
                               className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
@@ -3788,10 +3660,19 @@ export default function AdminPanel() {
                               setPromotingUser(u.id);
                               const newRole = u.role === "admin" ? "user" : u.role === "developer" ? "user" : "admin";
                               try {
-                                await updateDoc(doc(db, "users", u.id), { role: newRole });
+                                const token = await user?.getIdToken();
+                                const res = await fetch("/api/admin/users", {
+                                  method: "PUT",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                    Authorization: `Bearer ${token}`,
+                                  },
+                                  body: JSON.stringify({ targetUserId: u.id, role: newRole }),
+                                });
+                                const data = await res.json();
+                                if (!res.ok || !data.success) throw new Error(data.error);
                                 setUsers((prev: any[]) => prev.map((x: any) => x.id === u.id ? { ...x, role: newRole } : x));
-                                logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: newRole === "admin" ? "PROMOTED_TO_ADMIN" : "DEMOTED_TO_USER", details: { targetUid: u.id, targetEmail: u.email } });
-                              } catch { alert("Failed to update role"); }
+                              } catch (e: any) { alert(e.message || "Failed to update role"); }
                               finally { setPromotingUser(null); }
                             }}
                             className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors cursor-pointer ${

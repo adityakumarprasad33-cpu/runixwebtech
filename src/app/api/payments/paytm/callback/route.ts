@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { adminDb } from "@/lib/server/firebase-admin";
 import PaytmChecksum from "@/lib/paytmChecksum";
+import { getTrustedClientIp } from "@/lib/server/clientIp";
+import { logSecurityEvent } from "@/lib/server/securityLogger";
+
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 export async function POST(req: NextRequest) {
+  const clientIp = getTrustedClientIp(req);
+
   try {
-    const url = new URL(req.url);
-    const orderIdParam = url.searchParams.get("orderId");
-    const milestoneParam = (url.searchParams.get("milestone") || "advance").toLowerCase();
+    if (!adminDb) {
+      return NextResponse.redirect(new URL("/dashboard?payment_status=error&msg=database_unavailable", req.url));
+    }
 
     const contentType = req.headers.get("content-type") || "";
     let paytmParams: Record<string, any> = {};
@@ -20,222 +27,275 @@ export async function POST(req: NextRequest) {
       paytmParams = await req.json();
     }
 
-    const orderId = orderIdParam || paytmParams.ORDERID?.split("_")[0];
-    const milestone = milestoneParam || (paytmParams.ORDERID?.includes("_FINAL_") ? "final" : "advance");
+    // 1. Simulation Guard (Strictly prohibited in production)
+    const isSimulated = paytmParams.simulated === true || paytmParams.simulated === "true";
+    if (process.env.NODE_ENV === "production" && isSimulated) {
+      await logSecurityEvent({
+        action: "paytm:callback_simulation_rejected",
+        status: "denied",
+        ip: clientIp,
+        reason: "Simulated payment callback attempted in production environment.",
+      });
+      return NextResponse.json({ success: false, error: "Simulation rejected in production." }, { status: 403 });
+    }
 
-    if (!orderId) {
+    // 2. Checksum Signature Verification
+    const mkey = process.env.PAYTM_MERCHANT_KEY;
+    const checksum = paytmParams.CHECKSUMHASH;
+
+    if (!isSimulated) {
+      if (!mkey || !checksum) {
+        await logSecurityEvent({
+          action: "paytm:callback_missing_checksum",
+          status: "denied",
+          ip: clientIp,
+          reason: "Missing Paytm merchant key or checksum hash.",
+        });
+        return NextResponse.redirect(new URL("/dashboard?payment_status=invalid_signature", req.url));
+      }
+
+      const isValidSignature = PaytmChecksum.verifySignature(paytmParams, mkey, checksum);
+      if (!isValidSignature) {
+        await logSecurityEvent({
+          action: "paytm:callback_signature_failed",
+          status: "denied",
+          ip: clientIp,
+          reason: "Cryptographic SHA256 checksum verification failed.",
+        });
+        return NextResponse.redirect(new URL("/dashboard?payment_status=invalid_signature", req.url));
+      }
+    }
+
+    // 3. Merchant ID Verification
+    const configuredMid = process.env.PAYTM_MID;
+    if (configuredMid && paytmParams.MID && paytmParams.MID !== configuredMid) {
+      await logSecurityEvent({
+        action: "paytm:callback_mid_mismatch",
+        status: "denied",
+        ip: clientIp,
+        reason: `MID mismatch: received ${paytmParams.MID}, expected ${configuredMid}`,
+      });
+      return NextResponse.redirect(new URL("/dashboard?payment_status=invalid_merchant", req.url));
+    }
+
+    // 4. Server-Authoritative Order & Milestone Resolution (Zero URL param trust)
+    const rawOrderIdParam: string = paytmParams.ORDERID || "";
+    if (!rawOrderIdParam) {
       return NextResponse.redirect(new URL("/dashboard?payment_status=error&msg=missing_order", req.url));
     }
 
-    const mkey = process.env.PAYTM_MERCHANT_KEY;
+    // Standardized Order ID parsing: e.g. RUNIX_ORD_<orderId>_<milestone>_<nonce> or <orderId>_<milestone>
+    let internalOrderId = rawOrderIdParam;
+    let expectedMilestone: "advance" | "final" | "maintenance" = "advance";
+
+    if (rawOrderIdParam.includes("_FINAL_") || rawOrderIdParam.endsWith("_final")) {
+      expectedMilestone = "final";
+      internalOrderId = rawOrderIdParam.replace(/^RUNIX_ORD_/, "").split("_FINAL_")[0].split("_final")[0];
+    } else if (rawOrderIdParam.includes("_MAINT_") || rawOrderIdParam.endsWith("_maint")) {
+      expectedMilestone = "maintenance";
+      internalOrderId = rawOrderIdParam.replace(/^RUNIX_ORD_/, "").split("_MAINT_")[0].split("_maint")[0];
+    } else if (rawOrderIdParam.includes("_ADV_") || rawOrderIdParam.endsWith("_adv")) {
+      expectedMilestone = "advance";
+      internalOrderId = rawOrderIdParam.replace(/^RUNIX_ORD_/, "").split("_ADV_")[0].split("_adv")[0];
+    } else if (rawOrderIdParam.includes("_")) {
+      internalOrderId = rawOrderIdParam.split("_")[0];
+    }
+
     const isSuccess =
       paytmParams.STATUS === "TXN_SUCCESS" ||
       paytmParams.RESPCODE === "01" ||
-      paytmParams.simulated === "true" ||
-      paytmParams.simulated === true;
+      isSimulated;
 
-    // Checksum verification if secret key is configured and not simulated
-    if (mkey && paytmParams.CHECKSUMHASH && !paytmParams.simulated) {
-      const isValid = PaytmChecksum.verifySignature(paytmParams, mkey, paytmParams.CHECKSUMHASH);
-      if (!isValid) {
-        console.error("Paytm signature verification failed for order:", orderId);
-        return NextResponse.redirect(new URL(`/dashboard?payment_status=invalid_signature&orderId=${orderId}`, req.url));
-      }
+    const txnId = paytmParams.TXNID || `SIM_TXN_${Date.now()}`;
+    const idempotencyKey = `paytm_${txnId}_${expectedMilestone}`;
+
+    if (!isSuccess) {
+      await logSecurityEvent({
+        action: "paytm:payment_failed",
+        resourceId: internalOrderId,
+        status: "failed",
+        ip: clientIp,
+        metadata: { status: paytmParams.STATUS, respCode: paytmParams.RESPCODE, respMsg: paytmParams.RESPMSG },
+      });
+      return NextResponse.redirect(
+        new URL(`/dashboard?payment_status=failed&orderId=${internalOrderId}&msg=${encodeURIComponent(paytmParams.RESPMSG || "Payment failed")}`, req.url)
+      );
     }
 
-    if (isSuccess && adminDb) {
-      const orderRef = adminDb.collection("orders").doc(orderId);
-      const orderDoc = await orderRef.get();
+    // 5. Atomic Transaction: Idempotency Check, Amount Validation, State Machine Transition & Developer Assignment
+    const orderRef = adminDb.collection("orders").doc(internalOrderId);
+    const eventRef = adminDb.collection("payment_events").doc(idempotencyKey);
 
-      if (orderDoc.exists) {
-        const currentData = orderDoc.data() || {};
-        const updatePayload: Record<string, any> = {
-          updatedAt: new Date().toISOString(),
-        };
+    const transactionResult = await adminDb.runTransaction(async (transaction) => {
+      // a. Check Idempotency Ledger
+      const eventSnap = await transaction.get(eventRef);
+      if (eventSnap.exists) {
+        return { isDuplicate: true };
+      }
 
-        if (milestone === "advance") {
-          updatePayload.advancePaid = true;
-          updatePayload.advancePaymentId = paytmParams.TXNID || `TXN_${Date.now()}`;
-          updatePayload.advancePaidAt = new Date().toISOString();
-          updatePayload.paymentMethod = "paytm_gateway";
-          // If was awaiting advance, transition to in_progress
-          if (currentData.status === "awaiting_advance" || !currentData.status) {
-            updatePayload.status = "in_progress";
-          }
+      // b. Load Internal Order Record
+      const orderSnap = await transaction.get(orderRef);
+      if (!orderSnap.exists) {
+        throw new Error(`Order "${internalOrderId}" not found in database.`);
+      }
 
-          // ⚡ Dynamic Auto-Assignment to the least loaded available developer
-          if (!currentData.assignedDeveloperId) {
-            try {
-              const devsSnap = await adminDb.collection("users").where("role", "==", "developer").get();
-              const availableDevs = devsSnap.docs
-                .map((d) => ({ id: d.id, ...d.data() }))
-                .filter((d: any) => (d.activeProjectCount || 0) < (d.maxProjects || 5));
+      const orderData = orderSnap.data() || {};
 
-              // Sort by lowest active project load
-              availableDevs.sort((a: any, b: any) => (a.activeProjectCount || 0) - (b.activeProjectCount || 0));
+      // c. Authoritative Amount Validation
+      let expectedAmount = 0;
+      if (expectedMilestone === "advance") {
+        expectedAmount = orderData.advancePrice || Math.round((orderData.totalPrice || 0) * 0.5);
+      } else if (expectedMilestone === "final") {
+        expectedAmount = orderData.finalPrice || Math.round((orderData.totalPrice || 0) * 0.5);
+      } else if (expectedMilestone === "maintenance") {
+        expectedAmount = orderData.maintenanceAmount || 2999;
+      }
 
-              if (availableDevs.length > 0) {
-                const selectedDev: any = availableDevs[0];
-                updatePayload.assignedDeveloperId = selectedDev.id;
-                updatePayload.assignedDeveloperName = selectedDev.name || selectedDev.email || "Developer";
-                updatePayload.assignedDeveloperEmail = selectedDev.email || "";
-                updatePayload.assignedAt = new Date().toISOString();
-                updatePayload.assignmentMode = "dynamic";
+      const receivedAmount = parseFloat(paytmParams.TXNAMOUNT || "0");
+      if (!isSimulated && Math.abs(receivedAmount - expectedAmount) > 1.0) {
+        throw new Error(`Payment amount mismatch: Received ₹${receivedAmount}, Expected ₹${expectedAmount}`);
+      }
 
-                // Increment selected developer's active count
-                await adminDb.collection("users").doc(selectedDev.id).update({
-                  activeProjectCount: (selectedDev.activeProjectCount || 0) + 1,
-                });
+      // d. State Machine Transition
+      const nowIso = new Date().toISOString();
+      const updatePayload: Record<string, any> = {
+        updatedAt: nowIso,
+      };
 
-                // Notify developer
-                await adminDb.collection("notifications").add({
-                  title: "⚡ Dynamic Auto-Assignment: New Project!",
-                  message: `You have been automatically assigned to "${currentData.planName || "New Project"}" based on available capacity. Visit your Developer Workspace to get started.`,
-                  actionLink: "/dashboard/workspace",
-                  actionText: "Open Workspace",
-                  targetType: "user",
-                  targetUserId: selectedDev.id,
-                  targetEmail: selectedDev.email || null,
-                  senderName: "Auto-Assignment Engine",
-                  senderRole: "System",
-                  createdAt: new Date().toISOString(),
-                  readBy: [],
-                  clearedBy: [],
-                });
-              }
-            } catch (assignErr) {
-              console.warn("Dynamic auto-assignment notice:", assignErr);
-            }
-          }
-        } else if (milestone === "final") {
-          updatePayload.finalPaid = true;
-          updatePayload.finalPaymentId = paytmParams.TXNID || `TXN_${Date.now()}`;
-          updatePayload.finalPaidAt = new Date().toISOString();
-          updatePayload.status = "completed";
+      let assignedDevData: any = null;
 
-          // Auto-decrement assigned developer's active count on final completion
-          if (currentData.assignedDeveloperId) {
-            try {
-              const devRef = adminDb.collection("users").doc(currentData.assignedDeveloperId);
-              const devDoc = await devRef.get();
-              if (devDoc.exists) {
-                const currentCount = devDoc.data()?.activeProjectCount || 0;
-                await devRef.update({
-                  activeProjectCount: Math.max(0, currentCount - 1),
-                });
-              }
-            } catch (decErr) {
-              console.warn("Auto-decrement developer capacity notice:", decErr);
-            }
-          }
-        } else if (milestone === "maintenance") {
-          const expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-          updatePayload.maintenanceActive = true;
-          updatePayload.maintenancePaid = true;
-          updatePayload.maintenancePaidAt = new Date().toISOString();
-          updatePayload.maintenanceExpiresAt = expirationDate;
-          updatePayload.maintenancePaymentId = paytmParams.TXNID || `TXN_${Date.now()}`;
-          updatePayload.maintenanceAmount = Number(paytmParams.TXNAMOUNT || 1999);
+      if (expectedMilestone === "advance") {
+        updatePayload.advancePaid = true;
+        updatePayload.advancePaymentId = txnId;
+        updatePayload.advancePaidAt = nowIso;
+        updatePayload.paymentMethod = "paytm_gateway";
 
-          // ⚡ Dynamic Auto-Assignment for Maintenance
-          let assignedMaintenanceDev: any = null;
+        if (orderData.status === "awaiting_advance" || !orderData.status) {
+          updatePayload.status = "in_progress";
+        }
 
-          try {
-            // Priority 1: Check original project developer if available and has capacity
-            if (currentData.assignedDeveloperId) {
-              const origDevDoc = await adminDb.collection("users").doc(currentData.assignedDeveloperId).get();
-              if (origDevDoc.exists) {
-                const origDev = origDevDoc.data();
-                if (origDev?.role === "developer" && (origDev.activeProjectCount || 0) < (origDev.maxProjects || 5)) {
-                  assignedMaintenanceDev = { id: currentData.assignedDeveloperId, ...origDev };
-                  updatePayload.maintenanceAssignmentMode = "continuity_original_dev";
-                }
-              }
-            }
+        // e. Atomic Developer Auto-Assignment
+        if (!orderData.assignedDeveloperId) {
+          const devsSnap = await adminDb!.collection("users").where("role", "==", "developer").get();
+          const availableDevs = devsSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((d: any) => (d.activeProjectCount || 0) < (d.maxProjects || 5));
 
-            // Priority 2: Fallback to least loaded active developer
-            if (!assignedMaintenanceDev) {
-              const devsSnap = await adminDb.collection("users").where("role", "==", "developer").get();
-              const availableDevs = devsSnap.docs
-                .map((d) => ({ id: d.id, ...d.data() }))
-                .filter((d: any) => (d.activeProjectCount || 0) < (d.maxProjects || 5));
+          availableDevs.sort((a: any, b: any) => (a.activeProjectCount || 0) - (b.activeProjectCount || 0));
 
-              availableDevs.sort((a: any, b: any) => (a.activeProjectCount || 0) - (b.activeProjectCount || 0));
+          if (availableDevs.length > 0) {
+            const selectedDev: any = availableDevs[0];
+            updatePayload.assignedDeveloperId = selectedDev.id;
+            updatePayload.assignedDeveloperName = selectedDev.name || selectedDev.email || "Developer";
+            updatePayload.assignedDeveloperEmail = selectedDev.email || "";
+            updatePayload.assignedAt = nowIso;
+            updatePayload.assignmentMode = "dynamic";
 
-              if (availableDevs.length > 0) {
-                assignedMaintenanceDev = availableDevs[0];
-                updatePayload.maintenanceAssignmentMode = "dynamic_least_loaded";
-              }
-            }
+            const devRef = adminDb!.collection("users").doc(selectedDev.id);
+            transaction.update(devRef, {
+              activeProjectCount: (selectedDev.activeProjectCount || 0) + 1,
+              updatedAt: nowIso,
+            });
 
-            if (assignedMaintenanceDev) {
-              updatePayload.maintenanceAssignedDevId = assignedMaintenanceDev.id;
-              updatePayload.maintenanceAssignedDevName = assignedMaintenanceDev.name || assignedMaintenanceDev.email || "Maintenance Engineer";
-              updatePayload.maintenanceAssignedDevEmail = assignedMaintenanceDev.email || "";
-              updatePayload.maintenanceAssignedAt = new Date().toISOString();
-
-              // Increment active project count
-              await adminDb.collection("users").doc(assignedMaintenanceDev.id).update({
-                activeProjectCount: (assignedMaintenanceDev.activeProjectCount || 0) + 1,
-              });
-
-              // Notify assigned engineer
-              await adminDb.collection("notifications").add({
-                title: "🛠️ New Maintenance Assignment!",
-                message: `You have been assigned as the Maintenance Engineer for "${currentData.planName || "Website"}". Access the Maintenance Desk to receive tasks.`,
-                actionLink: "/dashboard/workspace",
-                actionText: "Open Maintenance Desk",
-                targetType: "user",
-                targetUserId: assignedMaintenanceDev.id,
-                targetEmail: assignedMaintenanceDev.email || null,
-                senderName: "Maintenance Department",
-                senderRole: "System",
-                createdAt: new Date().toISOString(),
-                readBy: [],
-                clearedBy: [],
-              });
-            }
-          } catch (maintAssignErr) {
-            console.warn("Maintenance auto-assignment notice:", maintAssignErr);
+            assignedDevData = selectedDev;
           }
         }
 
-        await orderRef.update(updatePayload);
+        // f. Finalize Coupon Redemption (Phase 2)
+        if (orderData.couponId) {
+          const couponRef = adminDb!.collection("coupons").doc(orderData.couponId);
+          const couponSnap = await transaction.get(couponRef);
+          if (couponSnap.exists) {
+            const cData = couponSnap.data() || {};
+            const userIdentifier = orderData.userId || orderData.userEmail;
+            const existingUsers = cData.usedByUsers || [];
+            const newUsers = existingUsers.includes(userIdentifier) ? existingUsers : [...existingUsers, userIdentifier];
 
-        // Auto-create notification for user
-        await adminDb.collection("notifications").add({
-          title: `Payment Received: ${
-            milestone === "advance"
-              ? "50% Advance"
-              : milestone === "final"
-              ? "50% Final Settlement"
-              : "Website Maintenance Retainer (30 Days)"
-          }`,
-          message: `Your payment of ₹${paytmParams.TXNAMOUNT || "amount"} for "${currentData.planName || "Project"}" has been confirmed. ${
-            milestone === "advance"
-              ? "Development has officially started!"
-              : milestone === "final"
-              ? "Project handover and assets are now fully unlocked!"
-              : "Your 30-day website maintenance & dedicated engineer coverage is now active!"
-          }`,
-          targetType: "user",
-          targetUserId: currentData.userId || null,
-          targetEmail: currentData.userEmail || null,
-          senderName: "Paytm Payment Gateway",
-          senderRole: "System",
-          createdAt: new Date().toISOString(),
-          readBy: [],
-          clearedBy: [],
-        });
+            transaction.update(couponRef, {
+              usedCount: (cData.usedCount || 0) + 1,
+              pendingReservations: Math.max(0, (cData.pendingReservations || 1) - 1),
+              usedByUsers: newUsers,
+              updatedAt: nowIso,
+            });
+          }
+        }
+      } else if (expectedMilestone === "final") {
+        updatePayload.finalPaid = true;
+        updatePayload.finalPaymentId = txnId;
+        updatePayload.finalPaidAt = nowIso;
+        updatePayload.finalPaymentMethod = "paytm_gateway";
+        updatePayload.status = "completed";
+
+        // Decrement developer load upon project completion
+        if (orderData.assignedDeveloperId) {
+          const devRef = adminDb!.collection("users").doc(orderData.assignedDeveloperId);
+          const devSnap = await transaction.get(devRef);
+          if (devSnap.exists) {
+            const currentDev = devSnap.data() || {};
+            transaction.update(devRef, {
+              activeProjectCount: Math.max(0, (currentDev.activeProjectCount || 1) - 1),
+              updatedAt: nowIso,
+            });
+          }
+        }
+      } else if (expectedMilestone === "maintenance") {
+        const expiryDate = new Date();
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        updatePayload.maintenanceActive = true;
+        updatePayload.maintenancePaid = true;
+        updatePayload.maintenancePaymentId = txnId;
+        updatePayload.maintenancePaidAt = nowIso;
+        updatePayload.maintenanceExpiresAt = expiryDate.toISOString();
       }
+
+      transaction.update(orderRef, updatePayload);
+
+      // g. Record in Idempotency Ledger
+      transaction.set(eventRef, {
+        provider: "paytm",
+        transactionId: txnId,
+        milestone: expectedMilestone,
+        orderId: internalOrderId,
+        amount: receivedAmount,
+        processedAt: nowIso,
+      });
+
+      return {
+        isDuplicate: false,
+        orderData,
+        assignedDevData,
+        expectedMilestone,
+      };
+    });
+
+    if (transactionResult.isDuplicate) {
+      return NextResponse.redirect(
+        new URL(`/dashboard?payment_status=success&orderId=${internalOrderId}&msg=already_processed`, req.url)
+      );
     }
 
-    // Redirect to dashboard with success query param
+    await logSecurityEvent({
+      action: "paytm:payment_verified",
+      resourceId: internalOrderId,
+      status: "success",
+      ip: clientIp,
+      metadata: { txnId, expectedMilestone, amount: paytmParams.TXNAMOUNT },
+    });
+
     return NextResponse.redirect(
-      new URL(`/dashboard?payment_status=success&orderId=${orderId}&milestone=${milestone}`, req.url)
+      new URL(`/dashboard?payment_status=success&orderId=${internalOrderId}&milestone=${expectedMilestone}`, req.url)
     );
   } catch (error: any) {
-    console.error("Paytm callback error:", error);
-    return NextResponse.redirect(new URL("/dashboard?payment_status=error", req.url));
+    console.error("Paytm callback critical error:", error);
+    await logSecurityEvent({
+      action: "paytm:callback_error",
+      status: "failed",
+      ip: clientIp,
+      reason: error?.message || "Internal transaction error",
+    });
+
+    return NextResponse.redirect(
+      new URL(`/dashboard?payment_status=error&msg=${encodeURIComponent(error?.message || "Processing error")}`, req.url)
+    );
   }
 }

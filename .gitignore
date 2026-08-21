@@ -35,13 +35,7 @@ yarn-error.log*
 *.env
 *.local
 
-# Firebase & Security Rules / Configs / Credentials
-*.rules
-firestore.rules
-storage.rules
-database.rules.json
-firebase.json
-.firebaserc
+# Firebase Credentials & Debug Logs (rules & configs ARE tracked)
 *-debug.log*
 firebase-debug.log*
 firestore-debug.log*

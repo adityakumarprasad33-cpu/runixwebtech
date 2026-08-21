@@ -1,0 +1,168 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        getUserData().role == 'admin' || 
+        getUserData().role == 'super_admin'
+      );
+    }
+
+    function isDeveloper() {
+      return isAuthenticated() && getUserData().role == 'developer';
+    }
+
+    // ── USERS COLLECTION ──
+    // Closed by default: No client-side listing. Users can only read their own document.
+    // Privileged fields (role, activeProjectCount, maxProjects) CANNOT be modified from the client.
+    match /users/{userId} {
+      allow get: if isOwner(userId) || isAdmin() || isDeveloper();
+      allow list: if false; // Privileged reading prohibited from browser (Admin API used instead)
+      allow create: if isAuthenticated() && request.auth.uid == userId
+                    && request.resource.data.role == 'user'
+                    && request.resource.data.activeProjectCount == 0;
+      allow update: if isOwner(userId)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'company', 'phone', 'designation', 'department', 'updatedAt'])
+                    && request.resource.data.userId == resource.data.userId;
+      allow delete: if false; // Role modifications and account deletions must go through Server Admin API
+    }
+
+    // ── ORDERS COLLECTION ──
+    // Absolute Invariant: Orders are created EXCLUSIVELY via Server Firebase Admin SDK
+    match /orders/{orderId} {
+      allow read: if isAuthenticated() && (
+        resource.data.userId == request.auth.uid || 
+        resource.data.assignedDeveloperId == request.auth.uid || 
+        resource.data.maintenanceAssignedDevId == request.auth.uid || 
+        isAdmin()
+      );
+      allow create: if false; // ZERO browser-side order creation
+
+      // Client updates: Users may ONLY update userResponse or client notes on their own orders
+      allow update: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['userResponse', 'hasPendingQuery', 'responseCreatedAt', 'updatedAt'])
+                    && request.resource.data.userId == resource.data.userId; // Prevent userId re-assignment
+
+      allow delete: if false; // Orders cannot be deleted from client
+
+      // Order Chat Messages
+      match /messages/{messageId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.assignedDeveloperId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isAuthenticated() && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.assignedDeveloperId == request.auth.uid ||
+          isAdmin()
+        ) && request.resource.data.senderId == request.auth.uid;
+      }
+
+      // Maintenance Messages
+      match /maintenance_messages/{messageId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.maintenanceAssignedDevId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create: if isAuthenticated() && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.maintenanceAssignedDevId == request.auth.uid ||
+          isAdmin()
+        ) && request.resource.data.senderId == request.auth.uid;
+      }
+
+      // Maintenance Tasks
+      match /maintenance_tasks/{taskId} {
+        allow read: if isAuthenticated() && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.maintenanceAssignedDevId == request.auth.uid ||
+          isAdmin()
+        );
+        allow create, update: if isAuthenticated() && (
+          get(/databases/$(database)/documents/orders/$(orderId)).data.userId == request.auth.uid ||
+          get(/databases/$(database)/documents/orders/$(orderId)).data.maintenanceAssignedDevId == request.auth.uid ||
+          isAdmin()
+        );
+        allow delete: if false;
+      }
+    }
+
+    // ── PROJECTS (CMS) ──
+    match /projects/{projectId} {
+      allow read: if true;
+      allow write: if false; // Server Admin API only
+    }
+
+    // ── SETTINGS ──
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if false; // Server Admin API only
+    }
+
+    // ── PROMOTIONAL OFFERS & COUPONS ──
+    match /offers/{offerId} {
+      allow read: if true;
+      allow write: if false; // Server Admin API only
+    }
+
+    match /coupons/{couponId} {
+      allow read: if true;
+      allow write: if false; // Server Admin API & Atomic Redemption only
+    }
+
+    // ── NOTIFICATIONS ──
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (
+        resource.data.targetType == 'broadcast' ||
+        resource.data.targetUserId == request.auth.uid ||
+        (resource.data.targetType == 'admin_dev' && (isAdmin() || isDeveloper()))
+      );
+      allow create: if false; // Server Admin SDK only
+      allow update: if isAuthenticated() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy', 'clearedBy']);
+      allow delete: if false;
+    }
+
+    // ── AUDIT, SECURITY LOGS & RATE LIMIT STORE ──
+    // Zero browser-side reading or writing
+    match /security_logs/{logId} {
+      allow read, write: if false;
+    }
+
+    match /admin_activity_logs/{logId} {
+      allow read, write: if false;
+    }
+
+    match /login_logs/{logId} {
+      allow read, write: if false;
+    }
+
+    match /rate_limit_store/{key} {
+      allow read, write: if false;
+    }
+
+    match /payment_events/{eventId} {
+      allow read, write: if false;
+    }
+
+    match /payment_intents/{intentId} {
+      allow read, write: if false;
+    }
+  }
+}
