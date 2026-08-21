@@ -124,8 +124,16 @@ export async function POST(req: Request) {
 
 async function logToFirestore(logData: Record<string, unknown>) {
   try {
+    // Sanitize object to remove undefined values which Firestore rejects
+    const cleanData: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(logData)) {
+      if (value !== undefined) {
+        cleanData[key] = value;
+      }
+    }
+
     await addDoc(collection(db, "security_logs"), {
-      ...logData,
+      ...cleanData,
       timestamp: serverTimestamp(),
     });
   } catch (err) {

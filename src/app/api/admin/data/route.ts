@@ -36,14 +36,18 @@ export async function GET(req: NextRequest) {
       ordersSnap,
       loginLogsSnap,
       adminLogsSnap,
-      notificationsSnap
+      notificationsSnap,
+      offersSnap,
+      couponsSnap
     ] = await Promise.all([
       adminDb.collection("users").get(),
       adminDb.collection("projects").get(),
       adminDb.collection("orders").get(),
       adminDb.collection("login_logs").get(),
       adminDb.collection("admin_activity_logs").get(),
-      adminDb.collection("notifications").get()
+      adminDb.collection("notifications").get(),
+      adminDb.collection("offers").get(),
+      adminDb.collection("coupons").get()
     ]);
 
     const users = usersSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
@@ -52,6 +56,8 @@ export async function GET(req: NextRequest) {
     const loginLogs = loginLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
     const adminLogs = adminLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
     const notifications = notificationsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const offers = offersSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
+    const coupons = couponsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
 
     return NextResponse.json({
       success: true,
@@ -60,7 +66,9 @@ export async function GET(req: NextRequest) {
       orders,
       logs: loginLogs,
       activityLogs: adminLogs,
-      notifications
+      notifications,
+      offers,
+      coupons
     });
   } catch (error: any) {
     console.error("Admin data fetch error:", error);

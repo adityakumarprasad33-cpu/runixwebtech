@@ -20,12 +20,20 @@
 }
 
 @layer base {
+  html {
+    scroll-behavior: smooth;
+    scroll-padding-top: 6rem;
+    overflow-x: clip;
+  }
+
   body {
     background-color: var(--color-brand-bg);
     color: var(--color-brand-text);
     font-family: var(--font-inter), system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: clip;
+    min-height: 100vh;
   }
 
   ::selection {
@@ -33,9 +41,9 @@
     color: #ffffff;
   }
 
-  /* Smooth scroll */
-  html {
-    scroll-behavior: smooth;
+  /* Default section anchor scroll target offset */
+  section[id], div[id] {
+    scroll-margin-top: 6rem;
   }
 }
 

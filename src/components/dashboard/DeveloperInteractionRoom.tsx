@@ -25,7 +25,7 @@ import {
 interface Message {
   id: string;
   senderId: string;
-  senderRole: "admin" | "user";
+  senderRole: "admin" | "user" | "developer" | "client";
   senderName: string;
   senderDesignation?: string | null;
   senderDepartment?: string | null;
@@ -41,9 +41,12 @@ interface DeveloperInteractionRoomProps {
   planName: string;
   currentUserId: string;
   currentUserName: string;
-  currentUserRole: "admin" | "user";
+  currentUserRole: "admin" | "user" | "developer" | "client";
   currentUserDesignation?: string;
   currentUserDepartment?: string;
+  channel?: "sprint" | "maintenance";
+  customTitle?: string;
+  isReadOnly?: boolean;
 }
 
 const LOCKED_STATUSES = ["pending_payment", "awaiting_verification", "pending", "rejected"];
@@ -77,6 +80,9 @@ export default function DeveloperInteractionRoom({
   currentUserRole,
   currentUserDesignation,
   currentUserDepartment,
+  channel = "sprint",
+  customTitle,
+  isReadOnly,
 }: DeveloperInteractionRoomProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
@@ -86,38 +92,47 @@ export default function DeveloperInteractionRoom({
   const [sending, setSending] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const isLocked = LOCKED_STATUSES.includes(orderStatus);
+
+  const isLocked = channel === "sprint" && LOCKED_STATUSES.includes(orderStatus);
+  const isSprintCompletedReadOnly = (channel === "sprint" && orderStatus === "completed") || isReadOnly;
+  const messagesCollectionName = channel === "maintenance" ? "maintenance_messages" : "messages";
 
   useEffect(() => {
     if (isLocked) return;
     const q = query(
-      collection(db, "orders", orderId, "messages"),
+      collection(db, "orders", orderId, messagesCollectionName),
       orderBy("createdAt", "asc")
     );
-    const unsub = onSnapshot(q, (snap) => {
-      setMessages(
-        snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message))
-      );
-      setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
-    });
+    const unsub = onSnapshot(
+      q,
+      (snap) => {
+        setMessages(
+          snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message))
+        );
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
+      },
+      (err) => console.warn("Messages listener notice:", err?.message || err)
+    );
     return () => unsub();
-  }, [orderId, isLocked]);
+  }, [orderId, isLocked, messagesCollectionName]);
 
   const handleSend = async () => {
+    if (isSprintCompletedReadOnly) return;
     const msg = text.trim();
     const url = linkUrl.trim();
     if (!msg && !url) return;
     setSending(true);
     try {
-      await addDoc(collection(db, "orders", orderId, "messages"), {
+      await addDoc(collection(db, "orders", orderId, messagesCollectionName), {
         senderId: currentUserId,
         senderRole: currentUserRole,
         senderName: currentUserName,
-        senderDesignation: currentUserDesignation || null,
+        senderDesignation: currentUserDesignation || (channel === "maintenance" && currentUserRole === "admin" ? "Maintenance Engineer" : null),
         senderDepartment: currentUserDepartment || null,
         text: msg || null,
         linkUrl: url || null,
         linkType: url ? linkType : null,
+        channel,
         createdAt: new Date().toISOString(),
       });
       setText("");
@@ -161,17 +176,30 @@ export default function DeveloperInteractionRoom({
   }
 
   // ── Unlocked State ──
+  const isMaintenanceChannel = channel === "maintenance";
+
   return (
-    <div className="mt-4 rounded-2xl border border-indigo-500/20 bg-white/[0.01] overflow-hidden">
+    <div className={`mt-4 rounded-2xl border overflow-hidden ${
+      isMaintenanceChannel ? "border-purple-500/20 bg-purple-950/[0.02]" : "border-indigo-500/20 bg-white/[0.01]"
+    }`}>
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-indigo-500/[0.03]">
+      <div className={`flex items-center justify-between px-4 py-3 border-b ${
+        isMaintenanceChannel ? "border-purple-500/10 bg-purple-500/[0.05]" : "border-white/5 bg-indigo-500/[0.03]"
+      }`}>
         <div className="flex items-center gap-2.5">
-          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-          <p className="text-xs font-bold text-white">Developer Workspace</p>
+          <div className={`w-2 h-2 rounded-full ${isSprintCompletedReadOnly ? "bg-zinc-500" : isMaintenanceChannel ? "bg-purple-400 animate-pulse" : "bg-emerald-400 animate-pulse"}`} />
+          <p className="text-xs font-bold text-white">
+            {customTitle || (isMaintenanceChannel ? "🛠️ Maintenance & SLA Support Channel" : isSprintCompletedReadOnly ? "Project Sprint Room (Completed Archive)" : "Developer Workspace")}
+          </p>
           <span className="text-[10px] text-zinc-500 font-medium">— {planName}</span>
+          {isSprintCompletedReadOnly && (
+            <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+              Read Only
+            </span>
+          )}
         </div>
         {/* Admin Quick Buttons */}
-        {currentUserRole === "admin" && (
+        {currentUserRole === "admin" && !isSprintCompletedReadOnly && (
           <div className="flex items-center gap-1.5">
             {(["preview", "figma", "github", "file"] as const).map((type) => {
               const meta = LINK_TYPE_META[type];
@@ -199,7 +227,11 @@ export default function DeveloperInteractionRoom({
       <div className="h-64 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 && (
           <div className="h-full flex items-center justify-center text-xs text-zinc-600">
-            No messages yet. Start the conversation!
+            {isMaintenanceChannel
+              ? "No maintenance messages yet. Discuss tasks, fixes, and support updates here!"
+              : isSprintCompletedReadOnly
+              ? "No sprint messages recorded."
+              : "No messages yet. Start the conversation!"}
           </div>
         )}
         <AnimatePresence initial={false}>
@@ -215,7 +247,9 @@ export default function DeveloperInteractionRoom({
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
                     m.senderRole === "admin"
-                      ? "bg-indigo-600/20 border border-indigo-500/30 text-indigo-100"
+                      ? isMaintenanceChannel
+                        ? "bg-purple-600/20 border border-purple-500/30 text-purple-100"
+                        : "bg-indigo-600/20 border border-indigo-500/30 text-indigo-100"
                       : "bg-white/[0.05] border border-white/10 text-zinc-200"
                   }`}
                 >
@@ -241,7 +275,7 @@ export default function DeveloperInteractionRoom({
                             </a>
                             <button
                               onClick={() => copyToClipboard(m.linkUrl!)}
-                              className="text-zinc-500 hover:text-white transition-colors shrink-0"
+                              className="text-zinc-500 hover:text-white transition-colors shrink-0 cursor-pointer"
                             >
                               {copied === m.linkUrl ? (
                                 <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
@@ -267,11 +301,15 @@ export default function DeveloperInteractionRoom({
                 <div className="flex items-center gap-1.5 px-1">
                   <span
                     className={`text-[10px] font-bold ${
-                      m.senderRole === "admin" ? "text-indigo-400" : "text-emerald-400"
+                      m.senderRole === "admin"
+                        ? isMaintenanceChannel
+                          ? "text-purple-400"
+                          : "text-indigo-400"
+                        : "text-emerald-400"
                     }`}
                   >
                     {m.senderRole === "admin" 
-                      ? (m.senderDesignation ? `${m.senderName} • ${m.senderDesignation}` : "Dev Team")
+                      ? (m.senderDesignation ? `${m.senderName} • ${m.senderDesignation}` : (isMaintenanceChannel ? "Maintenance Engineer" : "Dev Team"))
                       : m.senderName}
                   </span>
                   <span className="text-[10px] text-zinc-600">•</span>
@@ -288,7 +326,7 @@ export default function DeveloperInteractionRoom({
 
       {/* Link Input (admin quick share) */}
       <AnimatePresence>
-        {showLinkInput && (
+        {showLinkInput && !isSprintCompletedReadOnly && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
@@ -308,7 +346,7 @@ export default function DeveloperInteractionRoom({
               />
               <button
                 onClick={() => { setShowLinkInput(false); setLinkUrl(""); }}
-                className="text-zinc-500 hover:text-white text-xs px-2"
+                className="text-zinc-500 hover:text-white text-xs px-2 cursor-pointer"
               >
                 Cancel
               </button>
@@ -317,36 +355,50 @@ export default function DeveloperInteractionRoom({
         )}
       </AnimatePresence>
 
-      {/* Message Input */}
-      <div className="px-4 pb-4">
-        <div className="flex items-center gap-2 bg-[#0e0e0e] border border-white/10 rounded-xl p-2">
-          <button
-            onClick={() => setShowLinkInput(!showLinkInput)}
-            title="Share a link"
-            className="p-1.5 rounded-lg text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors"
-          >
-            <Link2 className="w-4 h-4" />
-          </button>
-          <input
-            type="text"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
-            placeholder="Type a message..."
-            className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-600 outline-none"
-          />
-          <button
-            onClick={handleSend}
-            disabled={sending || (!text.trim() && !linkUrl.trim())}
-            className="p-2 rounded-lg bg-indigo-500 hover:bg-indigo-600 text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            <Send className="w-3.5 h-3.5" />
-          </button>
+      {/* Message Input or Read-Only Notice */}
+      {isSprintCompletedReadOnly ? (
+        <div className="px-4 py-3 bg-white/[0.02] border-t border-white/5 flex items-center justify-between gap-3 text-xs text-zinc-400">
+          <div className="flex items-center gap-2">
+            <Lock className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+            <span>Sprint build is completed & delivered. This project chat is now in <strong>read-only archive mode</strong>.</span>
+          </div>
+          <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 shrink-0">
+            Archived
+          </span>
         </div>
-        <p className="text-[10px] text-zinc-700 mt-1.5 px-1">
-          Press Enter to send · Use the link icon to share files, previews & designs
-        </p>
-      </div>
+      ) : (
+        <div className="px-4 pb-4">
+          <div className="flex items-center gap-2 bg-[#0e0e0e] border border-white/10 rounded-xl p-2">
+            <button
+              onClick={() => setShowLinkInput(!showLinkInput)}
+              title="Share a link"
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer"
+            >
+              <Link2 className="w-4 h-4" />
+            </button>
+            <input
+              type="text"
+              value={text}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
+              placeholder={isMaintenanceChannel ? "Message maintenance team regarding tasks or fixes..." : "Type a message..."}
+              className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-600 outline-none"
+            />
+            <button
+              onClick={handleSend}
+              disabled={sending || (!text.trim() && !linkUrl.trim())}
+              className={`p-2 rounded-lg text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
+                isMaintenanceChannel ? "bg-purple-600 hover:bg-purple-500" : "bg-indigo-500 hover:bg-indigo-600"
+              }`}
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <p className="text-[10px] text-zinc-700 mt-1.5 px-1">
+            Press Enter to send · Use the link icon to share files, previews & designs
+          </p>
+        </div>
+      )}
     </div>
   );
 }

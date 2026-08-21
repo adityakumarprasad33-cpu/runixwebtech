@@ -10,11 +10,12 @@ export interface AdminPermissions {
   notifications: boolean;  // Can send notifications
   queries: boolean;        // Can send queries to users
   cms: boolean;            // Can manage CMS (projects, hero stats, payment settings)
+  offers: boolean;         // Can manage promotional offers & deals
   logs: boolean;           // Can view security & activity logs
 }
 
 export interface UserProfile {
-  role?: "super_admin" | "admin" | "user" | string;
+  role?: "super_admin" | "admin" | "developer" | "user" | string;
   name?: string;
   email?: string;
   adminPermissions?: AdminPermissions;
@@ -27,6 +28,7 @@ interface AuthContextType {
   loading: boolean;
   isSuperAdmin: boolean;
   isAdmin: boolean;
+  isDeveloper: boolean;
   canDo: (permission: keyof AdminPermissions) => boolean;
   signOut: () => Promise<void>;
 }
@@ -37,6 +39,7 @@ const AuthContext = createContext<AuthContextType>({
   loading: true,
   isSuperAdmin: false,
   isAdmin: false,
+  isDeveloper: false,
   canDo: () => false,
   signOut: async () => {},
 });
@@ -56,14 +59,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (currentUser) {
           if (unsubProfile) unsubProfile();
-          unsubProfile = onSnapshot(doc(db, "users", currentUser.uid), (docSnap) => {
-            if (docSnap.exists()) {
-              setProfile(docSnap.data() as UserProfile);
-            } else {
-              setProfile(null);
+          unsubProfile = onSnapshot(
+            doc(db, "users", currentUser.uid),
+            (docSnap) => {
+              if (docSnap.exists()) {
+                setProfile(docSnap.data() as UserProfile);
+              } else {
+                setProfile(null);
+              }
+              setLoading(false);
+            },
+            (err) => {
+              console.warn("User profile listener notice:", err?.message || err);
+              setLoading(false);
             }
-            setLoading(false);
-          });
+          );
         } else {
           if (unsubProfile) {
             unsubProfile();
@@ -101,6 +111,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const isSuperAdmin = profile?.role === "super_admin";
   const isAdmin = profile?.role === "admin" || isSuperAdmin;
+  const isDeveloper = profile?.role === "developer";
 
   /** super_admin bypasses all permission checks; regular admin checks their specific flag */
   const canDo = (permission: keyof AdminPermissions): boolean => {
@@ -109,7 +120,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, loading, isSuperAdmin, isAdmin, canDo, signOut }}>
+    <AuthContext.Provider value={{ user, profile, loading, isSuperAdmin, isAdmin, isDeveloper, canDo, signOut }}>
       {children}
     </AuthContext.Provider>
   );

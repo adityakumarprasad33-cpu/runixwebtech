@@ -39,12 +39,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
       <body
+        suppressHydrationWarning
         className={`${inter.variable} ${plusJakartaSans.variable} font-sans bg-[#050505] text-white antialiased min-h-screen flex flex-col selection:bg-white selection:text-black`}
       >
         <AuthProvider>

@@ -20,6 +20,9 @@ import {
   Shield,
   MessageSquare,
   X,
+  Tag,
+  ArrowRight,
+  Code2,
 } from "lucide-react";
 
 import { collection, onSnapshot, updateDoc, doc, arrayUnion } from "firebase/firestore";
@@ -27,6 +30,7 @@ import { db } from "@/lib/firebase";
 
 const sidebarLinks = [
   { name: "Overview", path: "/dashboard", icon: LayoutDashboard },
+  { name: "Offers", path: "/dashboard/offers", icon: Tag },
   { name: "Projects", path: "/dashboard/projects", icon: FolderKanban },
   { name: "Workspace", path: "/dashboard/workspace", icon: MessageSquare },
   { name: "Billing", path: "/dashboard/billing", icon: CreditCard },
@@ -35,7 +39,7 @@ const sidebarLinks = [
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-  const { user, profile, loading, signOut, isSuperAdmin, isAdmin } = useAuth();
+  const { user, profile, loading, signOut, isSuperAdmin, isAdmin, isDeveloper } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
@@ -58,14 +62,63 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const allNotifs = snap.docs.map((d) => ({ id: d.id, ...d.data() })) as any[];
         const oneMonthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000;
 
-        const userNotifs = allNotifs.filter(
-          (n) =>
-            (n.targetType === "broadcast" ||
-              n.targetUserId === user.uid ||
-              n.targetEmail === user.email) &&
-            !n.clearedBy?.includes(user.uid) &&
-            new Date(n.createdAt || 0).getTime() > oneMonthAgo
-        );
+        const currentRole = profile?.role || "user";
+        const isUserAdmin = isAdmin || isSuperAdmin || currentRole === "admin" || currentRole === "super_admin";
+        const isUserDev = isDeveloper || currentRole === "developer";
+        const isStaff = isUserAdmin || isUserDev;
+
+        const userNotifs = allNotifs.filter((n) => {
+          // 1. Cleared check
+          if (n.clearedBy?.includes(user.uid)) return false;
+
+          // 2. Date window check (last 30 days)
+          if (new Date(n.createdAt || 0).getTime() <= oneMonthAgo) return false;
+
+          // 3. Direct personal notification (targeted to user ID or email)
+          if (
+            n.targetUserId === user.uid ||
+            (n.targetEmail && n.targetEmail.toLowerCase() === (user.email || "").toLowerCase())
+          ) {
+            return true;
+          }
+
+          // 4. Role-based array targeting (e.g. targetRoles: ["admin", "super_admin", "developer"])
+          if (Array.isArray(n.targetRoles) && n.targetRoles.length > 0) {
+            return n.targetRoles.includes(currentRole) || (isUserAdmin && n.targetRoles.includes("admin"));
+          }
+
+          // 5. Explicit targetType
+          if (n.targetType === "admin_dev") {
+            return isStaff;
+          }
+          if (n.targetType === "admin" || n.targetType === "super_admin") {
+            return isUserAdmin;
+          }
+          if (n.targetType === "developer") {
+            return isUserDev || isUserAdmin;
+          }
+
+          // 6. Broadcast targeting
+          if (n.targetType === "broadcast") {
+            // Guard: Internal system booking/admin alerts are strictly for staff (Admins, Devs), NEVER regular clients!
+            const title = (n.title || "").toLowerCase();
+            const sender = (n.senderName || "").toLowerCase();
+            const isInternalProjectAlert = 
+              title.includes("new project submitted") ||
+              title.includes("new booking") ||
+              title.includes("advance due") ||
+              sender.includes("project booking engine");
+
+            if (isInternalProjectAlert) {
+              return isStaff;
+            }
+
+            // General public announcements (e.g. promotional offers, platform updates) can be seen by all
+            return true;
+          }
+
+          return false;
+        });
 
         userNotifs.sort(
           (a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
@@ -94,7 +147,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
 
     return () => unsub();
-  }, [user, loading, router]);
+  }, [user, profile, loading, router, isAdmin, isSuperAdmin, isDeveloper]);
 
   const handleClearNotification = async (notifId: string) => {
     // Optimistic UI update
@@ -127,9 +180,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     ? user.displayName.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2)
     : "U";
 
-  const links = (profile?.role === "admin" || profile?.role === "super_admin")
-    ? [...sidebarLinks, { name: "Admin Panel", path: "/dashboard/admin", icon: Shield }]
-    : sidebarLinks;
+  const isDev = profile?.role === "developer";
+  const isAdm = profile?.role === "admin" || profile?.role === "super_admin";
+
+  let links: { name: string; path: string; icon: any }[] = [];
+  if (isDev) {
+    links = [
+      { name: "Dev Portal", path: "/dashboard/developer", icon: Code2 },
+      { name: "Workspace", path: "/dashboard/workspace", icon: MessageSquare },
+      { name: "Support", path: "/dashboard/support", icon: HelpCircle },
+      { name: "Settings", path: "/dashboard/settings", icon: Settings },
+    ];
+  } else if (isAdm) {
+    links = [
+      { name: "Overview", path: "/dashboard", icon: LayoutDashboard },
+      { name: "Admin Panel", path: "/dashboard/admin", icon: Shield },
+      { name: "Workspace", path: "/dashboard/workspace", icon: MessageSquare },
+      { name: "Offers", path: "/dashboard/offers", icon: Tag },
+      { name: "Settings", path: "/dashboard/settings", icon: Settings },
+    ];
+  } else {
+    links = [
+      { name: "Overview", path: "/dashboard", icon: LayoutDashboard },
+      { name: "Projects", path: "/dashboard/projects", icon: FolderKanban },
+      { name: "Workspace", path: "/dashboard/workspace", icon: MessageSquare },
+      { name: "Offers", path: "/dashboard/offers", icon: Tag },
+      { name: "Billing", path: "/dashboard/billing", icon: CreditCard },
+      { name: "Support", path: "/dashboard/support", icon: HelpCircle },
+      { name: "Settings", path: "/dashboard/settings", icon: Settings },
+    ];
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#0a0a0a]">
@@ -145,7 +225,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className={`flex items-center h-16 px-4 border-b border-white/5 ${collapsed ? "justify-center" : "gap-3"}`}>
           <Link href="/" className="flex items-center gap-2.5 shrink-0">
             <div className="relative w-8 h-8">
-              <Image src="/logo-v2.png" alt="Runix" fill className="object-contain" />
+              <Image src="/logo-v2.png" alt="Runix" fill sizes="32px" className="object-contain" />
             </div>
             {!collapsed && (
               <span className="font-jakarta font-bold text-lg text-white tracking-tight">Runix</span>
@@ -249,7 +329,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <div className="flex items-center h-16 px-5 border-b border-white/5 gap-3">
                 <div className="relative w-8 h-8">
-                  <Image src="/logo-v2.png" alt="Runix" fill className="object-contain" />
+                  <Image src="/logo-v2.png" alt="Runix" fill sizes="32px" className="object-contain" />
                 </div>
                 <span className="font-jakarta font-bold text-lg text-white tracking-tight">Runix</span>
               </div>
@@ -385,10 +465,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                           return (
                             <div key={n.id} className="rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors overflow-hidden group">
+                              {/* Image Banner if attached */}
+                              {n.imageUrl && (
+                                <div className="w-full h-24 overflow-hidden bg-black/40 border-b border-white/5 relative">
+                                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                                  <img
+                                    src={n.imageUrl}
+                                    alt={n.title}
+                                    className="w-full h-full object-cover"
+                                  />
+                                </div>
+                              )}
+
                               <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
                                   <p className="text-xs font-semibold text-white mb-1">{n.title}</p>
-                                  <p className="text-xs text-zinc-400 leading-relaxed">{n.message}</p>
+                                  <p className="text-xs text-zinc-400 leading-relaxed whitespace-pre-wrap">{n.message}</p>
+                                  
+                                  {/* Action CTA link if provided */}
+                                  {n.actionLink && (
+                                    <div className="mt-2.5">
+                                      <Link
+                                        href={n.actionLink}
+                                        onClick={() => setShowNotifications(false)}
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 text-[11px] font-bold border border-indigo-500/30 transition-colors"
+                                      >
+                                        <span>{n.actionText || "View Offer"}</span>
+                                        <ArrowRight className="w-3 h-3" />
+                                      </Link>
+                                    </div>
+                                  )}
                                 </div>
                                 {/* Clear (X) button */}
                                 <button

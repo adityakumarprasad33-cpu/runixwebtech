@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import { collection, onSnapshot, query, where, orderBy } from "firebase/firestore";
 import { db } from "@/lib/firebase";
@@ -25,11 +26,16 @@ const statusConfig: Record<string, { label: string; color: string; icon: any }> 
 };
 
 export default function ProjectsPage() {
-  const { user } = useAuth();
+  const { user, isDeveloper } = useAuth();
+  const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (isDeveloper) {
+      router.replace("/dashboard/developer");
+      return;
+    }
     if (!user) {
       setLoading(false);
       return;

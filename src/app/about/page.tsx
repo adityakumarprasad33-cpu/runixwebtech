@@ -19,7 +19,7 @@ export default function AboutPage() {
       <div className="fixed inset-0 z-0 pointer-events-none bg-grid opacity-10" />
 
       {/* Hero Section */}
-      <section className="relative w-full min-h-[70vh] flex flex-col items-center justify-center pt-32 pb-16 px-4 z-10 border-b border-white/5">
+      <section className="relative w-full min-h-[60vh] flex flex-col items-center justify-center pt-32 md:pt-36 pb-16 px-4 z-10 border-b border-white/5">
         <motion.div 
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}

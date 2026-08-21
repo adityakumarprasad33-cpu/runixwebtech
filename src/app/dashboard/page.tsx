@@ -5,41 +5,38 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
   doc,
-  getDoc,
   collection,
-  getDocs,
   onSnapshot,
   query,
   where,
   orderBy,
-  addDoc,
   updateDoc,
-  serverTimestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
 import {
-  FolderKanban,
   CreditCard,
   Clock,
-  TrendingUp,
   ArrowRight,
   LayoutDashboard,
-  PlusCircle,
   ExternalLink,
-  IndianRupee,
-  Copy,
   CheckCircle2,
-  ArrowLeft,
   FileText,
-  Shield,
-  HelpCircle,
+  ShieldCheck,
   Send,
   MessageSquare,
-  MessageCircle,
+  Sparkles,
+  Zap,
+  Globe,
+  Download,
+  Code,
+  AlertCircle,
+  HelpCircle,
+  Wrench,
 } from "lucide-react";
 import DeveloperInteractionRoom from "@/components/dashboard/DeveloperInteractionRoom";
+import Link from "next/link";
 
 interface UserProfile {
   name: string;
@@ -53,20 +50,56 @@ interface UserProfile {
 
 interface Order {
   id: string;
+  userId: string;
+  userEmail?: string;
   planName: string;
-  price: number;
-  currency: string;
+  price?: number;
+  totalPrice?: number;
+  advancePrice?: number;
+  advancePaid?: boolean;
+  advancePaymentId?: string;
+  advanceUtr?: string;
+  finalPrice?: number;
+  finalPaid?: boolean;
+  finalPaymentId?: string;
+  finalUtr?: string;
+  currency?: string;
   status: string;
   createdAt: any;
   utrNumber?: string;
+  assignedDeveloperId?: string;
+  assignedDeveloperName?: string;
+  assignedDeveloperEmail?: string;
+  assignedAt?: string;
+  assignmentMode?: string;
+  maintenanceActive?: boolean;
+  maintenancePaid?: boolean;
+  maintenancePaidAt?: string;
+  maintenanceExpiresAt?: string;
+  maintenanceAssignedDevId?: string;
+  maintenanceAssignedDevName?: string;
+  maintenanceAssignedDevEmail?: string;
+  maintenanceAssignmentMode?: string;
+  maintenanceAmount?: number;
+  formData?: {
+    name?: string;
+    email?: string;
+    company?: string;
+    projectType?: string;
+    timeline?: string;
+    details?: string;
+    addons?: string[];
+  };
+  stagingUrl?: string;
+  handoverLinks?: {
+    githubRepo?: string;
+    liveUrl?: string;
+    driveZip?: string;
+  };
+  handoverNotes?: string;
   adminQuery?: string;
   userResponse?: string;
   hasPendingQuery?: boolean;
-}
-
-interface PaymentSettings {
-  upiId: string;
-  upiNumber: string;
 }
 
 const fadeUp: any = {
@@ -81,60 +114,72 @@ export default function DashboardOverview() {
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orders, setOrders] = useState<Order[]>([]);
-
-  // Multi-step form
-  const [step, setStep] = useState<"idle" | "form" | "payment" | "done">(
-    "idle"
-  );
-  const [formData, setFormData] = useState({
-    name: "",
-    email: "",
-    company: "",
-    projectType: "",
-    budget: "",
-    timeline: "",
-    details: "",
-  });
-  const [utrNumber, setUtrNumber] = useState("");
-  const [paymentSettings, setPaymentSettings] =
-    useState<PaymentSettings | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [copied, setCopied] = useState<string | null>(null);
+  const [loadingOrders, setLoadingOrders] = useState(true);
 
   // Query Response State
   const [respondingOrderId, setRespondingOrderId] = useState<string | null>(null);
   const [responseText, setResponseText] = useState("");
   const [submittingResponse, setSubmittingResponse] = useState(false);
 
-  // User UTR Submission for existing orders
-  const [submittingUtrForOrder, setSubmittingUtrForOrder] = useState<string | null>(null);
-  const [userUtrInput, setUserUtrInput] = useState("");
-
   // Developer Room toggle
   const [openRoomOrderId, setOpenRoomOrderId] = useState<string | null>(null);
 
-  const handleUserSubmitUtr = async (orderId: string) => {
-    if (!userUtrInput.trim()) return;
-    try {
-      await updateDoc(doc(db, "orders", orderId), {
-        utrNumber: userUtrInput.trim(),
-        status: "awaiting_verification",
-      });
-      setOrders((prev: any[]) =>
-        prev.map((o) =>
-          o.id === orderId
-            ? { ...o, utrNumber: userUtrInput.trim(), status: "awaiting_verification" }
-            : o
-        )
-      );
-      setSubmittingUtrForOrder(null);
-      setUserUtrInput("");
-      alert("UTR submitted! Our team will verify your payment shortly.");
-    } catch (e) {
-      console.error("Failed to submit UTR:", e);
-      alert("Failed to submit UTR");
-    }
-  };
+  // Paying milestone state
+  const [payingMilestoneOrder, setPayingMilestoneOrder] = useState<{
+    order: Order;
+    milestone: "advance" | "final";
+  } | null>(null);
+  const [initiatingPaytm, setInitiatingPaytm] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+
+    // 1. Real-time User Profile Listener
+    const unsubProfile = onSnapshot(
+      doc(db, "users", user.uid),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const profileData = docSnap.data() as UserProfile;
+          if (profileData.role === "developer") {
+            router.replace("/dashboard/developer");
+            return;
+          }
+          setProfile(profileData);
+        } else {
+          setProfile({
+            name: user.displayName || "Client",
+            email: user.email || "",
+            phone: "N/A",
+            location: "N/A",
+          });
+        }
+      },
+      (err) => console.warn("Dashboard profile listener notice:", err?.message || err)
+    );
+
+    // 2. Real-time User Orders Listener
+    const ordersQuery = query(
+      collection(db, "orders"),
+      where("userId", "==", user.uid),
+      orderBy("createdAt", "desc")
+    );
+    const unsubOrders = onSnapshot(
+      ordersQuery,
+      (snap) => {
+        setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+        setLoadingOrders(false);
+      },
+      (err) => {
+        console.warn("Dashboard orders listener notice:", err?.message || err);
+        setLoadingOrders(false);
+      }
+    );
+
+    return () => {
+      unsubProfile();
+      unsubOrders();
+    };
+  }, [user]);
 
   const handleRespondToQuery = async (orderId: string) => {
     if (!responseText.trim()) return;
@@ -146,7 +191,7 @@ export default function DashboardOverview() {
         responseCreatedAt: new Date().toISOString(),
       });
 
-      setOrders((prev: any[]) =>
+      setOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
             ? { ...o, userResponse: responseText.trim(), hasPendingQuery: false }
@@ -164,1100 +209,543 @@ export default function DashboardOverview() {
     }
   };
 
-  useEffect(() => {
-    if (!user) return;
-
-    // 1. Real-time User Profile Listener
-    const unsubProfile = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data() as UserProfile;
-        setProfile(data);
-        setFormData((prev) => ({
-          ...prev,
-          name: data.name || user.displayName || "",
-          email: data.email || user.email || "",
-        }));
-      } else {
-        setProfile({
-          name: user.displayName || "User",
-          email: user.email || "",
-          phone: "N/A",
-          location: "N/A",
-        });
-        setFormData((prev) => ({
-          ...prev,
-          name: user.displayName || "",
-          email: user.email || "",
-        }));
-      }
-    });
-
-    // 2. Real-time User Orders Listener
-    const ordersQuery = query(
-      collection(db, "orders"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
-    const unsubOrders = onSnapshot(ordersQuery, (snap) => {
-      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
-    });
-
-    // 3. Real-time Payment Settings Listener
-    const unsubPayment = onSnapshot(doc(db, "settings", "payment"), (payDocSnap) => {
-      if (payDocSnap.exists()) {
-        setPaymentSettings(payDocSnap.data() as PaymentSettings);
-      }
-    });
-
-    return () => {
-      unsubProfile();
-      unsubOrders();
-      unsubPayment();
-    };
-  }, [user]);
-
-  const hasActiveProject = orders.some(
-    (o) => !["completed", "cancelled", "rejected"].includes(o.status)
-  );
-
-  // Auto-dismiss the payment success screen after 3 seconds
-  useEffect(() => {
-    if (step === "done") {
-      const timer = setTimeout(() => {
-        resetForm();
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [step]);
-
-  const handleFormSubmit = () => {
-    if (!formData.name || !formData.email || !formData.projectType || !formData.budget || !formData.details) {
-      alert("Please fill all required fields");
-      return;
-    }
-    setStep("payment");
-  };
-
-  const handleUtrSubmit = async () => {
-    if (!utrNumber.trim()) {
-      alert("Please enter your UTR number");
-      return;
-    }
-    if (!user) return;
-
-    setIsSubmitting(true);
+  const handlePaytmCheckout = async (
+    order: Order,
+    milestone: "advance" | "final" | "maintenance",
+    amountOverride?: number
+  ) => {
+    setInitiatingPaytm(true);
     try {
-      // Parse the price from budget
-      const priceMatch = formData.budget.match(/₹([\d,]+)/);
-      const price = priceMatch
-        ? parseInt(priceMatch[1].replace(/,/g, ""))
-        : 0;
-
-      await addDoc(collection(db, "orders"), {
-        userId: user.uid,
-        userEmail: user.email,
-        planName: formData.projectType,
-        price,
-        currency: "₹",
-        status: "awaiting_verification",
-        paymentMethod: "upi_manual",
-        utrNumber: utrNumber.trim(),
-        formData: {
-          name: formData.name,
-          email: formData.email,
-          company: formData.company,
-          projectType: formData.projectType,
-          budget: formData.budget,
-          timeline: formData.timeline,
-          details: formData.details,
-        },
-        createdAt: serverTimestamp(),
+      const amount = amountOverride || (milestone === "advance" ? order.advancePrice : order.finalPrice);
+      const res = await fetch("/api/payments/paytm/initiate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: order.id,
+          amount,
+          milestone,
+          userEmail: user?.email || order.userEmail,
+          userName: user?.displayName || profile?.name || "Client",
+        }),
       });
 
-      setStep("done");
+      const data = await res.json();
 
-      // Refresh orders
-      const q = query(
-        collection(db, "orders"),
-        where("userId", "==", user.uid),
-        orderBy("createdAt", "desc")
-      );
-      const snap = await getDocs(q);
-      setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
-    } catch (err) {
-      console.error("Failed to submit order:", err);
-      alert("Failed to submit. Please try again.");
+      if (data.simulated) {
+        // Simulated success callback (for development / testing before live Paytm keys)
+        await fetch(`/api/payments/paytm/callback?orderId=${order.id}&milestone=${milestone}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            STATUS: "TXN_SUCCESS",
+            ORDERID: data.orderId,
+            TXNAMOUNT: amount?.toString(),
+            TXNID: `PAYTM_SIM_${Date.now()}`,
+            simulated: true,
+          }),
+        });
+
+        alert(
+          `Payment of ₹${amount?.toLocaleString()} for ${
+            milestone === "advance"
+              ? "50% Advance"
+              : milestone === "final"
+              ? "50% Final Settlement"
+              : "30-Day Website Maintenance Retainer"
+          } confirmed successfully!`
+        );
+        setPayingMilestoneOrder(null);
+      } else if (data.txnToken) {
+        window.location.href = `${data.callbackUrl}&txnToken=${data.txnToken}`;
+      }
+    } catch (e) {
+      console.error("Paytm checkout error:", e);
+      alert("Failed to initiate Paytm payment. Please try again.");
     } finally {
-      setIsSubmitting(false);
+      setInitiatingPaytm(false);
     }
-  };
-
-  const copyToClipboard = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
-    setCopied(label);
-    setTimeout(() => setCopied(null), 2000);
-  };
-
-  const resetForm = () => {
-    setStep("idle");
-    setFormData({
-      name: profile?.name || user?.displayName || "",
-      email: profile?.email || user?.email || "",
-      company: "",
-      projectType: "",
-      budget: "",
-      timeline: "",
-      details: "",
-    });
-    setUtrNumber("");
   };
 
   const firstName =
     profile?.name?.split(" ")[0] ||
     user?.displayName?.split(" ")[0] ||
-    "there";
+    "Client";
+
   const hour = new Date().getHours();
   const greeting =
     hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
-  const inputClasses =
-    "w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50 focus:ring-1 focus:ring-indigo-500/20 transition-colors font-medium";
-  const labelClasses =
-    "text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-2 block";
+  const activeProjectsCount = orders.filter((o) => o.status !== "completed" && o.status !== "cancelled").length;
+  const completedProjectsCount = orders.filter((o) => o.status === "completed").length;
+  const totalSpent = orders.reduce((acc, o) => {
+    let sum = 0;
+    if (o.advancePaid) sum += o.advancePrice || (o.totalPrice ? Math.round(o.totalPrice * 0.5) : 0);
+    if (o.finalPaid) sum += o.finalPrice || (o.totalPrice ? Math.round(o.totalPrice * 0.5) : 0);
+    return acc + sum;
+  }, 0);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-8">
-      {/* ── Welcome Banner ── */}
+    <div className="max-w-6xl mx-auto space-y-8 pb-12">
+      {/* ── Welcome Banner with New Project CTA ── */}
       <motion.div
         {...fadeUp}
-        className="relative overflow-hidden rounded-2xl bg-[#111] border border-white/5 p-8 sm:p-10"
+        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-black border border-white/10 p-8 sm:p-10 shadow-2xl"
       >
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-[0.2em] mb-3">
-            <LayoutDashboard className="w-3.5 h-3.5" />
-            Dashboard
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+          <div>
+            <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-[0.2em] mb-3">
+              <LayoutDashboard className="w-3.5 h-3.5" />
+              Client Workspace
+            </div>
+            <h1 className="font-jakarta text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">
+              {greeting}, {firstName}
+            </h1>
+            <p className="text-zinc-400 text-sm max-w-lg leading-relaxed">
+              Track your active sprints, review live staging builds, collaborate in real-time with your lead developer, and manage milestone settlements.
+            </p>
           </div>
-          <h1 className="font-jakarta text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">
-            {greeting}, {firstName}
-          </h1>
-          <p className="text-zinc-400 text-base max-w-lg">
-            Here's an overview of your account, active projects, and recent
-            activity.
-          </p>
+
+          <Link href="/pricing" className="shrink-0">
+            <Button
+              variant="accent"
+              className="rounded-2xl h-12 px-6 text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all"
+            >
+              <Sparkles className="w-4 h-4" /> Book New Project <ArrowRight className="w-4 h-4" />
+            </Button>
+          </Link>
         </div>
       </motion.div>
 
-      {/* ── Multi-Step Project & Payment Flow ── */}
-      <AnimatePresence mode="wait">
-        {step === "idle" && !hasActiveProject && (
-          <motion.div
-            key="start-project"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            className="bg-[#111] border border-white/5 rounded-2xl p-6 sm:p-8"
-          >
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-              <div className="w-12 h-12 rounded-xl bg-indigo-500/10 flex items-center justify-center shrink-0">
-                <PlusCircle className="w-5 h-5 text-indigo-400" />
-              </div>
-              <div className="flex-1">
-                <h3 className="text-lg font-bold text-white mb-1">
-                  Start a New Project
-                </h3>
-                <p className="text-zinc-400 text-sm">
-                  Submit your project requirements, choose a budget, make
-                  payment, and get started.
-                </p>
-              </div>
-              <Button
-                onClick={() => setStep("form")}
-                variant="accent"
-                className="rounded-xl h-11 px-6 text-sm shrink-0"
-              >
-                Get Started <ArrowRight className="w-4 h-4 ml-1.5" />
-              </Button>
-            </div>
-          </motion.div>
-        )}
+      {/* ── Metric Highlights ── */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="p-6 rounded-2xl bg-black/40 border border-white/10 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0">
+            <Zap className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">Active Sprints</span>
+            <span className="text-2xl font-black text-white">{activeProjectsCount}</span>
+          </div>
+        </div>
 
-        {step === "form" && (
-          <motion.div
-            key="form-step"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            className="bg-[#111] border border-white/5 rounded-2xl p-6 sm:p-8"
-          >
-            <div className="flex items-center gap-3 mb-8">
-              <button
-                onClick={resetForm}
-                className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center">
-                  <FileText className="w-5 h-5 text-indigo-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">
-                    Project Requirements
-                  </h3>
-                  <p className="text-xs text-zinc-500">
-                    Step 1 of 2 — Tell us about your project
-                  </p>
-                </div>
-              </div>
-            </div>
+        <div className="p-6 rounded-2xl bg-black/40 border border-white/10 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">Completed Builds</span>
+            <span className="text-2xl font-black text-white">{completedProjectsCount}</span>
+          </div>
+        </div>
 
-            {/* Progress Steps */}
-            <div className="flex items-center gap-2 mb-8">
-              <div className="flex-1 h-1 rounded-full bg-indigo-500" />
-              <div className="flex-1 h-1 rounded-full bg-white/10" />
-            </div>
-
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className={labelClasses}>
-                    Name <span className="text-indigo-400">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.name}
-                    onChange={(e) =>
-                      setFormData({ ...formData, name: e.target.value })
-                    }
-                    placeholder="Your full name"
-                    className={inputClasses}
-                  />
-                </div>
-                <div>
-                  <label className={labelClasses}>
-                    Email <span className="text-indigo-400">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={formData.email}
-                    onChange={(e) =>
-                      setFormData({ ...formData, email: e.target.value })
-                    }
-                    placeholder="you@example.com"
-                    className={inputClasses}
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className={labelClasses}>
-                  Company / Brand (optional)
-                </label>
-                <input
-                  type="text"
-                  value={formData.company}
-                  onChange={(e) =>
-                    setFormData({ ...formData, company: e.target.value })
-                  }
-                  placeholder="Acme Corp"
-                  className={inputClasses}
-                />
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className={labelClasses}>
-                    Project Type <span className="text-indigo-400">*</span>
-                  </label>
-                  <select
-                    value={formData.projectType}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        projectType: e.target.value,
-                      })
-                    }
-                    className="w-full bg-[#161618] border border-white/20 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
-                  >
-                    <option value="" disabled className="bg-[#161618] text-zinc-400">
-                      Select a type...
-                    </option>
-                    <option value="Business Website" className="bg-[#161618] text-white">Business Website</option>
-                    <option value="Portfolio Website" className="bg-[#161618] text-white">Portfolio Website</option>
-                    <option value="Landing Page" className="bg-[#161618] text-white">Landing Page</option>
-                    <option value="Dashboard / Admin Panel" className="bg-[#161618] text-white">
-                      Dashboard / Admin Panel
-                    </option>
-                    <option value="Web App / MVP" className="bg-[#161618] text-white">Web App / MVP</option>
-                    <option value="Website Redesign" className="bg-[#161618] text-white">Website Redesign</option>
-                    <option value="Not Sure Yet" className="bg-[#161618] text-white">Not Sure Yet</option>
-                  </select>
-                </div>
-                <div>
-                  <label className={labelClasses}>
-                    Budget Range <span className="text-indigo-400">*</span>
-                  </label>
-                  <select
-                    value={formData.budget}
-                    onChange={(e) =>
-                      setFormData({ ...formData, budget: e.target.value })
-                    }
-                    className="w-full bg-[#161618] border border-white/20 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
-                  >
-                    <option value="" disabled className="bg-[#161618] text-zinc-400">
-                      Select a range...
-                    </option>
-                    <option value="Essential — ₹1,999" className="bg-[#161618] text-white">
-                      Essential — ₹1,999
-                    </option>
-                    <option value="Professional — ₹4,999" className="bg-[#161618] text-white">
-                      Professional — ₹4,999
-                    </option>
-                    <option value="Enterprise — ₹9,999" className="bg-[#161618] text-white">
-                      Enterprise — ₹9,999
-                    </option>
-                    <option value="Custom — Let's discuss" className="bg-[#161618] text-white">
-                      Custom — Let's discuss
-                    </option>
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className={labelClasses}>Timeline</label>
-                <select
-                  value={formData.timeline}
-                  onChange={(e) =>
-                    setFormData({ ...formData, timeline: e.target.value })
-                  }
-                  className="w-full bg-[#161618] border border-white/20 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium cursor-pointer"
-                >
-                  <option value="" disabled className="bg-[#161618] text-zinc-400">
-                    Select timeline...
-                  </option>
-                  <option value="As soon as possible" className="bg-[#161618] text-white">
-                    As soon as possible
-                  </option>
-                  <option value="Within 2 weeks" className="bg-[#161618] text-white">Within 2 weeks</option>
-                  <option value="Within 1 month" className="bg-[#161618] text-white">Within 1 month</option>
-                  <option value="Flexible / exploring options" className="bg-[#161618] text-white">
-                    Flexible / exploring options
-                  </option>
-                </select>
-              </div>
-
-              <div>
-                <label className={labelClasses}>
-                  Project Details <span className="text-indigo-400">*</span>
-                </label>
-                <textarea
-                  value={formData.details}
-                  onChange={(e) =>
-                    setFormData({ ...formData, details: e.target.value })
-                  }
-                  rows={4}
-                  placeholder="Tell us about your project goals, current challenges, and any specific requirements..."
-                  className={`${inputClasses} resize-none`}
-                />
-              </div>
-
-              <div className="flex justify-end pt-2">
-                <Button
-                  onClick={handleFormSubmit}
-                  variant="accent"
-                  className="rounded-xl h-12 px-8 text-sm"
-                >
-                  Continue to Payment{" "}
-                  <ArrowRight className="w-4 h-4 ml-1.5" />
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {step === "payment" && (
-          <motion.div
-            key="payment-step"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            className="bg-[#111] border border-white/5 rounded-2xl p-6 sm:p-8"
-          >
-            <div className="flex items-center gap-3 mb-8">
-              <button
-                onClick={() => setStep("form")}
-                className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/10 transition-colors"
-              >
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-                  <IndianRupee className="w-5 h-5 text-emerald-400" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-white">
-                    Make Payment
-                  </h3>
-                  <p className="text-xs text-zinc-500">
-                    Step 2 of 2 — Pay via UPI and submit your UTR
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Progress Steps */}
-            <div className="flex items-center gap-2 mb-8">
-              <div className="flex-1 h-1 rounded-full bg-indigo-500" />
-              <div className="flex-1 h-1 rounded-full bg-indigo-500" />
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-              {/* Payment Details */}
-              <div className="space-y-6">
-                {/* Amount Summary */}
-                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-                  <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-2">
-                    Amount to Pay
-                  </p>
-                  <p className="text-3xl font-black text-white">
-                    {formData.budget.includes("₹")
-                      ? formData.budget.split("—")[1]?.trim() || formData.budget
-                      : "Custom"}
-                  </p>
-                  <p className="text-xs text-zinc-500 mt-2">
-                    {formData.projectType} • {formData.budget.split("—")[0]?.trim()}
-                  </p>
-                </div>
-
-                {/* UPI Details */}
-                {paymentSettings ? (
-                  <div className="space-y-4">
-                    <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider">
-                      Pay using UPI
-                    </p>
-
-                    {paymentSettings.upiId && (
-                      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs text-zinc-500 mb-1">UPI ID</p>
-                          <p className="text-white font-bold text-lg">
-                            {paymentSettings.upiId}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            copyToClipboard(
-                              paymentSettings.upiId,
-                              "upiId"
-                            )
-                          }
-                          className={`p-2.5 rounded-lg transition-all ${
-                            copied === "upiId"
-                              ? "bg-emerald-500/20 text-emerald-400"
-                              : "bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
-                          }`}
-                        >
-                          {copied === "upiId" ? (
-                            <CheckCircle2 className="w-4 h-4" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    )}
-
-                    {paymentSettings.upiNumber && (
-                      <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs text-zinc-500 mb-1">
-                            UPI Number
-                          </p>
-                          <p className="text-white font-bold text-lg">
-                            {paymentSettings.upiNumber}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() =>
-                            copyToClipboard(
-                              paymentSettings.upiNumber,
-                              "upiNumber"
-                            )
-                          }
-                          className={`p-2.5 rounded-lg transition-all ${
-                            copied === "upiNumber"
-                              ? "bg-emerald-500/20 text-emerald-400"
-                              : "bg-white/5 text-zinc-400 hover:text-white hover:bg-white/10"
-                          }`}
-                        >
-                          {copied === "upiNumber" ? (
-                            <CheckCircle2 className="w-4 h-4" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
-                          )}
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-4">
-                      <p className="text-amber-400 text-xs font-semibold mb-1">
-                        How to pay
-                      </p>
-                      <ol className="text-zinc-400 text-xs space-y-1 list-decimal list-inside">
-                        <li>Open any UPI app (GPay, PhonePe, Paytm, etc.)</li>
-                        <li>Copy the UPI ID or Number above</li>
-                        <li>Pay the exact amount shown</li>
-                        <li>Copy the UTR/Transaction ID from payment receipt</li>
-                        <li>Paste it below and submit</li>
-                      </ol>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-6 text-center">
-                    <Shield className="w-8 h-8 text-zinc-600 mx-auto mb-3" />
-                    <p className="text-zinc-500 text-sm">
-                      Payment details are being set up by the admin. Please
-                      contact us directly.
-                    </p>
-                  </div>
-                )}
-              </div>
-
-              {/* UTR Submission */}
-              <div className="space-y-6">
-                <div>
-                  <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-4">
-                    Submit Payment Proof
-                  </p>
-                  <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5 space-y-4">
-                    <div>
-                      <label className={labelClasses}>
-                        UTR / Transaction Reference Number{" "}
-                        <span className="text-indigo-400">*</span>
-                      </label>
-                      <input
-                        type="text"
-                        value={utrNumber}
-                        onChange={(e) => setUtrNumber(e.target.value)}
-                        placeholder="e.g. 412345678901"
-                        className={inputClasses}
-                        maxLength={22}
-                      />
-                      <p className="text-xs text-zinc-600 mt-2">
-                        You'll find this 12-digit number in your UPI payment
-                        receipt
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Order Summary */}
-                <div className="bg-white/[0.03] border border-white/10 rounded-xl p-5">
-                  <p className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-3">
-                    Order Summary
-                  </p>
-                  <div className="space-y-2 text-sm">
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Project</span>
-                      <span className="text-white font-medium">
-                        {formData.projectType}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Plan</span>
-                      <span className="text-white font-medium">
-                        {formData.budget.split("—")[0]?.trim()}
-                      </span>
-                    </div>
-                    {formData.company && (
-                      <div className="flex justify-between">
-                        <span className="text-zinc-500">Company</span>
-                        <span className="text-white font-medium">
-                          {formData.company}
-                        </span>
-                      </div>
-                    )}
-                    <div className="flex justify-between">
-                      <span className="text-zinc-500">Timeline</span>
-                      <span className="text-white font-medium">
-                        {formData.timeline || "Not specified"}
-                      </span>
-                    </div>
-                    <div className="border-t border-white/5 pt-2 mt-2 flex justify-between">
-                      <span className="text-zinc-400 font-semibold">
-                        Total
-                      </span>
-                      <span className="text-white font-bold text-lg">
-                        {formData.budget.includes("₹")
-                          ? formData.budget.split("—")[1]?.trim()
-                          : "Custom"}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                <Button
-                  onClick={handleUtrSubmit}
-                  variant="accent"
-                  className="w-full rounded-xl h-12 text-sm"
-                  disabled={isSubmitting || !utrNumber.trim()}
-                >
-                  {isSubmitting ? (
-                    <span className="flex items-center gap-2">
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Submitting...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      I've Paid — Submit UTR
-                    </span>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        )}
-
-        {step === "done" && (
-          <motion.div
-            key="done-step"
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-8 sm:p-10 text-center"
-          >
-            <div className="w-16 h-16 bg-emerald-500/20 rounded-full flex items-center justify-center mx-auto mb-5">
-              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-            </div>
-            <h3 className="text-2xl font-bold text-white mb-2">
-              Payment Submitted!
-            </h3>
-            <p className="text-zinc-400 text-sm max-w-md mx-auto mb-6">
-              Your UTR has been received. Our team will verify the payment and
-              activate your project shortly. You'll see the status update in
-              your dashboard.
-            </p>
-            <Button
-              onClick={resetForm}
-              variant="outline"
-              className="rounded-xl h-11 px-6 text-sm border-white/20"
-            >
-              Back to Dashboard
-            </Button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* ── Stat Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          {
-            label: "Active Projects",
-            value: orders
-              .filter(
-                (o) =>
-                  o.status !== "completed" && o.status !== "cancelled"
-              )
-              .length.toString(),
-            icon: FolderKanban,
-            color: "text-indigo-400",
-            bg: "bg-indigo-500/10",
-          },
-          {
-            label: "Total Spent",
-            value: `${orders.length > 0 ? orders[0]?.currency || "₹" : "₹"}${orders
-              .reduce((a, o) => a + (o.price || 0), 0)
-              .toLocaleString()}`,
-            icon: CreditCard,
-            color: "text-emerald-400",
-            bg: "bg-emerald-500/10",
-          },
-          {
-            label: "Awaiting Verification",
-            value: orders
-              .filter((o) => o.status === "awaiting_verification")
-              .length.toString(),
-            icon: Clock,
-            color: "text-amber-400",
-            bg: "bg-amber-500/10",
-          },
-          {
-            label: "Completed",
-            value: orders
-              .filter((o) => o.status === "completed")
-              .length.toString(),
-            icon: TrendingUp,
-            color: "text-purple-400",
-            bg: "bg-purple-500/10",
-          },
-        ].map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{
-              duration: 0.5,
-              delay: i * 0.08,
-              ease: [0.16, 1, 0.3, 1],
-            }}
-            className="bg-[#111] border border-white/5 rounded-2xl p-5 flex items-center gap-4 hover:border-white/10 transition-colors"
-          >
-            <div
-              className={`w-11 h-11 rounded-xl ${stat.bg} flex items-center justify-center shrink-0`}
-            >
-              <stat.icon className={`w-5 h-5 ${stat.color}`} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-white tracking-tight">
-                {stat.value}
-              </p>
-              <p className="text-xs text-zinc-500 font-medium">
-                {stat.label}
-              </p>
-            </div>
-          </motion.div>
-        ))}
+        <div className="p-6 rounded-2xl bg-black/40 border border-white/10 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
+            <CreditCard className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">Total Milestone Paid</span>
+            <span className="text-2xl font-black text-white">₹{totalSpent.toLocaleString()}</span>
+          </div>
+        </div>
       </div>
 
-      {/* ── Content Grid ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Orders */}
-        <motion.div
-          {...fadeUp}
-          className="lg:col-span-2 bg-[#111] border border-white/5 rounded-2xl overflow-hidden"
-        >
-          <div className="flex items-center justify-between p-6 border-b border-white/5">
-            <h2 className="text-base font-bold text-white">Recent Orders</h2>
-            {orders.length > 0 && (
-              <button
-                onClick={() => router.push("/dashboard/billing")}
-                className="text-xs text-zinc-500 hover:text-white font-medium transition-colors flex items-center gap-1"
-              >
-                View all <ArrowRight className="w-3 h-3" />
-              </button>
-            )}
+      {/* ── Active Projects & Milestone Trackers ── */}
+      <div className="space-y-6">
+        <div className="flex items-center justify-between">
+          <h2 className="text-xl font-bold text-white font-jakarta tracking-tight">Your Projects & Sprints</h2>
+          <span className="text-xs text-zinc-500 font-mono">{orders.length} Total</span>
+        </div>
+
+        {loadingOrders ? (
+          <div className="text-center py-16 text-zinc-500 text-sm">Loading project workspaces...</div>
+        ) : orders.length === 0 ? (
+          <div className="p-10 rounded-3xl bg-zinc-950/40 border border-white/5 text-center space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto">
+              <FileText className="w-7 h-7" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-white">No Active Projects Yet</h3>
+              <p className="text-xs text-zinc-400 max-w-md mx-auto mt-1">
+                Explore our transparent 50/50 milestone packages and launch your next high-converting website today.
+              </p>
+            </div>
+            <Link href="/pricing" className="inline-block pt-2">
+              <Button variant="accent" size="sm" className="rounded-xl">
+                Explore Pricing & Packages <ArrowRight className="w-4 h-4 ml-1.5" />
+              </Button>
+            </Link>
           </div>
-          <div className="divide-y divide-white/5">
-            {orders.length === 0 ? (
-              <div className="p-12 text-center">
-                <FolderKanban className="w-10 h-10 text-zinc-700 mx-auto mb-4" />
-                <p className="text-zinc-500 font-medium text-sm mb-1">
-                  No orders yet
-                </p>
-                <p className="text-zinc-600 text-xs">
-                  Your project orders will appear here.
-                </p>
-              </div>
-            ) : (
-              orders.slice(0, 5).map((order) => (
+        ) : (
+          <div className="space-y-6">
+            {orders.map((order) => {
+              const isAdvancePaid = order.advancePaid || order.status === "in_progress" || order.status === "awaiting_final_payment" || order.status === "completed";
+              const isStagingReady = !!order.stagingUrl || order.status === "awaiting_final_payment" || order.status === "completed";
+              const isFinalPaid = order.finalPaid || order.status === "completed";
+              const isCompleted = order.status === "completed";
+
+              const advanceAmount = order.advancePrice || (order.totalPrice ? Math.round(order.totalPrice * 0.5) : 0);
+              const finalAmount = order.finalPrice || (order.totalPrice ? order.totalPrice - advanceAmount : 0);
+
+              return (
                 <div
                   key={order.id}
-                  className="p-5 hover:bg-white/[0.02] transition-colors space-y-3"
+                  className="rounded-3xl bg-[#0e0e0e] border border-white/10 p-6 sm:p-8 space-y-6 hover:border-white/20 transition-all shadow-xl"
                 >
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-4">
-                      <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center">
-                        <FolderKanban className="w-4 h-4 text-indigo-400" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-semibold text-white">
-                          {order.planName}
-                        </p>
-                        <p className="text-xs text-zinc-500">
-                          {order.createdAt?.toDate?.()
-                            ? new Intl.DateTimeFormat("en", {
-                                dateStyle: "medium",
-                              }).format(order.createdAt.toDate())
-                            : "Recent"}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-sm font-bold text-white">
-                        {order.currency || "₹"}
-                        {order.price?.toLocaleString()}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full ${
-                          order.status === "completed"
-                            ? "bg-emerald-500/10 text-emerald-400"
+                  {/* Project Header */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/5">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="text-xl font-bold text-white tracking-tight">{order.planName}</h3>
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                            isCompleted
+                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              : order.status === "awaiting_final_payment"
+                              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                              : order.status === "in_progress"
+                              ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
+                              : "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                          }`}
+                        >
+                          {isCompleted
+                            ? "Completed & Handed Over"
+                            : order.status === "awaiting_final_payment"
+                            ? "Staging Ready • Final Settlement Due"
                             : order.status === "in_progress"
-                            ? "bg-blue-500/10 text-blue-400"
-                            : order.status === "awaiting_verification"
-                            ? "bg-amber-500/10 text-amber-400"
-                            : "bg-red-500/10 text-red-400"
-                        }`}
+                            ? "Active Sprint in Progress"
+                            : "Awaiting 50% Advance"}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-400">
+                        {order.formData?.company ? `${order.formData.company} • ` : ""}
+                        Timeline: {order.formData?.timeline || "Standard"}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => setOpenRoomOrderId(openRoomOrderId === order.id ? null : order.id)}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-xl text-xs flex items-center gap-1.5"
                       >
-                        {order.status.replace(/_/g, " ")}
-                      </span>
+                        <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                        {openRoomOrderId === order.id ? "Close Chat" : "Developer Chat"}
+                      </Button>
                     </div>
                   </div>
 
-                  {(order as any).statusCaption && (
-                    <div className="bg-white/[0.03] border border-white/5 rounded-lg px-3 py-2 text-xs text-zinc-300 mt-2 italic">
-                      <span className="text-zinc-500 font-semibold not-italic mr-1">Latest Update:</span>
-                      {(order as any).statusCaption}
+                  {/* 50/50 Milestone Tracker Visualizer */}
+                  <div className="space-y-3">
+                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest block">
+                      50 / 50 Milestone Roadmap:
+                    </span>
+
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      {/* Milestone 1 */}
+                      <div
+                        className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
+                          isAdvancePaid
+                            ? "bg-emerald-950/20 border-emerald-500/30"
+                            : "bg-indigo-950/20 border-indigo-500/40"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="font-bold text-white">1. 50% Advance</span>
+                          {isAdvancePaid ? (
+                            <span className="text-emerald-400 font-extrabold flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Paid
+                            </span>
+                          ) : (
+                            <span className="text-indigo-400 font-bold">Due</span>
+                          )}
+                        </div>
+                        <div className="text-base font-black text-white">₹{advanceAmount.toLocaleString()}</div>
+                        {!isAdvancePaid && (
+                          <Button
+                            onClick={() => handlePaytmCheckout(order, "advance")}
+                            variant="accent"
+                            size="sm"
+                            disabled={initiatingPaytm}
+                            className="rounded-xl text-xs w-full mt-2 h-8"
+                          >
+                            Pay ₹{advanceAmount.toLocaleString()} Advance
+                          </Button>
+                        )}
+                      </div>
+
+                      {/* Milestone 2 */}
+                      <div
+                        className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
+                          isAdvancePaid && !isCompleted
+                            ? "bg-blue-950/20 border-blue-500/30"
+                            : isCompleted
+                            ? "bg-emerald-950/20 border-emerald-500/30"
+                            : "bg-black/30 border-white/5 text-zinc-600"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className={`font-bold ${isAdvancePaid ? "text-white" : "text-zinc-600"}`}>
+                            2. Active Sprint
+                          </span>
+                          {isAdvancePaid && (
+                            <span className="text-blue-400 font-bold flex items-center gap-1">
+                              <Zap className="w-3.5 h-3.5" /> In Dev
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-zinc-400">
+                          {isAdvancePaid ? "Code architecture & design active" : "Starts after advance"}
+                        </div>
+                      </div>
+
+                      {/* Milestone 3 */}
+                      <div
+                        className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
+                          isStagingReady
+                            ? "bg-purple-950/20 border-purple-500/30"
+                            : "bg-black/30 border-white/5 text-zinc-600"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className={`font-bold ${isStagingReady ? "text-white" : "text-zinc-600"}`}>
+                            3. Live Staging Demo
+                          </span>
+                          {isStagingReady && (
+                            <span className="text-purple-400 font-bold flex items-center gap-1">
+                              <Globe className="w-3.5 h-3.5" /> Ready
+                            </span>
+                          )}
+                        </div>
+                        {order.stagingUrl ? (
+                          <a
+                            href={order.stagingUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-indigo-300 underline font-medium flex items-center gap-1 hover:text-white"
+                          >
+                            Preview Demo <ExternalLink className="w-3 h-3" />
+                          </a>
+                        ) : (
+                          <div className="text-xs text-zinc-500">Staging URL deployed soon</div>
+                        )}
+                      </div>
+
+                      {/* Milestone 4 */}
+                      <div
+                        className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
+                          isFinalPaid
+                            ? "bg-emerald-950/20 border-emerald-500/30"
+                            : order.status === "awaiting_final_payment"
+                            ? "bg-amber-950/20 border-amber-500/40"
+                            : "bg-black/30 border-white/5 text-zinc-600"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <span className={`font-bold ${isStagingReady ? "text-white" : "text-zinc-600"}`}>
+                            4. Final 50% & Handover
+                          </span>
+                          {isFinalPaid ? (
+                            <span className="text-emerald-400 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Settled
+                            </span>
+                          ) : (
+                            <span className="text-zinc-500 font-bold">₹{finalAmount.toLocaleString()}</span>
+                          )}
+                        </div>
+                        <div className="text-base font-black text-white">₹{finalAmount.toLocaleString()}</div>
+                        {order.status === "awaiting_final_payment" && !isFinalPaid && (
+                          <Button
+                            onClick={() => handlePaytmCheckout(order, "final")}
+                            variant="accent"
+                            size="sm"
+                            disabled={initiatingPaytm}
+                            className="rounded-xl text-xs w-full mt-2 h-8 bg-amber-500 hover:bg-amber-600 text-black font-bold"
+                          >
+                            Pay Final ₹{finalAmount.toLocaleString()}
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Project Handover Assets (When completed) */}
+                  {isCompleted && (
+                    <div className="p-5 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-3">
+                      <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                        <CheckCircle2 className="w-4 h-4" /> Final Handover Assets & Source Code Unlocked!
+                      </div>
+                      <div className="flex flex-wrap items-center gap-4 text-xs">
+                        {order.handoverLinks?.liveUrl && (
+                          <a
+                            href={order.handoverLinks.liveUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10"
+                          >
+                            <Globe className="w-3.5 h-3.5 text-indigo-400" /> Live Production URL
+                          </a>
+                        )}
+                        {order.handoverLinks?.githubRepo && (
+                          <a
+                            href={order.handoverLinks.githubRepo}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10"
+                          >
+                            <Code className="w-3.5 h-3.5 text-zinc-300" /> GitHub Repository
+                          </a>
+                        )}
+                        {order.handoverLinks?.driveZip && (
+                          <a
+                            href={order.handoverLinks.driveZip}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10"
+                          >
+                            <Download className="w-3.5 h-3.5 text-emerald-400" /> Download Build ZIP
+                          </a>
+                        )}
+                      </div>
+                      {order.handoverNotes && (
+                        <p className="text-xs text-zinc-400 pt-1">{order.handoverNotes}</p>
+                      )}
                     </div>
                   )}
 
-                  {/* UTR Status & Submission Bar */}
-                  <div className="flex flex-wrap items-center justify-between text-xs pt-1 border-t border-white/5 gap-2">
-                    {order.utrNumber ? (
-                      <span className="text-indigo-400 font-mono flex items-center gap-1.5">
-                        <Copy className="w-3 h-3" /> UTR Ref: {order.utrNumber}
-                      </span>
-                    ) : (
-                      <div className="flex items-center gap-2 w-full justify-between">
-                        <span className="text-amber-400 font-medium">
-                          Payment UTR: Not Submitted
-                        </span>
-                        {submittingUtrForOrder !== order.id && (
-                          <button
-                            onClick={() => {
-                              setSubmittingUtrForOrder(order.id);
-                              setUserUtrInput("");
-                            }}
-                            className="text-xs text-indigo-400 hover:text-indigo-300 font-bold underline transition-colors"
-                          >
-                            + Submit UTR Number
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    {submittingUtrForOrder === order.id && (
-                      <div className="w-full flex items-center gap-2 mt-2 p-2 bg-[#161618] border border-white/10 rounded-xl">
-                        <input
-                          type="text"
-                          value={userUtrInput}
-                          onChange={(e) => setUserUtrInput(e.target.value)}
-                          placeholder="Enter your 12-digit UTR Number..."
-                          className="flex-1 bg-black/50 border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
-                        />
-                        <Button
-                          onClick={() => handleUserSubmitUtr(order.id)}
-                          variant="accent"
-                          size="sm"
-                          className="rounded-lg h-8 px-3 text-xs"
-                          disabled={!userUtrInput.trim()}
-                        >
-                          Submit UTR
-                        </Button>
-                        <button
-                          onClick={() => setSubmittingUtrForOrder(null)}
-                          className="text-xs text-zinc-500 hover:text-white px-2"
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Admin Query & User Response Section */}
-                  {order.adminQuery && (
-                    <div className="p-4 bg-indigo-500/5 border border-indigo-500/20 rounded-xl space-y-3">
-                      <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-wider">
-                        <HelpCircle className="w-4 h-4" /> Action Required: Message from Admin
-                      </div>
-                      <p className="text-sm text-zinc-200 font-medium">
-                        "{order.adminQuery}"
-                      </p>
-
-                      {order.userResponse ? (
-                        <div className="p-3 bg-white/[0.03] border border-white/10 rounded-lg text-xs space-y-1">
-                          <div className="flex justify-between items-center">
-                            <span className="text-emerald-400 font-bold flex items-center gap-1">
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Your Reply Submitted:
-                            </span>
-                            <button
-                              onClick={() => {
-                                setRespondingOrderId(order.id);
-                                setResponseText(order.userResponse || "");
-                              }}
-                              className="text-zinc-500 hover:text-white transition-colors"
-                            >
-                              Edit
-                            </button>
+                  {/* ── Ongoing Website Maintenance & Support Section ── */}
+                  {isCompleted && (
+                    <div className="p-5 rounded-2xl bg-gradient-to-r from-purple-950/20 via-indigo-950/20 to-black border border-purple-500/30 space-y-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
+                            <Wrench className="w-4 h-4" />
                           </div>
-                          <p className="text-zinc-300 font-medium">{order.userResponse}</p>
+                          <div>
+                            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                              Website Maintenance & Dedicated Support
+                              {order.maintenanceActive && (
+                                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-bold">
+                                  ACTIVE COVERAGE
+                                </span>
+                              )}
+                            </h4>
+                            <p className="text-xs text-zinc-400">
+                              {order.maintenanceActive
+                                ? `Covered until ${new Date(order.maintenanceExpiresAt || Date.now()).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })} • Engineer: ${order.maintenanceAssignedDevName || "Assigned Lead"}`
+                                : "Keep your live website fast, bug-free, and updated with dedicated engineer coverage"}
+                            </p>
+                          </div>
                         </div>
-                      ) : (
-                        respondingOrderId !== order.id && (
+
+                        {order.maintenanceActive ? (
+                          <Link href={`/dashboard/workspace?orderId=${order.id}`}>
+                            <Button variant="accent" size="sm" className="rounded-xl text-xs flex items-center gap-1.5 shrink-0 bg-purple-600 hover:bg-purple-700">
+                              <Sparkles className="w-3.5 h-3.5" /> Open Maintenance Desk
+                            </Button>
+                          </Link>
+                        ) : (
                           <Button
-                            onClick={() => {
-                              setRespondingOrderId(order.id);
-                              setResponseText("");
-                            }}
+                            onClick={() => handlePaytmCheckout(order, "maintenance", 1999)}
                             variant="accent"
                             size="sm"
-                            className="rounded-lg h-9 px-4 text-xs mt-1"
+                            disabled={initiatingPaytm}
+                            className="rounded-xl text-xs flex items-center gap-1.5 shrink-0 bg-purple-600 hover:bg-purple-700 font-bold"
                           >
-                            <MessageSquare className="w-3.5 h-3.5 mr-1.5" /> Reply to Admin Question
+                            <Sparkles className="w-3.5 h-3.5" /> Activate Maintenance (₹1,999/mo)
                           </Button>
-                        )
-                      )}
+                        )}
+                      </div>
 
-                      {/* Response Form */}
-                      {respondingOrderId === order.id && (
-                        <div className="space-y-3 pt-2">
+                      {/* Maintenance Feature Perks */}
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-zinc-300 pt-2 border-t border-white/5">
+                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-2">
+                          <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-white block">Uptime & Security</span>
+                            <span className="text-[11px] text-zinc-500">24/7 monitoring, backups & patches</span>
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-2">
+                          <Zap className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-white block">Priority Bug Fixes</span>
+                            <span className="text-[11px] text-zinc-500">Fast resolution for live site issues</span>
+                          </div>
+                        </div>
+                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-2">
+                          <Code className="w-4 h-4 text-pink-400 shrink-0 mt-0.5" />
+                          <div>
+                            <span className="font-bold text-white block">Content & Feature Tweaks</span>
+                            <span className="text-[11px] text-zinc-500">Deploy copy, asset & layout edits</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Admin Query Box if any */}
+                  {order.hasPendingQuery && order.adminQuery && (
+                    <div className="p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 space-y-3">
+                      <div className="flex items-center gap-2 text-amber-400 text-xs font-bold">
+                        <AlertCircle className="w-4 h-4" /> Message from Admin Team:
+                      </div>
+                      <p className="text-xs text-white">{order.adminQuery}</p>
+                      {respondingOrderId === order.id ? (
+                        <div className="space-y-2 pt-2">
                           <textarea
+                            rows={2}
                             value={responseText}
                             onChange={(e) => setResponseText(e.target.value)}
-                            rows={3}
-                            placeholder="Type your reply to the admin..."
-                            className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500/50 resize-none"
+                            placeholder="Type your response or clarification..."
+                            className="w-full bg-[#18181b] border border-white/10 rounded-xl px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
                           />
                           <div className="flex justify-end gap-2">
-                            <button
-                              onClick={() => setRespondingOrderId(null)}
-                              className="px-3 py-1.5 rounded-lg text-xs text-zinc-400 hover:text-white transition-colors"
-                            >
+                            <Button onClick={() => setRespondingOrderId(null)} variant="ghost" size="sm" className="text-xs">
                               Cancel
-                            </button>
+                            </Button>
                             <Button
                               onClick={() => handleRespondToQuery(order.id)}
                               variant="accent"
                               size="sm"
-                              className="rounded-lg h-8 px-4 text-xs"
-                              disabled={submittingResponse || !responseText.trim()}
+                              disabled={submittingResponse}
+                              className="text-xs"
                             >
-                              {submittingResponse ? (
-                                "Submitting..."
-                              ) : (
-                                <span className="flex items-center gap-1.5">
-                                  <Send className="w-3 h-3" /> Submit Reply
-                                </span>
-                              )}
+                              Send Response
                             </Button>
                           </div>
                         </div>
+                      ) : (
+                        <Button
+                          onClick={() => setRespondingOrderId(order.id)}
+                          variant="accent"
+                          size="sm"
+                          className="rounded-xl text-xs h-7"
+                        >
+                          Reply to Admin
+                        </Button>
                       )}
                     </div>
-                    )}
-                    {/* Developer Interaction Room */}
-                    <div className="pt-1">
-                      <button
-                        onClick={() =>
-                          setOpenRoomOrderId(openRoomOrderId === order.id ? null : order.id)
-                        }
-                        className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors ${
-                          openRoomOrderId === order.id
-                            ? "bg-indigo-500/20 border-indigo-500/30 text-indigo-300"
-                            : "bg-white/[0.03] border-white/10 text-zinc-400 hover:text-white hover:border-white/20"
-                        }`}
-                      >
-                        <MessageCircle className="w-3.5 h-3.5" />
-                        {openRoomOrderId === order.id ? "Close" : "Open"} Developer Workspace
-                      </button>
-                      {openRoomOrderId === order.id && (
-                        <DeveloperInteractionRoom
-                          orderId={order.id}
-                          orderStatus={order.status}
-                          planName={order.planName}
-                          currentUserId={user?.uid || ""}
-                          currentUserName={user?.displayName || profile?.name || "Client"}
-                          currentUserRole="user"
-                          currentUserDesignation={profile?.designation}
-                          currentUserDepartment={profile?.department}
-                        />
-                      )}
+                  )}
+
+                  {/* Developer Interaction Room (Expandable) */}
+                  {openRoomOrderId === order.id && (
+                    <div className="pt-4 border-t border-white/5">
+                      <DeveloperInteractionRoom
+                        orderId={order.id}
+                        orderStatus={order.status}
+                        planName={order.planName}
+                        currentUserId={user?.uid || ""}
+                        currentUserName={user?.displayName || profile?.name || "Client"}
+                        currentUserRole="user"
+                      />
                     </div>
-                  </div>
-                ))
-            )}
-          </div>
-        </motion.div>
-
-        {/* Quick Actions */}
-        <motion.div
-          {...fadeUp}
-          className="bg-[#111] border border-white/5 rounded-2xl p-6"
-        >
-          <h2 className="text-base font-bold text-white mb-5">
-            Quick Actions
-          </h2>
-          <div className="space-y-3">
-            {!hasActiveProject && (
-              <button
-                onClick={() => setStep("form")}
-                className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/10 transition-all text-left group"
-              >
-                <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
-                  <PlusCircle className="w-4 h-4 text-indigo-400" />
+                  )}
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-white">
-                    Start a Project
-                  </p>
-                  <p className="text-xs text-zinc-500">
-                    Describe your requirements & pay
-                  </p>
-                </div>
-                <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
-              </button>
-            )}
-
-            <button
-              onClick={() => router.push("/services")}
-              className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/10 transition-all text-left group"
-            >
-              <div className="w-9 h-9 rounded-lg bg-indigo-500/10 flex items-center justify-center shrink-0">
-                <CreditCard className="w-4 h-4 text-indigo-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">
-                  View Services
-                </p>
-                <p className="text-xs text-zinc-500">
-                  See what we offer
-                </p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
-            </button>
-
-            <button
-              onClick={() => router.push("/work")}
-              className="w-full flex items-center gap-3 p-3.5 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/10 transition-all text-left group"
-            >
-              <div className="w-9 h-9 rounded-lg bg-emerald-500/10 flex items-center justify-center shrink-0">
-                <ExternalLink className="w-4 h-4 text-emerald-400" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white">
-                  View Portfolio
-                </p>
-                <p className="text-xs text-zinc-500">See our live projects</p>
-              </div>
-              <ArrowRight className="w-4 h-4 text-zinc-600 group-hover:text-white transition-colors" />
-            </button>
+              );
+            })}
           </div>
-
-          {/* Account info mini */}
-          <div className="mt-6 pt-6 border-t border-white/5">
-            <h3 className="text-xs text-zinc-500 font-semibold uppercase tracking-wider mb-3">
-              Account
-            </h3>
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Name</span>
-                <span className="text-white font-medium truncate ml-4">
-                  {profile?.name || "—"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Phone</span>
-                <span className="text-white font-medium">
-                  {profile?.phone || "—"}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-zinc-500">Location</span>
-                <span className="text-white font-medium truncate ml-4">
-                  {profile?.location || "—"}
-                </span>
-              </div>
-            </div>
-          </div>
-        </motion.div>
+        )}
       </div>
     </div>
   );

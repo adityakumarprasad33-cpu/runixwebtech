@@ -206,7 +206,7 @@ export default function RegisterPage() {
       >
         <div className="text-center lg:text-left mb-8">
           <div className="lg:hidden relative w-12 h-12 mb-6 mx-auto">
-            <Image src="/logo-v2.png" alt="Runix Logo" fill className="object-contain" />
+            <Image src="/logo-v2.png" alt="Runix Logo" fill sizes="48px" className="object-contain" />
           </div>
           <h2 className="font-jakarta text-3xl font-bold text-white mb-3">Create an Account</h2>
           <p className="text-zinc-400 font-medium">Join us to start building your digital future.</p>

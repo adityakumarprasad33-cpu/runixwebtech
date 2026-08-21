@@ -14,7 +14,7 @@ export default function ContactPage() {
       <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-4xl h-[50vh] bg-indigo-500/10 blur-[150px] pointer-events-none rounded-full" />
 
       {/* Hero Section */}
-      <section className="relative w-full pt-48 pb-16 px-4 z-10">
+      <section className="relative w-full pt-32 md:pt-36 pb-14 px-4 z-10">
         <motion.div
           initial={{ opacity: 0, y: 40 }}
           animate={{ opacity: 1, y: 0 }}

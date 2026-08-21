@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import Hero3DScroll from "@/components/hero/Hero3DScroll";
-import { type Project, projects as defaultProjects } from "@/data/projects";
+import { type Project } from "@/data/projects";
 
 // Dynamically load modal viewer only when a user interacts
 const ShowcaseViewer = dynamic(() => import("@/components/showcase/ShowcaseViewer"), {
@@ -26,7 +26,7 @@ const ShowcaseViewer = dynamic(() => import("@/components/showcase/ShowcaseViewe
 
 export default function Home() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [dbProjects, setDbProjects] = useState<Project[]>(defaultProjects);
+  const [dbProjects, setDbProjects] = useState<Project[]>([]);
 
   useEffect(() => {
     let unsub: (() => void) | undefined;
@@ -38,10 +38,8 @@ export default function Home() {
         unsub = onSnapshot(
           collection(db, "projects"),
           (snap) => {
-            const data = snap.docs.map((doc) => doc.data() as Project);
-            if (data.length > 0) {
-              setDbProjects(data);
-            }
+            const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as unknown as Project));
+            setDbProjects(data);
           },
           (err) => {
             console.error("Realtime homepage projects error:", err);
@@ -69,7 +67,7 @@ export default function Home() {
     }
   }, []);
 
-  const displayProjects = dbProjects.length > 0 ? dbProjects : defaultProjects;
+  const displayProjects = dbProjects;
 
   return (
     <div className="flex flex-col w-full items-center bg-[#050505] overflow-x-clip">
@@ -166,58 +164,108 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {displayProjects.slice(0, 4).map((project) => (
-              <motion.div
-                key={project.slug}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-50px" }}
-                transition={{ duration: 0.6 }}
-                className="group relative rounded-3xl bg-[#0c0c0c] border border-white/10 overflow-hidden hover:border-indigo-500/40 transition-all p-8 flex flex-col justify-between cursor-pointer"
-                onClick={() => setSelectedProject(project)}
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-zinc-300 uppercase tracking-widest">
-                      {project.category || "Web App"}
-                    </span>
-                    <span className="text-xs text-zinc-500 font-mono">
-                      {project.status || "live"}
-                    </span>
+          {dbProjects.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {dbProjects.slice(0, 4).map((project) => (
+                <motion.div
+                  key={project.slug}
+                  initial={{ opacity: 0, y: 30 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true, margin: "-50px" }}
+                  transition={{ duration: 0.6 }}
+                  className="group relative rounded-3xl bg-[#0c0c0c] border border-white/10 overflow-hidden hover:border-indigo-500/40 transition-all p-8 flex flex-col justify-between cursor-pointer"
+                  onClick={() => setSelectedProject(project)}
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-6">
+                      <span className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-xs font-bold text-zinc-300 uppercase tracking-widest">
+                        {project.category || "Web App"}
+                      </span>
+                      <span className="text-xs text-zinc-500 font-mono">
+                        {project.status || "live"}
+                      </span>
+                    </div>
+                    <h3 className="text-3xl font-bold font-jakarta text-white mb-3 tracking-tight group-hover:text-indigo-300 transition-colors">
+                      {project.title}
+                    </h3>
+                    <p className="text-sm text-zinc-400 line-clamp-3 mb-8 leading-relaxed">
+                      {project.summary}
+                    </p>
                   </div>
-                  <h3 className="text-3xl font-bold font-jakarta text-white mb-3 tracking-tight group-hover:text-indigo-300 transition-colors">
-                    {project.title}
-                  </h3>
-                  <p className="text-sm text-zinc-400 line-clamp-3 mb-8 leading-relaxed">
-                    {project.summary}
-                  </p>
-                </div>
 
-                {/* Styled Visual UI Preview Card (Lightweight) */}
-                <div className="w-full h-48 bg-zinc-900/80 border border-white/10 rounded-2xl p-4 flex flex-col justify-between group-hover:bg-zinc-800/80 transition-colors">
-                  <div className="flex items-center gap-2 border-b border-white/10 pb-3">
-                    <span className="text-[10px] text-zinc-500 font-mono truncate">
-                      {project.live_url || project.slug}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between pt-4">
-                    <span className="text-xs text-indigo-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
-                      Preview Case <ExternalLink className="w-3.5 h-3.5" />
-                    </span>
-                    <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-indigo-500 transition-colors">
-                      <ArrowRight className="w-4 h-4" />
+                  {/* Styled Visual UI Preview Card */}
+                  <div className="w-full h-48 bg-zinc-900/80 border border-white/10 rounded-2xl p-4 flex flex-col justify-between group-hover:bg-zinc-800/80 transition-colors">
+                    <div className="flex items-center gap-2 border-b border-white/10 pb-3">
+                      <span className="text-[10px] text-zinc-500 font-mono truncate">
+                        {project.live_url || project.slug}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between pt-4">
+                      <span className="text-xs text-indigo-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                        Preview Case <ExternalLink className="w-3.5 h-3.5" />
+                      </span>
+                      <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center text-white group-hover:bg-indigo-500 transition-colors">
+                        <ArrowRight className="w-4 h-4" />
+                      </div>
                     </div>
                   </div>
-                </div>
-              </motion.div>
-            ))}
+                </motion.div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-12 rounded-3xl bg-[#0c0c0c] border border-white/5 text-center max-w-xl mx-auto space-y-4">
+              <p className="text-sm text-zinc-400">
+                New showcase builds and case studies published by administrators in the CMS will appear here live.
+              </p>
+              <Button variant="outline" size="sm" asChild className="rounded-full text-xs">
+                <Link href="/pricing" className="flex items-center gap-1.5">
+                  Explore Services & Pricing <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </Button>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* ── 50/50 Milestone Pricing Teaser ── */}
+      <section className="py-24 w-full max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
+        <div className="rounded-[3rem] p-10 md:p-16 bg-gradient-to-b from-indigo-950/40 via-zinc-900/60 to-black border border-white/10 backdrop-blur-2xl flex flex-col lg:flex-row items-center justify-between gap-10">
+          <div className="space-y-4 max-w-xl">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-bold uppercase tracking-widest">
+              <Sparkles className="w-3.5 h-3.5" /> Zero-Risk Guarantee
+            </div>
+            <h2 className="text-3xl md:text-5xl font-black text-white font-jakarta tracking-tight">
+              Pay 50% Advance. <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">
+                50% on Handover.
+              </span>
+            </h2>
+            <p className="text-zinc-400 text-sm md:text-base leading-relaxed">
+              No upfront lock-in, no full advance risk. We build your sprint, stage a live demo preview for you to test, and you only settle the remaining 50% balance before source code handover.
+            </p>
+            <div className="flex flex-wrap gap-4 pt-2 text-xs font-mono text-zinc-300">
+              <span className="flex items-center gap-1.5"><ShieldCheck className="w-4 h-4 text-emerald-400" /> Paytm PG / UPI</span>
+              <span className="flex items-center gap-1.5"><Zap className="w-4 h-4 text-indigo-400" /> 48h–7d Sprints</span>
+              <span className="flex items-center gap-1.5"><Globe className="w-4 h-4 text-purple-400" /> Live Staging Demo</span>
+            </div>
+          </div>
+
+          <div className="shrink-0 flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
+            <Link href="/pricing" className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                variant="accent"
+                className="rounded-2xl h-14 px-8 text-sm font-bold w-full sm:w-auto flex items-center justify-center gap-2 shadow-xl shadow-indigo-500/20"
+              >
+                View Plans & Pricing <ArrowRight className="w-4 h-4" />
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
 
       {/* ── Final Call to Action ── */}
-      <section className="w-full min-h-[70vh] flex items-center justify-center px-4 py-24 relative z-10 overflow-hidden lazy-render">
+      <section className="w-full min-h-[60vh] flex items-center justify-center px-4 py-20 relative z-10 overflow-hidden lazy-render">
         <motion.div
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
@@ -230,18 +278,29 @@ export default function Home() {
           <h2 className="font-jakarta text-5xl md:text-7xl lg:text-8xl font-black text-white mb-6 relative z-10 tracking-tighter uppercase leading-[0.9]">
             Let's <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-purple-400">Build</span>
           </h2>
-          <p className="text-zinc-400 text-lg md:text-xl mb-12 relative z-10 max-w-2xl mx-auto font-medium tracking-tight">
-            Ready to upgrade your web presence? Submit your project requirements in your dashboard and get started today.
+          <p className="text-zinc-400 text-lg md:text-xl mb-10 relative z-10 max-w-2xl mx-auto font-medium tracking-tight">
+            Ready to upgrade your web presence? Browse our packages, submit your requirements, and kickstart your build today.
           </p>
-          <Link href="/contact" className="relative z-10 w-full sm:w-auto">
-            <Button
-              size="lg"
-              variant="accent"
-              className="rounded-full h-16 px-14 text-lg hover:scale-105 transition-all w-full sm:w-auto"
-            >
-              Start The Conversation <ArrowRight className="w-5 h-5 ml-2" />
-            </Button>
-          </Link>
+          <div className="flex flex-col sm:flex-row gap-4 relative z-10 w-full sm:w-auto">
+            <Link href="/pricing" className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                variant="accent"
+                className="rounded-full h-16 px-12 text-base font-bold hover:scale-105 transition-all w-full sm:w-auto"
+              >
+                Browse Pricing & Packages <ArrowRight className="w-5 h-5 ml-2" />
+              </Button>
+            </Link>
+            <Link href="/contact" className="w-full sm:w-auto">
+              <Button
+                size="lg"
+                variant="outline"
+                className="rounded-full h-16 px-10 text-base font-bold hover:bg-white/10 transition-all w-full sm:w-auto"
+              >
+                Contact Team
+              </Button>
+            </Link>
+          </div>
         </motion.div>
       </section>
 
