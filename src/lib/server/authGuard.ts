@@ -98,7 +98,7 @@ export async function requireAuthAndPermission(
   }
 
   try {
-    const decodedToken = await adminAuth.verifyIdToken(token, true);
+    const decodedToken = await adminAuth.verifyIdToken(token);
     const uid = decodedToken.uid;
 
     const userDoc = await adminDb.collection("users").doc(uid).get();

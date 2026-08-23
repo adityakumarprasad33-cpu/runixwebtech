@@ -14,48 +14,78 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });
     }
 
-    // Fetch collections bounded and in parallel
+    // Resilient collection reader that catches individual collection failures gracefully
+    const safeGetDocs = async (collectionName: string, limitCount = 100) => {
+      try {
+        const snap = await adminDb!.collection(collectionName).limit(limitCount).get();
+        return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+      } catch (err) {
+        console.warn(`Safe read non-critical warning for collection "${collectionName}":`, err);
+        return [];
+      }
+    };
+
+    // Safe settings reader
+    const safeGetDoc = async (collectionName: string, docId: string) => {
+      try {
+        const snap = await adminDb!.collection(collectionName).doc(docId).get();
+        return snap.exists ? snap.data() : null;
+      } catch (err) {
+        console.warn(`Safe read warning for doc "${collectionName}/${docId}":`, err);
+        return null;
+      }
+    };
+
+    // Fetch all operational collections concurrently
     const [
-      usersSnap,
-      projectsSnap,
-      ordersSnap,
-      loginLogsSnap,
-      adminLogsSnap,
-      notificationsSnap,
-      offersSnap,
-      couponsSnap,
-      settingsSnap,
+      rawUsers,
+      dbProjects,
+      rawOrders,
+      rawLogs,
+      rawActivityLogs,
+      rawNotifications,
+      offers,
+      coupons,
+      paymentSettings,
     ] = await Promise.all([
-      adminDb.collection("users").limit(100).get(),
-      adminDb.collection("projects").limit(100).get(),
-      adminDb.collection("orders").orderBy("createdAt", "desc").limit(100).get(),
-      adminDb.collection("login_logs").orderBy("timestamp", "desc").limit(50).get(),
-      adminDb.collection("admin_activity_logs").orderBy("timestamp", "desc").limit(50).get(),
-      adminDb.collection("notifications").orderBy("createdAt", "desc").limit(50).get(),
-      adminDb.collection("offers").limit(50).get(),
-      adminDb.collection("coupons").limit(50).get(),
-      adminDb.collection("settings").doc("payment").get(),
+      safeGetDocs("users", 150),
+      safeGetDocs("projects", 100),
+      safeGetDocs("orders", 150),
+      safeGetDocs("login_logs", 100),
+      safeGetDocs("admin_activity_logs", 100),
+      safeGetDocs("notifications", 100),
+      safeGetDocs("offers", 50),
+      safeGetDocs("coupons", 50),
+      safeGetDoc("settings", "payment"),
     ]);
 
-    const users = usersSnap.docs.map((d: any) => ({
+    const users = rawUsers.map((d: any) => ({
       id: d.id,
-      name: d.data().name || "User",
-      email: d.data().email || "",
-      role: d.data().role || "user",
-      company: d.data().company || "",
-      activeProjectCount: d.data().activeProjectCount || 0,
-      maxProjects: d.data().maxProjects || 5,
-      createdAt: d.data().createdAt || "",
+      name: d.name || "User",
+      email: d.email || "",
+      role: d.role || "user",
+      company: d.company || "",
+      activeProjectCount: d.activeProjectCount || 0,
+      maxProjects: d.maxProjects || 5,
+      designation: d.designation || null,
+      department: d.department || null,
+      adminPermissions: d.adminPermissions || null,
+      createdAt: d.createdAt || "",
     }));
 
-    const dbProjects = projectsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    const orders = ordersSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    const logs = loginLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    const activityLogs = adminLogsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    const notifications = notificationsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    const offers = offersSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    const coupons = couponsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
-    const paymentSettings = settingsSnap.exists ? settingsSnap.data() : null;
+    // In-memory sorting for rock-solid reliability across heterogeneous timestamp types
+    const getTime = (val: any) => {
+      if (!val) return 0;
+      if (typeof val === "string") return new Date(val).getTime() || 0;
+      if (val._seconds) return val._seconds * 1000;
+      if (val.seconds) return val.seconds * 1000;
+      return 0;
+    };
+
+    const orders = rawOrders.sort((a: any, b: any) => getTime(b.createdAt) - getTime(a.createdAt));
+    const logs = rawLogs.sort((a: any, b: any) => getTime(b.timestamp || b.createdAt) - getTime(a.timestamp || a.createdAt));
+    const activityLogs = rawActivityLogs.sort((a: any, b: any) => getTime(b.timestamp || b.createdAt) - getTime(a.timestamp || a.createdAt));
+    const notifications = rawNotifications.sort((a: any, b: any) => getTime(b.createdAt) - getTime(a.createdAt));
 
     return NextResponse.json({
       success: true,
@@ -70,8 +100,7 @@ export async function GET(req: NextRequest) {
       paymentSettings,
     });
   } catch (error: any) {
-    console.error("Admin data fetch critical error:", error);
-    // Sanitize response — never leak raw internal stack trace or error.message to browser (SEC-014)
+    console.error("Admin data fetch handler error:", error);
     return NextResponse.json(
       { success: false, error: "Internal server error while retrieving operational data." },
       { status: 500 }

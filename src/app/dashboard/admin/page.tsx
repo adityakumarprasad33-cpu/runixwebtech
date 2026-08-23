@@ -543,16 +543,22 @@ export default function AdminPanel() {
         },
       });
 
-      let data;
-      try {
-        data = await res.json();
-      } catch (err) {
-        console.warn("Failed to parse admin data response, falling back to client-side fetch.", err);
+      if (!res.ok) {
+        let errorMsg = `HTTP ${res.status}`;
+        try {
+          const errData = await res.json();
+          errorMsg = errData.error || errorMsg;
+        } catch {
+          // Response body was not JSON
+        }
+        console.warn("Failed to fetch admin data from server API:", errorMsg);
         await fallbackClientFetch();
         return;
       }
 
-      if (res.ok && data.success) {
+      const data = await res.json();
+
+      if (data.success) {
         setUsers(dedupeById(data.users || []));
         setDbProjects(dedupeById(data.dbProjects || []));
         setOrders(dedupeById(data.orders || []));
@@ -589,13 +595,12 @@ export default function AdminPanel() {
             )
           )
         );
-        setLoadingData(false);
       } else {
-        console.warn("Failed to fetch admin data, falling back to client-side fetch:", data?.error);
+        console.warn("Failed to fetch admin data:", data?.error);
         await fallbackClientFetch();
       }
     } catch (err) {
-      console.error(err);
+      console.error("Admin data fetch error:", err);
       await fallbackClientFetch();
     } finally {
       setLoadingData(false);
