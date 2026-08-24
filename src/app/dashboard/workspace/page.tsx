@@ -75,6 +75,17 @@ interface Order {
   } | null;
   handoverNotes?: string | null;
   devStage?: "in_progress" | "testing" | "staging_deployed";
+  developerPayout?: {
+    amount: number;
+    percentage: number;
+    status: "in_escrow" | "approved" | "paid";
+    paidAt?: string;
+    utr?: string;
+    paymentMethod?: string;
+    paidBy?: string;
+    voucherNumber?: string;
+    notes?: string;
+  };
   createdAt: any;
   formData?: {
     name?: string;

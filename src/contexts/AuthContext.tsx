@@ -13,6 +13,26 @@ export interface AdminPermissions {
   offers: boolean;         // Can manage promotional offers & deals
   logs: boolean;           // Can view security & activity logs
   financials: boolean;     // Can view & manage P&L, accounts, and financial ledger
+  salaries: boolean;       // Can view & disburse staff salaries & developer revenue shares
+}
+
+export interface PayoutDetails {
+  type: "upi" | "bank";
+  upiId?: string;
+  upiName?: string;
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  accountHolderName?: string;
+}
+
+export interface SalaryConfig {
+  type: "percentage" | "fixed_monthly" | "hybrid";
+  percentage?: number; // e.g. 40 for 40%
+  fixedAmount?: number; // e.g. 25000 for ₹25,000/mo
+  currency?: string;
+  designationTitle?: string;
+  retainerPercentage?: number; // e.g. 50 for 50%
 }
 
 export interface UserProfile {
@@ -20,6 +40,8 @@ export interface UserProfile {
   name?: string;
   email?: string;
   adminPermissions?: AdminPermissions;
+  payoutDetails?: PayoutDetails;
+  salaryConfig?: SalaryConfig;
   [key: string]: any;
 }
 

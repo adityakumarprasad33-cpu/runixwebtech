@@ -27,6 +27,10 @@ import {
   Briefcase,
   Copy,
   Check,
+  QrCode,
+  Sparkles,
+  UserCheck,
+  ExternalLink,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { safeFetchJson } from "@/lib/safeFetch";
@@ -73,7 +77,7 @@ interface LedgerTransaction {
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
-  developer_payout: "Developer Contractor Payout",
+  developer_payout: "Developer Contractor Payout (40% Share)",
   cloud_infrastructure: "Cloud & Infrastructure (Firebase / Vercel)",
   software_licenses: "Software Licenses & Tooling",
   marketing_advertising: "Marketing & Client Acquisition",
@@ -89,7 +93,7 @@ export default function FinancialLedgerPanel({
   currentUser,
   isSuperAdmin,
 }: FinancialLedgerPanelProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"ledger" | "statement" | "expenses">("ledger");
+  const [activeSubTab, setActiveSubTab] = useState<"ledger" | "statement" | "expenses" | "payouts">("ledger");
   const [timeframe, setTimeframe] = useState<"all" | "this_month" | "last_month" | "ytd">("all");
   const [ledgerFilter, setLedgerFilter] = useState<"all" | "inflows" | "outflows" | "advance" | "final" | "maintenance">("all");
   const [searchQuery, setSearchQuery] = useState("");
@@ -100,6 +104,13 @@ export default function FinancialLedgerPanel({
   const [showAddExpenseModal, setShowAddExpenseModal] = useState(false);
   const [isSubmittingExpense, setIsSubmittingExpense] = useState(false);
   const [copiedSummary, setCopiedSummary] = useState(false);
+
+  // Payout Modal State
+  const [selectedPayoutOrder, setSelectedPayoutOrder] = useState<any | null>(null);
+  const [disburseUtr, setDisburseUtr] = useState("");
+  const [disburseMethod, setDisburseMethod] = useState<"upi" | "bank_transfer">("upi");
+  const [disburseNotes, setDisburseNotes] = useState("");
+  const [isDisbursing, setIsDisbursing] = useState(false);
 
   // Expense Form State
   const [expenseForm, setExpenseForm] = useState({
@@ -217,6 +228,62 @@ export default function FinancialLedgerPanel({
     } catch (err: any) {
       console.error("Delete expense error:", err);
       alert(err.message || "Failed to delete expense");
+    }
+  };
+
+  // Handler: Disburse Developer Payout
+  const handleDisbursePayout = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPayoutOrder) return;
+    if (!disburseUtr.trim()) {
+      alert("Please enter the payment UTR / Transaction Reference Number.");
+      return;
+    }
+
+    const totalContractPrice = selectedPayoutOrder.totalPrice || selectedPayoutOrder.price || 0;
+    const payoutAmount = Math.round(totalContractPrice * 0.40);
+    const developerId = selectedPayoutOrder.assignedDeveloperId;
+
+    if (!developerId) {
+      alert("No developer assigned to this project.");
+      return;
+    }
+
+    setIsDisbursing(true);
+    try {
+      const token = await currentUser?.getIdToken();
+      const res = await safeFetchJson<any>("/api/admin/payouts/disburse", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: selectedPayoutOrder.id,
+          developerId,
+          amount: payoutAmount,
+          paymentMethod: disburseMethod,
+          utrNumber: disburseUtr.trim(),
+          notes: disburseNotes.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to disburse payout");
+      }
+
+      // Update local orders list state
+      selectedPayoutOrder.developerPayout = res.data.developerPayout;
+      await fetchExpenses();
+      setSelectedPayoutOrder(null);
+      setDisburseUtr("");
+      setDisburseNotes("");
+      alert(`₹${payoutAmount.toLocaleString()} Payout disbursed successfully! The expense voucher has been posted to the General Ledger.`);
+    } catch (err: any) {
+      console.error("Disburse error:", err);
+      alert(err.message || "Failed to disburse payout");
+    } finally {
+      setIsDisbursing(false);
     }
   };
 
@@ -402,7 +469,7 @@ export default function FinancialLedgerPanel({
         }
       } else if (tx.type === "outflow") {
         totalExpenses += tx.amount;
-        if (tx.category.includes("Developer")) devPayouts += tx.amount;
+        if (tx.category.includes("Developer") || tx.category.includes("Payout")) devPayouts += tx.amount;
         if (tx.category.includes("Cloud") || tx.category.includes("Infrastructure")) infraCosts += tx.amount;
       }
     });
@@ -410,7 +477,23 @@ export default function FinancialLedgerPanel({
     const netProfit = grossInflow - totalExpenses;
     const profitMargin = grossInflow > 0 ? ((netProfit / grossInflow) * 100).toFixed(1) : "0.0";
     const totalOrdersCount = orders.length;
-    const avgOrderValue = totalOrdersCount > 0 ? Math.round(grossInflow / totalOrdersCount) : 0;
+
+    // Calculate Developer Payout Metrics
+    const devOrders = orders.filter((o) => !!o.assignedDeveloperId);
+    let totalDev40Obligation = 0;
+    let devPayoutsDisbursed = 0;
+    let devPayoutsPending = 0;
+
+    devOrders.forEach((o) => {
+      const contractPrice = o.totalPrice || o.price || 0;
+      const share = Math.round(contractPrice * 0.40);
+      totalDev40Obligation += share;
+      if (o.developerPayout?.status === "paid") {
+        devPayoutsDisbursed += o.developerPayout?.amount || share;
+      } else if (o.status === "completed" || o.finalPaid) {
+        devPayoutsPending += share;
+      }
+    });
 
     return {
       grossInflow,
@@ -424,7 +507,10 @@ export default function FinancialLedgerPanel({
       netProfit,
       profitMargin,
       totalOrdersCount,
-      avgOrderValue,
+      totalDev40Obligation,
+      devPayoutsDisbursed,
+      devPayoutsPending,
+      devOrdersCount: devOrders.length,
     };
   }, [allTransactions, orders]);
 
@@ -488,9 +574,10 @@ export default function FinancialLedgerPanel({
   - 50% Advance Deposits:   ₹${metrics.advanceCollected.toLocaleString()}
   - 50% Final Settlements:  ₹${metrics.finalCollected.toLocaleString()}
   - Maintenance Retainers:  ₹${metrics.maintenanceRevenue.toLocaleString()}
+• Developer 40% Share:     ₹${metrics.totalDev40Obligation.toLocaleString()}
+  - Disbursed:              ₹${metrics.devPayoutsDisbursed.toLocaleString()}
+  - Approved & Pending:     ₹${metrics.devPayoutsPending.toLocaleString()}
 • Total Operational Costs: ₹${metrics.totalExpenses.toLocaleString()}
-  - Developer Payouts:      ₹${metrics.devPayouts.toLocaleString()}
-  - Cloud Infrastructure:   ₹${metrics.infraCosts.toLocaleString()}
 ══════════════════════════════════════════════════
 • NET PROFIT (EBITDA):     ₹${metrics.netProfit.toLocaleString()} (${metrics.profitMargin}% Net Margin)
 • Accounts Receivable:     ₹${metrics.accountsReceivable.toLocaleString()} (Pending Handover)
@@ -511,11 +598,11 @@ export default function FinancialLedgerPanel({
               <Receipt className="w-5 h-5 text-emerald-400" /> Financial P&L & Accounts Ledger
             </h2>
             <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-0.5 rounded-full">
-              Audited Real-Time
+              40% Dev Share Active
             </span>
           </div>
           <p className="text-xs text-zinc-400 mt-1">
-            Track revenue inflows, developer payouts, operational overhead, and export accounting ledger statements.
+            Track revenue inflows, developer 40% salary disbursements, operational overhead, and export accounting ledger statements.
           </p>
         </div>
 
@@ -526,7 +613,7 @@ export default function FinancialLedgerPanel({
             size="sm"
             className="rounded-xl flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-xs shadow-md"
           >
-            <Plus className="w-3.5 h-3.5" /> Log Expense / Dev Payout
+            <Plus className="w-3.5 h-3.5" /> Log Manual Expense
           </Button>
 
           <Button
@@ -597,7 +684,7 @@ export default function FinancialLedgerPanel({
               ₹{metrics.totalExpenses.toLocaleString()}
             </p>
             <div className="flex items-center gap-2 mt-1 text-[11px] text-zinc-400">
-              <span>Payouts: ₹{metrics.devPayouts.toLocaleString()}</span>
+              <span>Dev Payouts: ₹{metrics.devPayouts.toLocaleString()}</span>
               <span>•</span>
               <span>Infra: ₹{metrics.infraCosts.toLocaleString()}</span>
             </div>
@@ -622,20 +709,20 @@ export default function FinancialLedgerPanel({
           </div>
         </div>
 
-        {/* Card 4: Accounts Receivable (Pipeline Inflow) */}
-        <div className="p-5 rounded-2xl bg-gradient-to-br from-amber-950/30 via-[#0e0e0e] to-black border border-amber-500/20 space-y-3 relative overflow-hidden shadow-xl">
+        {/* Card 4: Developer 40% Payouts Queue */}
+        <div className="p-5 rounded-2xl bg-gradient-to-br from-cyan-950/30 via-[#0e0e0e] to-black border border-cyan-500/20 space-y-3 relative overflow-hidden shadow-xl">
           <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-amber-400 uppercase tracking-wider">Receivables (At Handover)</span>
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
-              <Clock className="w-4 h-4" />
+            <span className="text-xs font-semibold text-cyan-400 uppercase tracking-wider">Dev 40% Payouts Pending</span>
+            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
+              <DollarSign className="w-4 h-4" />
             </div>
           </div>
           <div>
-            <p className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              ₹{metrics.accountsReceivable.toLocaleString()}
+            <p className="text-2xl sm:text-3xl font-black text-cyan-300 tracking-tight">
+              ₹{metrics.devPayoutsPending.toLocaleString()}
             </p>
-            <p className="text-[11px] text-amber-300 mt-1 font-medium">
-              Due on Staging Delivery & Handover
+            <p className="text-[11px] text-zinc-400 mt-1">
+              Disbursed to date: <strong className="text-emerald-400">₹{metrics.devPayoutsDisbursed.toLocaleString()}</strong>
             </p>
           </div>
         </div>
@@ -643,7 +730,7 @@ export default function FinancialLedgerPanel({
 
       {/* ── SUB-TABS NAVIGATION ── */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setActiveSubTab("ledger")}
             className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer border ${
@@ -653,6 +740,17 @@ export default function FinancialLedgerPanel({
             }`}
           >
             <Receipt className="w-3.5 h-3.5" /> General Ledger ({filteredTransactions.length})
+          </button>
+
+          <button
+            onClick={() => setActiveSubTab("payouts")}
+            className={`flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer border ${
+              activeSubTab === "payouts"
+                ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40 shadow-sm"
+                : "bg-white/[0.02] text-zinc-400 border-white/5 hover:text-white"
+            }`}
+          >
+            <DollarSign className="w-3.5 h-3.5 text-cyan-400" /> Developer 40% Payouts ({metrics.devOrdersCount})
           </button>
 
           <button
@@ -674,7 +772,7 @@ export default function FinancialLedgerPanel({
                 : "bg-white/[0.02] text-zinc-400 border-white/5 hover:text-white"
             }`}
           >
-            <Briefcase className="w-3.5 h-3.5" /> Outflows & Payouts ({expenses.length})
+            <Briefcase className="w-3.5 h-3.5" /> Outflows & Costs ({expenses.length})
           </button>
         </div>
 
@@ -747,7 +845,7 @@ export default function FinancialLedgerPanel({
                   <tr className="border-b border-white/10 bg-white/[0.02] text-zinc-400 font-mono text-[11px] uppercase tracking-wider">
                     <th className="py-3.5 px-4 font-semibold">Voucher / Date</th>
                     <th className="py-3.5 px-4 font-semibold">Category / Purpose</th>
-                    <th className="py-3.5 px-4 font-semibold">Party / Client</th>
+                    <th className="py-3.5 px-4 font-semibold">Party / Payee</th>
                     <th className="py-3.5 px-4 font-semibold">Channel & Ref</th>
                     <th className="py-3.5 px-4 font-semibold text-right">Credit (+)</th>
                     <th className="py-3.5 px-4 font-semibold text-right">Debit (-)</th>
@@ -778,7 +876,7 @@ export default function FinancialLedgerPanel({
                             {tx.planName && <span className="text-[10px] text-zinc-500 font-mono">{tx.planName}</span>}
                           </td>
 
-                          {/* Party / Client */}
+                          {/* Party / Payee */}
                           <td className="py-3 px-4 font-sans">
                             <span className="text-white font-medium block truncate max-w-[150px]">{tx.entityName}</span>
                             {tx.entityEmail && <span className="text-[10px] text-zinc-500 truncate block max-w-[150px]">{tx.entityEmail}</span>}
@@ -835,7 +933,133 @@ export default function FinancialLedgerPanel({
         </div>
       )}
 
-      {/* ── TAB 2: FORMAL PROFIT & LOSS STATEMENT ── */}
+      {/* ── TAB 2: DEVELOPER 40% PAYOUTS QUEUE ── */}
+      {activeSubTab === "payouts" && (
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <DollarSign className="w-5 h-5 text-cyan-400" /> Developer 40% Revenue Share Payout Queue
+              </h3>
+              <p className="text-xs text-zinc-400">
+                Disburse 40% project share directly to assigned developers via instant Dynamic UPI QR code or Bank Transfer.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 px-3 py-1 rounded-xl">
+                Pending Approval: <strong>₹{metrics.devPayoutsPending.toLocaleString()}</strong>
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            {orders.filter((o) => !!o.assignedDeveloperId).length === 0 ? (
+              <div className="p-12 text-center text-zinc-500 bg-white/[0.01] border border-white/5 rounded-3xl">
+                No developer-assigned projects found. Assign developers to client projects in the Orders & Payments tab.
+              </div>
+            ) : (
+              orders
+                .filter((o) => !!o.assignedDeveloperId)
+                .map((o) => {
+                  const contractPrice = o.totalPrice || o.price || 0;
+                  const devShare = Math.round(contractPrice * 0.40);
+                  const isPaid = o.developerPayout?.status === "paid";
+                  const isApproved = o.status === "completed" || o.finalPaid;
+                  const assignedDev = users.find((u) => u.id === o.assignedDeveloperId);
+
+                  return (
+                    <div
+                      key={o.id}
+                      className="p-5 sm:p-6 rounded-3xl bg-[#0e0e0e] border border-white/10 space-y-4 hover:border-white/20 transition-all shadow-xl"
+                    >
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                        {/* Project & Dev Details */}
+                        <div className="space-y-1.5">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <h4 className="text-base font-bold text-white tracking-tight">{o.planName}</h4>
+                            <span className="text-xs font-mono text-zinc-400 bg-white/5 px-2 py-0.5 rounded">
+                              Order #{o.id.slice(-6).toUpperCase()}
+                            </span>
+                            <span
+                              className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                                isPaid
+                                  ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                                  : isApproved
+                                  ? "bg-cyan-500/10 text-cyan-300 border-cyan-500/30 animate-pulse"
+                                  : "bg-amber-500/10 text-amber-300 border-amber-500/20"
+                              }`}
+                            >
+                              {isPaid ? "✓ Payout Disbursed" : isApproved ? "🟢 Approved for Payout" : "⏳ In Escrow"}
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-zinc-400">
+                            Assigned Developer: <strong className="text-white">{assignedDev?.name || o.assignedDeveloperName || "Developer"}</strong>
+                            {assignedDev?.email ? ` (${assignedDev.email})` : ""}
+                            {" · "}
+                            Client: <span className="text-zinc-300">{o.userEmail || o.email}</span>
+                          </p>
+
+                          {/* Payout Details configured by dev */}
+                          <div className="flex items-center gap-3 pt-1 text-[11px] font-mono text-zinc-400">
+                            {assignedDev?.payoutDetails?.upiId ? (
+                              <span className="flex items-center gap-1 text-indigo-300 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20">
+                                <QrCode className="w-3 h-3 text-indigo-400" /> UPI: {assignedDev.payoutDetails.upiId}
+                              </span>
+                            ) : assignedDev?.payoutDetails?.accountNumber ? (
+                              <span className="flex items-center gap-1 text-emerald-300 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                                <Building2 className="w-3 h-3 text-emerald-400" /> Bank: {assignedDev.payoutDetails.bankName} (A/C: {assignedDev.payoutDetails.accountNumber})
+                              </span>
+                            ) : (
+                              <span className="text-amber-400 text-[10px]">⚠️ Developer has not saved payment account details in Settings</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Amount & Actions */}
+                        <div className="flex items-center gap-4 justify-between lg:justify-end border-t lg:border-t-0 pt-3 lg:pt-0 border-white/5">
+                          <div className="text-left lg:text-right">
+                            <p className="text-xl font-black text-cyan-300 font-mono">
+                              ₹{devShare.toLocaleString()}
+                            </p>
+                            <p className="text-[10px] text-zinc-500 font-mono">
+                              40% of ₹{contractPrice.toLocaleString()} Contract
+                            </p>
+                          </div>
+
+                          <div>
+                            {isPaid ? (
+                              <div className="text-right text-xs text-emerald-400 font-mono space-y-0.5">
+                                <span className="font-bold block">✓ Paid Out</span>
+                                <span className="text-[10px] text-zinc-500 block">UTR: {o.developerPayout?.utr}</span>
+                              </div>
+                            ) : (
+                              <Button
+                                onClick={() => {
+                                  setSelectedPayoutOrder(o);
+                                  setDisburseUtr("");
+                                  setDisburseNotes("");
+                                }}
+                                variant="accent"
+                                size="sm"
+                                className="rounded-xl text-xs flex items-center gap-1.5 bg-cyan-600 hover:bg-cyan-500 text-black font-bold shadow-md"
+                              >
+                                <QrCode className="w-3.5 h-3.5" /> Pay via UPI / Bank ↗
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── TAB 3: FORMAL PROFIT & LOSS STATEMENT ── */}
       {activeSubTab === "statement" && (
         <div className="p-6 sm:p-8 rounded-3xl bg-[#0e0e0e] border border-white/10 space-y-6 shadow-2xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
@@ -873,15 +1097,15 @@ export default function FinancialLedgerPanel({
               </div>
             </div>
 
-            {/* 2. Direct Costs & COGS */}
+            {/* 2. Direct Costs & COGS (Developer 40% Share) */}
             <div className="space-y-2">
               <div className="flex justify-between items-center py-2 px-3 bg-red-500/10 rounded-lg text-red-400 font-bold">
-                <span>2. DIRECT COSTS & DEVELOPER DISBURSEMENTS</span>
+                <span>2. DIRECT COSTS & DEVELOPER 40% DISBURSEMENTS</span>
                 <span>(₹{metrics.devPayouts.toLocaleString()})</span>
               </div>
               <div className="pl-4 pr-3 space-y-1.5 text-zinc-300">
                 <div className="flex justify-between">
-                  <span>• Developer Contractor Disbursements</span>
+                  <span>• Developer Contractor 40% Project Payouts</span>
                   <span>(₹{metrics.devPayouts.toLocaleString()})</span>
                 </div>
               </div>
@@ -922,7 +1146,7 @@ export default function FinancialLedgerPanel({
         </div>
       )}
 
-      {/* ── TAB 3: EXPENSES & DEVELOPER PAYOUTS MANAGER ── */}
+      {/* ── TAB 4: EXPENSES & OUTFLOWS MANAGER ── */}
       {activeSubTab === "expenses" && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
@@ -933,14 +1157,14 @@ export default function FinancialLedgerPanel({
               size="sm"
               className="rounded-xl text-xs flex items-center gap-1.5 bg-indigo-600 hover:bg-indigo-500"
             >
-              <Plus className="w-3.5 h-3.5" /> Log New Expense
+              <Plus className="w-3.5 h-3.5" /> Log Manual Expense
             </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {expenses.length === 0 ? (
               <div className="col-span-2 p-12 text-center text-zinc-500 bg-white/[0.01] border border-white/5 rounded-2xl">
-                No operating expenses logged yet. Click &quot;Log New Expense&quot; to record developer payouts, server costs, or tooling.
+                No operating expenses logged yet.
               </div>
             ) : (
               expenses.map((exp) => (
@@ -987,7 +1211,189 @@ export default function FinancialLedgerPanel({
         </div>
       )}
 
-      {/* ── MODAL: LOG NEW EXPENSE / DEV PAYOUT ── */}
+      {/* ── MODAL: 1-CLICK DYNAMIC UPI QR & DEVELOPER PAYOUT ── */}
+      <AnimatePresence>
+        {selectedPayoutOrder && (() => {
+          const contractPrice = selectedPayoutOrder.totalPrice || selectedPayoutOrder.price || 0;
+          const payoutAmount = Math.round(contractPrice * 0.40);
+          const devUser = users.find((u) => u.id === selectedPayoutOrder.assignedDeveloperId);
+          const devUpiId = devUser?.payoutDetails?.upiId || "";
+          const devName = devUser?.payoutDetails?.upiName || devUser?.name || selectedPayoutOrder.assignedDeveloperName || "Developer";
+
+          const upiUri = devUpiId
+            ? `upi://pay?pa=${encodeURIComponent(devUpiId)}&pn=${encodeURIComponent(devName)}&am=${payoutAmount}&tn=${encodeURIComponent(`Runix_Sprint_Payout_${selectedPayoutOrder.id.slice(-6)}`)}`
+            : "";
+          const qrCodeUrl = devUpiId
+            ? `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(upiUri)}`
+            : "";
+
+          return (
+            <>
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md"
+                onClick={() => setSelectedPayoutOrder(null)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              >
+                <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-xl p-6 sm:p-8 relative shadow-2xl space-y-6">
+                  <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold text-sm">
+                        40%
+                      </div>
+                      <div>
+                        <h3 className="text-base font-bold text-white">Disburse 40% Developer Payout</h3>
+                        <p className="text-xs text-zinc-400">
+                          {selectedPayoutOrder.planName} · Order #{selectedPayoutOrder.id.slice(-6).toUpperCase()}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setSelectedPayoutOrder(null)}
+                      className="text-zinc-500 hover:text-white cursor-pointer"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {/* Payout Calculation & Dynamic UPI QR */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 items-center">
+                    {/* Left: Dynamic QR Code */}
+                    <div className="bg-black/60 border border-white/10 p-4 rounded-2xl text-center space-y-2">
+                      {devUpiId ? (
+                        <>
+                          <div className="bg-white p-2.5 rounded-xl inline-block shadow-lg">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={qrCodeUrl}
+                              alt="Scan UPI QR"
+                              className="w-36 h-36 mx-auto"
+                            />
+                          </div>
+                          <p className="text-[11px] text-zinc-300 font-mono truncate">
+                            {devUpiId}
+                          </p>
+                          <span className="text-[10px] text-zinc-500 block">
+                            Scan with PhonePe, GPay, or Paytm
+                          </span>
+                        </>
+                      ) : (
+                        <div className="py-8 px-4 text-center text-xs text-amber-400 space-y-2">
+                          <Building2 className="w-8 h-8 mx-auto text-amber-400/80" />
+                          <p className="font-semibold">Direct Bank Transfer</p>
+                          {devUser?.payoutDetails?.accountNumber ? (
+                            <div className="text-[11px] text-zinc-300 font-mono text-left bg-white/5 p-2 rounded-lg space-y-1">
+                              <p>Bank: {devUser.payoutDetails.bankName}</p>
+                              <p>A/C: {devUser.payoutDetails.accountNumber}</p>
+                              <p>IFSC: {devUser.payoutDetails.ifscCode}</p>
+                              <p>Name: {devUser.payoutDetails.accountHolderName}</p>
+                            </div>
+                          ) : (
+                            <p className="text-[11px] text-zinc-400">
+                              Developer has not added UPI or Bank info. Ask developer to fill Settings &gt; Payout.
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Right: Contract Summary */}
+                    <div className="space-y-3 text-xs">
+                      <div className="p-3 bg-white/[0.02] border border-white/10 rounded-xl space-y-1">
+                        <span className="text-[10px] text-zinc-500 uppercase font-bold">Total Client Contract</span>
+                        <p className="text-sm font-bold text-white font-mono">₹{contractPrice.toLocaleString()}</p>
+                      </div>
+
+                      <div className="p-3 bg-cyan-950/20 border border-cyan-500/30 rounded-xl space-y-1">
+                        <span className="text-[10px] text-cyan-400 uppercase font-bold">Developer 40% Share Due</span>
+                        <p className="text-xl font-black text-cyan-300 font-mono">₹{payoutAmount.toLocaleString()}</p>
+                      </div>
+
+                      <div className="text-[11px] text-zinc-400">
+                        Payee: <strong className="text-white">{devName}</strong>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Disburse Form: UTR reference & channel */}
+                  <form onSubmit={handleDisbursePayout} className="space-y-4 text-xs pt-2 border-t border-white/10">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-zinc-300 font-semibold mb-1 block">
+                          Disbursement Channel <span className="text-cyan-400">*</span>
+                        </label>
+                        <select
+                          value={disburseMethod}
+                          onChange={(e) => setDisburseMethod(e.target.value as any)}
+                          className="w-full bg-[#18181b] border border-white/15 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                        >
+                          <option value="upi">Direct UPI Transfer</option>
+                          <option value="bank_transfer">Bank NEFT / IMPS</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="text-zinc-300 font-semibold mb-1 block">
+                          Transaction UTR / Reference <span className="text-cyan-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={disburseUtr}
+                          onChange={(e) => setDisburseUtr(e.target.value)}
+                          placeholder="e.g. 423589012345 / UPI ref"
+                          className="w-full bg-[#18181b] border border-white/15 rounded-xl px-3 py-2 text-white font-mono focus:outline-none focus:border-cyan-500"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-zinc-300 font-semibold mb-1 block">Payout Notes (Optional)</label>
+                      <input
+                        type="text"
+                        value={disburseNotes}
+                        onChange={(e) => setDisburseNotes(e.target.value)}
+                        placeholder="e.g. Sprint completed with 5-star quality score"
+                        className="w-full bg-[#18181b] border border-white/15 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-cyan-500"
+                      />
+                    </div>
+
+                    <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+                      <Button
+                        type="button"
+                        onClick={() => setSelectedPayoutOrder(null)}
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-xl"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        type="submit"
+                        variant="accent"
+                        size="sm"
+                        disabled={isDisbursing}
+                        className="rounded-xl bg-cyan-500 hover:bg-cyan-400 text-black font-bold"
+                      >
+                        {isDisbursing ? "Disbursing..." : `Confirm ₹${payoutAmount.toLocaleString()} Payout`}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+              </motion.div>
+            </>
+          );
+        })()}
+      </AnimatePresence>
+
+      {/* ── MODAL: LOG MANUAL EXPENSE ── */}
       <AnimatePresence>
         {showAddExpenseModal && (
           <>
@@ -1064,7 +1470,7 @@ export default function FinancialLedgerPanel({
                         onChange={(e) => setExpenseForm({ ...expenseForm, category: e.target.value })}
                         className="w-full bg-[#18181b] border border-white/15 rounded-xl px-4 py-2 text-white focus:outline-none focus:border-red-500 font-medium"
                       >
-                        <option value="developer_payout">Developer Payout</option>
+                        <option value="developer_payout">Developer Payout (40% Share)</option>
                         <option value="cloud_infrastructure">Cloud Infrastructure (Firebase/Vercel)</option>
                         <option value="software_licenses">Software Licenses & Tools</option>
                         <option value="marketing_advertising">Marketing & Ads</option>

@@ -20,12 +20,14 @@ export enum Permission {
   PROJECT_UPDATE = "project:update",
   PROJECT_DELETE = "project:delete",
 
-  // Settings & Financials
+  // Settings & Financials & Payroll
   PAYMENT_SETTINGS_UPDATE = "settings:payment_update",
   COUPON_MANAGE = "coupon:manage",
   OFFER_MANAGE = "offer:manage",
   FINANCIAL_READ = "financial:read",
   EXPENSE_MANAGE = "expense:manage",
+  SALARY_READ = "salary:read",
+  SALARY_MANAGE = "salary:manage",
 
   // Users & Roles
   USER_READ_ALL = "user:read_all",
@@ -50,6 +52,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     Permission.OFFER_MANAGE,
     Permission.FINANCIAL_READ,
     Permission.EXPENSE_MANAGE,
+    Permission.SALARY_READ,
+    Permission.SALARY_MANAGE,
     Permission.USER_READ_ALL,
     Permission.AUDIT_LOG_READ,
   ],

@@ -66,11 +66,13 @@ import {
   Wrench,
   Receipt,
   TrendingUp,
+  Wallet,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { safeFetchJson, normalizeUrl } from "@/lib/safeFetch";
 import FinancialLedgerPanel from "@/components/dashboard/FinancialLedgerPanel";
+import PaySalaryPanel from "@/components/dashboard/PaySalaryPanel";
 
 interface ProjectForm {
   title: string;
@@ -163,7 +165,7 @@ export default function AdminPanel() {
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<
-    "users" | "cms" | "orders" | "offers" | "ledger" | "notifications" | "logs" | "activity" | "team"
+    "users" | "cms" | "orders" | "offers" | "salaries" | "ledger" | "notifications" | "logs" | "activity" | "team"
   >("cms");
 
   // Team management state (super_admin only)
@@ -1508,6 +1510,7 @@ export default function AdminPanel() {
           { id: "offers",        label: "Offers & Deals",   icon: Tag,           show: canDo("cms") || canDo("offers") },
           { id: "users",         label: "Personnel",        icon: Users,         show: true },
           { id: "orders",        label: "Orders & Payments",icon: ShoppingCart,  show: canDo("payments") },
+          { id: "salaries",      label: "Pay Salary & Staff",icon: Wallet,       show: canDo("salaries") || isSuperAdmin },
           { id: "ledger",        label: "P&L & Accounts",   icon: Receipt,       show: canDo("financials") || canDo("payments") },
           { id: "notifications", label: "Notifications",    icon: Bell,          show: canDo("notifications") },
           { id: "logs",          label: "Security Logs",    icon: ShieldCheck,   show: canDo("logs") },
@@ -2860,6 +2863,16 @@ export default function AdminPanel() {
             </div>
           )}
 
+          {/* PAY SALARY & STAFF COMPENSATION TAB */}
+          {activeTab === "salaries" && (
+            <div className="space-y-6">
+              <PaySalaryPanel
+                currentUser={user}
+                isSuperAdmin={isSuperAdmin}
+              />
+            </div>
+          )}
+
           {/* P&L & ACCOUNTING LEDGER TAB */}
           {activeTab === "ledger" && (
             <div className="space-y-6">
@@ -4033,6 +4046,7 @@ export default function AdminPanel() {
                     const PERM_LIST: { key: string; label: string }[] = [
                       { key: "cms",           label: "CMS / Content" },
                       { key: "payments",      label: "Payment Verification" },
+                      { key: "salaries",      label: "Pay Salaries & Staff" },
                       { key: "financials",    label: "P&L / Accounts Ledger" },
                       { key: "offers",        label: "Promotional Offers" },
                       { key: "notifications", label: "Send Notifications" },

@@ -242,10 +242,30 @@ export default function DeveloperPortal() {
   const maxProjects = profile?.maxProjects || 5;
   const capacityPct = Math.round((activeCount / maxProjects) * 100);
 
+  // Financial Earnings Breakdown (40% Project Share)
+  let lifetimePaidEarnings = 0;
+  let readyForPayoutEarnings = 0;
+  let escrowEarnings = 0;
+
+  orders.forEach((o) => {
+    const totalAmount = o.totalPrice || o.price || 0;
+    const devShare = Math.round(totalAmount * 0.40);
+    const isPayoutPaid = o.developerPayout?.status === "paid";
+    const isCompleted = o.status === "completed" || o.finalPaid;
+
+    if (isPayoutPaid) {
+      lifetimePaidEarnings += o.developerPayout?.amount || devShare;
+    } else if (isCompleted) {
+      readyForPayoutEarnings += devShare;
+    } else {
+      escrowEarnings += devShare;
+    }
+  });
+
   return (
     <div className="space-y-8">
       {/* Header */}
-      <motion.div {...fadeUp} className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-500/10 via-[#0e0e0e] to-indigo-500/10 border border-white/5 p-8">
+      <motion.div {...fadeUp} className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-cyan-500/10 via-[#0e0e0e] to-indigo-500/10 border border-white/5 p-6 sm:p-8 shadow-2xl">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_rgba(6,182,212,0.08)_0%,transparent_60%)]" />
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
@@ -253,37 +273,41 @@ export default function DeveloperPortal() {
               <Code2 className="w-7 h-7" />
             </div>
             <div>
-              <h1 className="text-2xl font-black text-white tracking-tight">
-                Developer Portal
-              </h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-2xl font-black text-white tracking-tight">
+                  Developer Portal
+                </h1>
+                <span className="text-[10px] font-mono font-bold uppercase bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2 py-0.5 rounded-full">
+                  40% Sprint Share
+                </span>
+              </div>
               <p className="text-sm text-zinc-400 mt-0.5">
                 Welcome back, <span className="text-cyan-300 font-semibold">{profile?.name || user.displayName || "Developer"}</span>
               </p>
             </div>
           </div>
 
-          {/* Stats Row */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/10">
-              <Briefcase className="w-4 h-4 text-cyan-400" />
-              <div>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Active</p>
-                <p className="text-lg font-black text-white leading-none">{activeCount}<span className="text-zinc-500 text-xs font-normal">/{maxProjects}</span></p>
-              </div>
+          {/* Earnings & Stats Row */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <div className="px-4 py-2.5 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-0.5">
+              <p className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider">Lifetime Paid (40%)</p>
+              <p className="text-base sm:text-lg font-black text-white font-mono leading-tight">
+                ₹{lifetimePaidEarnings.toLocaleString()}
+              </p>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/10">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-              <div>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Completed</p>
-                <p className="text-lg font-black text-white leading-none">{completedCount}</p>
-              </div>
+
+            <div className="px-4 py-2.5 rounded-2xl bg-cyan-950/20 border border-cyan-500/30 space-y-0.5">
+              <p className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider">Ready for Payout</p>
+              <p className="text-base sm:text-lg font-black text-white font-mono leading-tight">
+                ₹{readyForPayoutEarnings.toLocaleString()}
+              </p>
             </div>
-            <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/10">
-              <FolderKanban className="w-4 h-4 text-indigo-400" />
-              <div>
-                <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Total</p>
-                <p className="text-lg font-black text-white leading-none">{orders.length}</p>
-              </div>
+
+            <div className="px-4 py-2.5 rounded-2xl bg-amber-950/20 border border-amber-500/30 space-y-0.5 col-span-2 sm:col-span-1">
+              <p className="text-[10px] text-amber-400 font-bold uppercase tracking-wider">In Active Escrow</p>
+              <p className="text-base sm:text-lg font-black text-white font-mono leading-tight">
+                ₹{escrowEarnings.toLocaleString()}
+              </p>
             </div>
           </div>
         </div>
@@ -481,7 +505,7 @@ export default function DeveloperPortal() {
                       }`}>
                         Advance (50%): ₹{advanceAmount.toLocaleString()} {o.advancePaid ? "✓ Paid" : "• Due"}
                       </span>
-                      <span className={`text-xs px-2 py-0.5 rounded font-mono border ${
+                      <span className={`text-xs px-2.5 py-1 rounded-lg font-mono border ${
                         o.finalPaid
                           ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
                           : "bg-purple-500/10 text-purple-300 border-purple-500/20"
@@ -495,6 +519,55 @@ export default function DeveloperPortal() {
                         </span>
                       )}
                     </div>
+
+                    {/* 40% Developer Sprint Payout Banner */}
+                    {(() => {
+                      const totalContractPrice = o.totalPrice || o.price || 0;
+                      const dev40Share = Math.round(totalContractPrice * 0.40);
+                      const isPayoutPaid = o.developerPayout?.status === "paid";
+                      const isApproved = o.status === "completed" || o.finalPaid;
+
+                      return (
+                        <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/25 via-[#121214] to-black border border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center font-bold text-xs shrink-0 font-mono">
+                              40%
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-white flex items-center gap-2">
+                                <span>Your Sprint Payout:</span>
+                                <span className="text-emerald-400 font-mono text-sm font-black">
+                                  ₹{dev40Share.toLocaleString()}
+                                </span>
+                              </p>
+                              <p className="text-[10px] text-zinc-400">
+                                40% revenue share of total ₹{totalContractPrice.toLocaleString()} client project
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {isPayoutPaid ? (
+                              <span className="text-[11px] px-3 py-1.5 rounded-xl font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1.5 shadow-sm">
+                                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                                Disbursed {o.developerPayout?.paidAt ? `· ${new Intl.DateTimeFormat("en", { dateStyle: "short" }).format(new Date(o.developerPayout.paidAt))}` : ""}
+                                {o.developerPayout?.utr ? ` (UTR: ${o.developerPayout.utr})` : ""}
+                              </span>
+                            ) : isApproved ? (
+                              <span className="text-[11px] px-3 py-1.5 rounded-xl font-mono font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1.5 animate-pulse">
+                                <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                                Approved · Queued for Admin UPI/Bank Payout
+                              </span>
+                            ) : (
+                              <span className="text-[11px] px-3 py-1.5 rounded-xl font-mono text-amber-300 bg-amber-500/10 border border-amber-500/20 flex items-center gap-1.5">
+                                <Clock className="w-3.5 h-3.5 text-amber-400" />
+                                In Escrow · Unlocks upon Handover Settlement
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                     {/* Staging Link */}
                     {o.stagingUrl && (
