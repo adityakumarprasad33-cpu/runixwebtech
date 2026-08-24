@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/server/firebase-admin";
+import { getAdminDb } from "@/lib/server/firebase-admin";
 import { requireAuthAndPermission, Permission } from "@/lib/server/authGuard";
 
 export const dynamic = "force-dynamic";
@@ -10,14 +10,15 @@ export async function GET(req: NextRequest) {
     const authResult = await requireAuthAndPermission(req, Permission.ORDER_READ_ALL);
     if (authResult instanceof NextResponse) return authResult;
 
-    if (!adminDb) {
+    const db = getAdminDb();
+    if (!db) {
       return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });
     }
 
     // Resilient collection reader that catches individual collection failures gracefully
     const safeGetDocs = async (collectionName: string, limitCount = 100) => {
       try {
-        const snap = await adminDb!.collection(collectionName).limit(limitCount).get();
+        const snap = await db.collection(collectionName).limit(limitCount).get();
         return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
       } catch (err) {
         console.warn(`Safe read non-critical warning for collection "${collectionName}":`, err);
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
     // Safe settings reader
     const safeGetDoc = async (collectionName: string, docId: string) => {
       try {
-        const snap = await adminDb!.collection(collectionName).doc(docId).get();
+        const snap = await db.collection(collectionName).doc(docId).get();
         return snap.exists ? snap.data() : null;
       } catch (err) {
         console.warn(`Safe read warning for doc "${collectionName}/${docId}":`, err);
@@ -100,10 +101,7 @@ export async function GET(req: NextRequest) {
       paymentSettings,
     });
   } catch (error: any) {
-    console.error("Admin data fetch handler error:", error);
-    return NextResponse.json(
-      { success: false, error: "Internal server error while retrieving operational data." },
-      { status: 500 }
-    );
+    console.error("Admin data fetch fatal error:", error);
+    return NextResponse.json({ success: false, error: error?.message || "Failed to fetch admin data." }, { status: 500 });
   }
 }

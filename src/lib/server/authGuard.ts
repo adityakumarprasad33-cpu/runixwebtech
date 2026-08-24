@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb } from "@/lib/server/firebase-admin";
+import { adminAuth, adminDb, getAdminAuth, getAdminDb } from "@/lib/server/firebase-admin";
 
 export type Role = "super_admin" | "admin" | "developer" | "user";
 
@@ -78,7 +78,10 @@ export async function requireAuthAndPermission(
   req: NextRequest,
   requiredPermission?: Permission
 ): Promise<AuthenticatedUserContext | NextResponse> {
-  if (!adminAuth || !adminDb) {
+  const auth = getAdminAuth();
+  const db = getAdminDb();
+
+  if (!auth || !db) {
     return NextResponse.json(
       { success: false, error: "Authentication service unavailable." },
       { status: 500 }
@@ -102,10 +105,10 @@ export async function requireAuthAndPermission(
   }
 
   try {
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    const decodedToken = await auth.verifyIdToken(token);
     const uid = decodedToken.uid;
 
-    const userDoc = await adminDb.collection("users").doc(uid).get();
+    const userDoc = await db.collection("users").doc(uid).get();
     if (!userDoc.exists) {
       return NextResponse.json(
         { success: false, error: "Unauthorized: User record not found." },

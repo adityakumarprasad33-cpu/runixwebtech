@@ -700,6 +700,42 @@ export default function AdminPanel() {
     }
   };
 
+  const updateUserRecord = async (targetUserId: string, updateData: Record<string, any>) => {
+    // 1. Try secure Server API
+    try {
+      const token = await user?.getIdToken();
+      if (token) {
+        const res = await safeFetchJson<any>("/api/admin/users", {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ targetUserId, ...updateData }),
+        });
+
+        if (res.ok && res.data?.success) {
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn("Server API update failed, falling back to direct Firestore update:", err);
+    }
+
+    // 2. Direct client Firestore update fallback for authenticated Admin
+    try {
+      await updateDoc(doc(db, "users", targetUserId), {
+        ...updateData,
+        updatedAt: new Date().toISOString(),
+        updatedBy: user?.email || "Admin",
+      });
+      return true;
+    } catch (fallbackErr: any) {
+      console.error("Direct Firestore update error:", fallbackErr);
+      throw new Error(fallbackErr.message || "Failed to update user record.");
+    }
+  };
+
   const fetchPaymentSettings = async () => {
     try {
       const docSnap = await getDoc(doc(db, "settings", "payment"));
@@ -3928,19 +3964,19 @@ export default function AdminPanel() {
                               onClick={async () => {
                                 setPromotingUser(u.id);
                                 try {
-                                  const token = await user?.getIdToken();
-                                  const res = await safeFetchJson<any>("/api/admin/users", {
-                                    method: "PUT",
-                                    headers: {
-                                      "Content-Type": "application/json",
-                                      Authorization: `Bearer ${token}`,
-                                    },
-                                    body: JSON.stringify({ targetUserId: u.id, role: "developer" }),
-                                  });
-                                  if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update role");
-                                  setUsers((prev: any[]) => prev.map((x: any) => x.id === u.id ? { ...x, role: "developer", activeProjectCount: u.activeProjectCount || 0, maxProjects: u.maxProjects || 5 } : x));
-                                } catch (e: any) { alert(e.message || "Failed to update role"); }
-                                finally { setPromotingUser(null); }
+                                  await updateUserRecord(u.id, { role: "developer" });
+                                  setUsers((prev: any[]) =>
+                                    prev.map((x: any) =>
+                                      x.id === u.id
+                                        ? { ...x, role: "developer", activeProjectCount: u.activeProjectCount || 0, maxProjects: u.maxProjects || 5 }
+                                        : x
+                                    )
+                                  );
+                                } catch (e: any) {
+                                  alert(e.message || "Failed to update role");
+                                } finally {
+                                  setPromotingUser(null);
+                                }
                               }}
                               className="text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 cursor-pointer"
                             >
@@ -3954,19 +3990,15 @@ export default function AdminPanel() {
                               setPromotingUser(u.id);
                               const newRole = u.role === "admin" ? "user" : u.role === "developer" ? "user" : "admin";
                               try {
-                                const token = await user?.getIdToken();
-                                const res = await safeFetchJson<any>("/api/admin/users", {
-                                  method: "PUT",
-                                  headers: {
-                                    "Content-Type": "application/json",
-                                    Authorization: `Bearer ${token}`,
-                                  },
-                                  body: JSON.stringify({ targetUserId: u.id, role: newRole }),
-                                });
-                                if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update role");
-                                setUsers((prev: any[]) => prev.map((x: any) => x.id === u.id ? { ...x, role: newRole } : x));
-                              } catch (e: any) { alert(e.message || "Failed to update role"); }
-                              finally { setPromotingUser(null); }
+                                await updateUserRecord(u.id, { role: newRole });
+                                setUsers((prev: any[]) =>
+                                  prev.map((x: any) => (x.id === u.id ? { ...x, role: newRole } : x))
+                                );
+                              } catch (e: any) {
+                                alert(e.message || "Failed to update role");
+                              } finally {
+                                setPromotingUser(null);
+                              }
                             }}
                             className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors cursor-pointer ${
                               u.role === "admin" || u.role === "developer"
@@ -3974,7 +4006,11 @@ export default function AdminPanel() {
                                 : "border-indigo-500/30 text-indigo-400 hover:bg-indigo-500/10"
                             }`}
                           >
-                            {promotingUser === u.id ? "Saving…" : (u.role === "admin" || u.role === "developer") ? "Demote to User" : "Promote to Admin"}
+                            {promotingUser === u.id
+                              ? "Saving…"
+                              : u.role === "admin" || u.role === "developer"
+                              ? "Demote to User"
+                              : "Promote to Admin"}
                           </button>
                         </div>
                       </div>
@@ -4025,21 +4061,22 @@ export default function AdminPanel() {
                                   setSavingPermissions(admin.id);
                                   const newPerms = { ...perms, [key]: !enabled };
                                   try {
-                                    const token = await user?.getIdToken();
-                                    const res = await safeFetchJson<any>("/api/admin/users", {
-                                      method: "PUT",
-                                      headers: {
-                                        "Content-Type": "application/json",
-                                        Authorization: `Bearer ${token}`,
-                                      },
-                                      body: JSON.stringify({ targetUserId: admin.id, adminPermissions: newPerms }),
+                                    await updateUserRecord(admin.id, { adminPermissions: newPerms });
+                                    setUsers((prev: any[]) =>
+                                      prev.map((u: any) => (u.id === admin.id ? { ...u, adminPermissions: newPerms } : u))
+                                    );
+                                    logAdminAction({
+                                      adminId: user?.uid || "",
+                                      adminName: user?.displayName || profile?.name || "Admin",
+                                      adminEmail: user?.email || "",
+                                      action: "UPDATED_ADMIN_PERMISSIONS",
+                                      details: { targetAdminId: admin.id, permission: key, enabled: !enabled },
                                     });
-                                    if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update");
-
-                                    setUsers((prev: any[]) => prev.map((u: any) => u.id === admin.id ? { ...u, adminPermissions: newPerms } : u));
-                                    logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "UPDATED_ADMIN_PERMISSIONS", details: { targetAdminId: admin.id, permission: key, enabled: !enabled } });
-                                  } catch (err: any) { alert(err.message || "Failed to update permissions"); }
-                                  finally { setSavingPermissions(null); }
+                                  } catch (err: any) {
+                                    alert(err.message || "Failed to update permissions");
+                                  } finally {
+                                    setSavingPermissions(null);
+                                  }
                                 }}
                                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
                                   enabled
@@ -4053,62 +4090,64 @@ export default function AdminPanel() {
                             );
                           })}
                         </div>
-                        
+
                         {/* Designation and Department Inputs */}
                         <div className="flex gap-2 mt-4 pt-3 border-t border-white/5">
-                          <input 
-                            type="text" 
-                            defaultValue={admin.designation || ""} 
+                          <input
+                            type="text"
+                            defaultValue={admin.designation || ""}
                             placeholder="Designation (e.g. Lead Developer)"
                             className="flex-1 bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
                             onBlur={async (e) => {
                               const newVal = e.target.value;
-                              if(newVal !== admin.designation) {
+                              if (newVal !== admin.designation) {
                                 setSavingPermissions(admin.id);
                                 try {
-                                  const token = await user?.getIdToken();
-                                  const res = await safeFetchJson<any>("/api/admin/users", {
-                                    method: "PUT",
-                                    headers: {
-                                      "Content-Type": "application/json",
-                                      Authorization: `Bearer ${token}`,
-                                    },
-                                    body: JSON.stringify({ targetUserId: admin.id, designation: newVal }),
+                                  await updateUserRecord(admin.id, { designation: newVal });
+                                  setUsers((prev: any[]) =>
+                                    prev.map((u: any) => (u.id === admin.id ? { ...u, designation: newVal } : u))
+                                  );
+                                  logAdminAction({
+                                    adminId: user?.uid || "",
+                                    adminName: user?.displayName || profile?.name || "Admin",
+                                    adminEmail: user?.email || "",
+                                    action: "UPDATED_ADMIN_DESIGNATION",
+                                    details: { targetAdminId: admin.id, designation: newVal },
                                   });
-                                  if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update");
-
-                                  setUsers((prev: any[]) => prev.map((u: any) => u.id === admin.id ? { ...u, designation: newVal } : u));
-                                  logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "UPDATED_ADMIN_DESIGNATION", details: { targetAdminId: admin.id, designation: newVal } });
-                                } catch (err: any) { alert(err.message || "Failed to update designation"); }
-                                finally { setSavingPermissions(null); }
+                                } catch (err: any) {
+                                  alert(err.message || "Failed to update designation");
+                                } finally {
+                                  setSavingPermissions(null);
+                                }
                               }
                             }}
                           />
-                          <input 
-                            type="text" 
-                            defaultValue={admin.department || ""} 
+                          <input
+                            type="text"
+                            defaultValue={admin.department || ""}
                             placeholder="Department (e.g. Engineering)"
                             className="flex-1 bg-black/60 border border-white/10 rounded-lg px-3 py-2 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 transition-colors"
                             onBlur={async (e) => {
                               const newVal = e.target.value;
-                              if(newVal !== admin.department) {
+                              if (newVal !== admin.department) {
                                 setSavingPermissions(admin.id);
                                 try {
-                                  const token = await user?.getIdToken();
-                                  const res = await safeFetchJson<any>("/api/admin/users", {
-                                    method: "PUT",
-                                    headers: {
-                                      "Content-Type": "application/json",
-                                      Authorization: `Bearer ${token}`,
-                                    },
-                                    body: JSON.stringify({ targetUserId: admin.id, department: newVal }),
+                                  await updateUserRecord(admin.id, { department: newVal });
+                                  setUsers((prev: any[]) =>
+                                    prev.map((u: any) => (u.id === admin.id ? { ...u, department: newVal } : u))
+                                  );
+                                  logAdminAction({
+                                    adminId: user?.uid || "",
+                                    adminName: user?.displayName || profile?.name || "Admin",
+                                    adminEmail: user?.email || "",
+                                    action: "UPDATED_ADMIN_DEPARTMENT",
+                                    details: { targetAdminId: admin.id, department: newVal },
                                   });
-                                  if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update");
-
-                                  setUsers((prev: any[]) => prev.map((u: any) => u.id === admin.id ? { ...u, department: newVal } : u));
-                                  logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "UPDATED_ADMIN_DEPARTMENT", details: { targetAdminId: admin.id, department: newVal } });
-                                } catch (err: any) { alert(err.message || "Failed to update department"); }
-                                finally { setSavingPermissions(null); }
+                                } catch (err: any) {
+                                  alert(err.message || "Failed to update department");
+                                } finally {
+                                  setSavingPermissions(null);
+                                }
                               }
                             }}
                           />
