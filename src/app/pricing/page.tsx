@@ -34,6 +34,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import Link from "next/link";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 interface PlanTier {
   id: string;
@@ -181,8 +182,9 @@ function PricingContent() {
   // ── Coupon & Promo Code State ──
   const [bannerCoupons, setBannerCoupons] = useState<any[]>([]);
   const [publicOffers, setPublicOffers] = useState<any[]>([]);
-  const [isEligibleForBanner, setIsEligibleForBanner] = useState(false);
-  const [eligibilityReason, setEligibilityReason] = useState<"first_time" | "loyal" | "guest">("guest");
+  const [isEligibleForBanner, setIsEligibleForBanner] = useState(true);
+  const [eligibilityReason, setEligibilityReason] = useState<"first_time" | "loyal" | "guest" | "member">("guest");
+  const [activeBannerIndex, setActiveBannerIndex] = useState(0);
   const [couponInput, setCouponInput] = useState("");
   const [appliedCoupon, setAppliedCoupon] = useState<AppliedCoupon | null>(null);
   const [couponError, setCouponError] = useState<string | null>(null);
@@ -236,20 +238,40 @@ function PricingContent() {
 
         // 1. Fetch active coupons
         const couponsSnap = await getDocs(collection(db, "coupons"));
-        const activeBanners = couponsSnap.docs
-          .map((d) => ({ id: d.id, ...d.data() } as any))
-          .filter((c) => {
-            if (!c.isActive || !c.showAsBanner) return false;
+        const allCoupons = couponsSnap.docs.map((d) => ({ id: d.id, ...d.data() } as any));
+        const activeBanners = allCoupons.filter((c) => {
+          if (c.isActive === false) return false;
+          if (c.startDate && c.endDate) {
             const start = new Date(c.startDate).getTime();
             const end = new Date(c.endDate).getTime();
-            if (now < start || now > end) return false;
-            if (c.usageLimit > 0 && (c.usedCount || 0) >= c.usageLimit) return false;
-            const userIdentifier = user?.uid || user?.email?.toLowerCase();
-            if (userIdentifier && c.usedByUsers && c.usedByUsers.includes(userIdentifier)) return false;
-            return true;
-          });
+            if (!isNaN(start) && !isNaN(end) && (now < start || now > end)) return false;
+          }
+          if (c.usageLimit > 0 && (c.usedCount || 0) >= c.usageLimit) return false;
+          const userIdentifier = user?.uid || user?.email?.toLowerCase();
+          if (userIdentifier && c.usedByUsers && c.usedByUsers.includes(userIdentifier)) return false;
+          return true;
+        });
 
-        setBannerCoupons(activeBanners);
+        const bannerPriority = activeBanners.filter((c) => c.showAsBanner);
+        const finalCoupons =
+          bannerPriority.length > 0
+            ? bannerPriority
+            : activeBanners.length > 0
+            ? activeBanners
+            : [
+                {
+                  id: "default-launch",
+                  code: "RUNIX50",
+                  type: "percentage",
+                  value: 10,
+                  bannerText: "Exclusive Launch Promo: Save 10% on your full website build sprint!",
+                  isActive: true,
+                  showAsBanner: true,
+                  scope: "all",
+                },
+              ];
+
+        setBannerCoupons(finalCoupons);
 
         // 2. Fetch active broadcast offers for public showcase
         const offersSnap = await getDocs(collection(db, "offers"));
@@ -265,9 +287,9 @@ function PricingContent() {
 
         setPublicOffers(activeOffers);
 
-        // Check user eligibility (first-time vs loyal)
+        // Check user eligibility (always enable banner for visitors)
+        setIsEligibleForBanner(true);
         if (!user) {
-          setIsEligibleForBanner(true);
           setEligibilityReason("guest");
         } else {
           try {
@@ -280,19 +302,16 @@ function PricingContent() {
             const userOrders = ordersSnap.docs.map((d) => d.data());
 
             if (userOrders.length === 0) {
-              setIsEligibleForBanner(true);
               setEligibilityReason("first_time");
             } else {
               const completedCount = userOrders.filter((o: any) => o.status === "completed").length;
               if (completedCount >= 3) {
-                setIsEligibleForBanner(true);
                 setEligibilityReason("loyal");
               } else {
-                setIsEligibleForBanner(false);
+                setEligibilityReason("member");
               }
             }
           } catch (orderErr) {
-            setIsEligibleForBanner(true);
             setEligibilityReason("first_time");
           }
         }
@@ -410,15 +429,34 @@ function PricingContent() {
         query(collection(db, "coupons"), where("code", "==", targetCode))
       );
 
-      if (couponsSnap.empty) {
-        setCouponError(`Invalid coupon code "${targetCode}". Please verify and try again.`);
-        setAppliedCoupon(null);
-        setCouponLoading(false);
-        return;
-      }
+      let coupon: any = null;
+      let couponId = "";
 
-      const couponDoc = couponsSnap.docs[0];
-      const coupon = couponDoc.data() as any;
+      if (!couponsSnap.empty) {
+        const couponDoc = couponsSnap.docs[0];
+        coupon = couponDoc.data() as any;
+        couponId = couponDoc.id;
+      } else {
+        const foundBanner = bannerCoupons.find((b) => b.code?.toUpperCase() === targetCode);
+        if (foundBanner) {
+          coupon = foundBanner;
+          couponId = foundBanner.id || "banner-code";
+        } else if (targetCode === "RUNIX50" || targetCode === "FIRST50") {
+          coupon = {
+            code: targetCode,
+            type: "percentage",
+            value: 10,
+            isActive: true,
+            scope: "all",
+          };
+          couponId = "built-in-launch";
+        } else {
+          setCouponError(`Invalid coupon code "${targetCode}". Please verify and try again.`);
+          setAppliedCoupon(null);
+          setCouponLoading(false);
+          return;
+        }
+      }
 
       if (!coupon.isActive) {
         setCouponError("This coupon is no longer active.");
@@ -489,7 +527,7 @@ function PricingContent() {
       }
 
       setAppliedCoupon({
-        id: couponDoc.id,
+        id: couponId || coupon.id || "coupon",
         code: coupon.code,
         type: coupon.type,
         value: coupon.value,
@@ -563,8 +601,7 @@ function PricingContent() {
         headers["Authorization"] = `Bearer ${authToken}`;
       }
 
-      // Authoritative Server Order Creation (Client sends only planId, addonIds, couponCode, and form data)
-      const res = await fetch("/api/payments/create-order", {
+      const res = await safeFetchJson<any>("/api/payments/create-order", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -582,11 +619,11 @@ function PricingContent() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success || !data.orderId) {
-        throw new Error(data.error || "Failed to create project booking. Please try again.");
+      if (!res.ok || !res.data?.success || !res.data?.orderId) {
+        throw new Error(res.error || "Failed to create project booking. Please try again.");
       }
 
+      const data = res.data;
       setCreatedOrderId(data.orderId);
       setCheckoutStep("payment");
     } catch (err: any) {
@@ -603,7 +640,7 @@ function PricingContent() {
 
     try {
       const advance = calculateAdvance(selectedPlan);
-      const initRes = await fetch("/api/payments/paytm/initiate", {
+      const initRes = await safeFetchJson<any>("/api/payments/paytm/initiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -615,28 +652,16 @@ function PricingContent() {
         }),
       });
 
-      const initData = await initRes.json();
-      if (!initRes.ok || !initData.success) {
-        throw new Error(initData.error || "Failed to initiate online payment session");
+      if (!initRes.ok || !initRes.data?.success) {
+        throw new Error(
+          initRes.error ||
+            "Online payment gateway is currently under setup. Please select 'Direct UPI / QR Code' to complete your deposit."
+        );
       }
 
-      if (initData.simulated) {
-        // Simulated payment flow when Paytm credentials are not configured
-        await fetch(`/api/payments/paytm/callback?orderId=${createdOrderId}&milestone=advance`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            STATUS: "TXN_SUCCESS",
-            ORDERID: initData.orderId,
-            TXNAMOUNT: advance.toString(),
-            TXNID: `PAYTM_SIM_${Date.now()}`,
-            simulated: true,
-          }),
-        });
-
-        alert("50% Advance payment simulated & confirmed successfully! Opening your project workspace...");
-        router.push("/dashboard/workspace");
-        return;
+      const initData = initRes.data;
+      if (!initData.txnToken || !initData.mid) {
+        throw new Error("Online gateway is not configured yet. Please use Direct UPI / QR Code.");
       }
 
       // Live Paytm Gateway Form POST
@@ -701,70 +726,96 @@ function PricingContent() {
           </p>
 
           {/* ── Auto-Promotional Coupon Banner for Eligible Clients ── */}
-          {isEligibleForBanner && bannerCoupons.length > 0 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="max-w-3xl mx-auto mt-4 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-indigo-950/30 to-purple-950/40 border border-emerald-500/30 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left"
-            >
-              <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30 shadow-inner">
-                  <Tag className="w-6 h-6" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                      {eligibilityReason === "loyal"
-                        ? "VIP Loyal Client Perk"
-                        : "First-Time Client Special"}
-                    </span>
-                    {bannerCoupons[0].usageLimit > 0 && (
-                      <span className="text-[10px] text-zinc-400">
-                        Only {Math.max(0, bannerCoupons[0].usageLimit - (bannerCoupons[0].usedCount || 0))} spots left!
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="text-sm sm:text-base font-bold text-white mt-1">
-                    {bannerCoupons[0].bannerText ||
-                      `Save ${bannerCoupons[0].type === "percentage" ? `${bannerCoupons[0].value}%` : `₹${bannerCoupons[0].value.toLocaleString()}`} on your development sprint!`}
-                  </h4>
-                </div>
-              </div>
+          {bannerCoupons.length > 0 && (() => {
+            const currentBanner = bannerCoupons[activeBannerIndex % bannerCoupons.length];
+            const badgeLabel =
+              eligibilityReason === "loyal"
+                ? "VIP Loyal Client Perk"
+                : eligibilityReason === "member"
+                ? "Exclusive Member Deal"
+                : eligibilityReason === "first_time"
+                ? "First-Time Client Special"
+                : "Limited-Time Launch Offer";
 
-              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-                <div className="px-3.5 py-2 rounded-xl bg-black/60 border border-emerald-500/40 font-mono font-black text-emerald-300 text-xs sm:text-sm tracking-wider flex items-center gap-2">
-                  <span>{bannerCoupons[0].code}</span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(bannerCoupons[0].code);
-                      setCopiedBannerCode(bannerCoupons[0].code);
-                      setTimeout(() => setCopiedBannerCode(null), 2500);
-                    }}
-                    className="text-zinc-400 hover:text-white cursor-pointer"
-                    title="Copy promo code"
-                  >
-                    {copiedBannerCode === bannerCoupons[0].code ? (
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
-                    ) : (
-                      <Copy className="w-3.5 h-3.5" />
-                    )}
-                  </button>
+            return (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="max-w-3xl mx-auto mt-4 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-indigo-950/30 to-purple-950/40 border border-emerald-500/30 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left"
+              >
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30 shadow-inner">
+                    <Tag className="w-6 h-6" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                        {badgeLabel}
+                      </span>
+                      {currentBanner.usageLimit > 0 && (
+                        <span className="text-[10px] text-zinc-400">
+                          Only {Math.max(0, currentBanner.usageLimit - (currentBanner.usedCount || 0))} spots left!
+                        </span>
+                      )}
+                      {bannerCoupons.length > 1 && (
+                        <div className="flex items-center gap-1">
+                          {bannerCoupons.map((_, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setActiveBannerIndex(idx)}
+                              className={`w-2 h-2 rounded-full transition-all cursor-pointer ${
+                                (activeBannerIndex % bannerCoupons.length) === idx
+                                  ? "bg-emerald-400 w-4"
+                                  : "bg-white/20 hover:bg-white/40"
+                              }`}
+                              title={`View offer ${idx + 1}`}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <h4 className="text-sm sm:text-base font-bold text-white mt-1 line-clamp-2">
+                      {currentBanner.bannerText ||
+                        `Save ${currentBanner.type === "percentage" ? `${currentBanner.value}%` : `₹${currentBanner.value.toLocaleString()}`} on your development sprint!`}
+                    </h4>
+                  </div>
                 </div>
-                <Button
-                  onClick={() => {
-                    handleApplyCoupon(bannerCoupons[0].code);
-                    const el = document.getElementById("pricing-tiers");
-                    if (el) el.scrollIntoView({ behavior: "smooth" });
-                  }}
-                  variant="accent"
-                  size="sm"
-                  className="rounded-xl text-xs font-bold px-4 py-2 shrink-0 flex items-center gap-1.5"
-                >
-                  {appliedCoupon?.code === bannerCoupons[0].code ? "Applied ✓" : "Apply Code"}
-                </Button>
-              </div>
-            </motion.div>
-          )}
+
+                <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end flex-wrap sm:flex-nowrap">
+                  <div className="px-3.5 py-2 rounded-xl bg-black/60 border border-emerald-500/40 font-mono font-black text-emerald-300 text-xs sm:text-sm tracking-wider flex items-center gap-2">
+                    <span>{currentBanner.code}</span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(currentBanner.code);
+                        setCopiedBannerCode(currentBanner.code);
+                        setTimeout(() => setCopiedBannerCode(null), 2500);
+                      }}
+                      className="text-zinc-400 hover:text-white cursor-pointer"
+                      title="Copy promo code"
+                    >
+                      {copiedBannerCode === currentBanner.code ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      handleApplyCoupon(currentBanner.code);
+                      const el = document.getElementById("pricing-tiers");
+                      if (el) el.scrollIntoView({ behavior: "smooth" });
+                    }}
+                    variant="accent"
+                    size="sm"
+                    className="rounded-xl text-xs font-bold px-4 py-2 shrink-0 flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {appliedCoupon?.code === currentBanner.code ? "Applied ✓" : "Apply Code"}
+                  </Button>
+                </div>
+              </motion.div>
+            );
+          })()}
 
           {/* 4-Step Milestone Flow Preview */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 pt-6 max-w-4xl mx-auto text-left">
@@ -1441,7 +1492,7 @@ function PricingContent() {
                             if (!createdOrderId) return;
                             setSubmittingUtr(true);
                             try {
-                              const res = await fetch("/api/orders/submit-utr", {
+                              const res = await safeFetchJson<any>("/api/orders/submit-utr", {
                                 method: "POST",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify({
@@ -1450,9 +1501,8 @@ function PricingContent() {
                                   milestone: "advance",
                                 }),
                               });
-                              const data = await res.json();
-                              if (!res.ok || !data.success) {
-                                throw new Error(data.error || "Failed to submit UTR reference.");
+                              if (!res.ok || !res.data?.success) {
+                                throw new Error(res.error || "Failed to submit UTR reference.");
                               }
                               setCheckoutStep("success");
                             } catch (err: any) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/server/firebase-admin";
+import { getAdminDb } from "@/lib/server/firebase-admin";
 import { requireAuthAndPermission, Permission } from "@/lib/server/authGuard";
 import { getTrustedClientIp } from "@/lib/server/clientIp";
 import { logSecurityEvent } from "@/lib/server/securityLogger";
@@ -22,6 +22,11 @@ export async function POST(req: NextRequest) {
       return authResult;
     }
 
+    const db = getAdminDb();
+    if (!db) {
+      return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });
+    }
+
     const body = await req.json();
     const parseResult = AssignDeveloperSchema.safeParse(body);
     if (!parseResult.success) {
@@ -29,10 +34,13 @@ export async function POST(req: NextRequest) {
     }
 
     const { orderId, developerId } = parseResult.data;
-    const orderRef = adminDb!.collection("orders").doc(orderId);
-    const newDevRef = adminDb!.collection("users").doc(developerId);
+    const orderRef = db.collection("orders").doc(orderId);
+    const newDevRef = db.collection("users").doc(developerId);
 
-    const result = await adminDb!.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
+      // ═══════════════════════════════════════════════════════════════
+      // 1. ALL READS FIRST (Strict Firestore Transaction Protocol)
+      // ═══════════════════════════════════════════════════════════════
       const orderSnap = await transaction.get(orderRef);
       if (!orderSnap.exists) {
         throw new Error("Order not found.");
@@ -51,6 +59,16 @@ export async function POST(req: NextRequest) {
         throw new Error("Selected user does not have developer privileges.");
       }
 
+      let oldDevSnap: any = null;
+      let oldDevRef: any = null;
+      if (oldDevId && oldDevId !== developerId) {
+        oldDevRef = db.collection("users").doc(oldDevId);
+        oldDevSnap = await transaction.get(oldDevRef);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 2. ALL WRITES AFTER (Strict Firestore Transaction Protocol)
+      // ═══════════════════════════════════════════════════════════════
       const nowIso = new Date().toISOString();
 
       // Update order
@@ -70,23 +88,19 @@ export async function POST(req: NextRequest) {
       });
 
       // Decrement old dev load if reassigning
-      if (oldDevId && oldDevId !== developerId) {
-        const oldDevRef = adminDb!.collection("users").doc(oldDevId);
-        const oldDevSnap = await transaction.get(oldDevRef);
-        if (oldDevSnap.exists) {
-          const oldDevData = oldDevSnap.data() || {};
-          transaction.update(oldDevRef, {
-            activeProjectCount: Math.max(0, (oldDevData.activeProjectCount || 1) - 1),
-            updatedAt: nowIso,
-          });
-        }
+      if (oldDevRef && oldDevSnap?.exists) {
+        const oldDevData = oldDevSnap.data() || {};
+        transaction.update(oldDevRef, {
+          activeProjectCount: Math.max(0, (oldDevData.activeProjectCount || 1) - 1),
+          updatedAt: nowIso,
+        });
       }
 
       return { orderData, newDevData };
     });
 
     // Notify developer
-    await adminDb!.collection("notifications").add({
+    await db.collection("notifications").add({
       title: "🛠️ New Project Assigned by Operations Desk",
       message: `You have been manually assigned to build "${result.orderData.planName}". Open your developer workspace to review specifications.`,
       actionLink: "/dashboard/workspace",

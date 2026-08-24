@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/server/firebase-admin";
+import { getAdminDb } from "@/lib/server/firebase-admin";
 import { requireAuthAndPermission, Permission } from "@/lib/server/authGuard";
 import { getTrustedClientIp } from "@/lib/server/clientIp";
 import { logSecurityEvent } from "@/lib/server/securityLogger";
@@ -9,9 +9,17 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const SubmitWorkSchema = z.object({
-  orderId: z.string().min(5).max(100),
-  stagingUrl: z.string().url().max(500),
+  orderId: z.string().min(1).max(100),
+  stagingUrl: z.string().min(3).max(500),
   devNotes: z.string().max(2000).optional(),
+  handoverLinks: z
+    .object({
+      liveUrl: z.string().max(300).optional().nullable(),
+      githubRepo: z.string().max(300).optional().nullable(),
+      driveZip: z.string().max(300).optional().nullable(),
+    })
+    .optional(),
+  handoverNotes: z.string().max(2000).optional().nullable(),
 });
 
 export async function POST(req: NextRequest) {
@@ -21,14 +29,25 @@ export async function POST(req: NextRequest) {
     const authResult = await requireAuthAndPermission(req, Permission.ORDER_READ_ASSIGNED);
     if (authResult instanceof NextResponse) return authResult;
 
+    const db = getAdminDb();
+    if (!db) {
+      return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });
+    }
+
     const body = await req.json();
     const parseResult = SubmitWorkSchema.safeParse(body);
     if (!parseResult.success) {
-      return NextResponse.json({ success: false, error: "Invalid staging URL.", details: parseResult.error.flatten() }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Invalid staging URL or order ID.", details: parseResult.error.flatten() }, { status: 400 });
     }
 
-    const { orderId, stagingUrl, devNotes } = parseResult.data;
-    const orderRef = adminDb!.collection("orders").doc(orderId);
+    const { orderId, stagingUrl, devNotes, handoverLinks, handoverNotes } = parseResult.data;
+
+    let normalizedStagingUrl = stagingUrl.trim();
+    if (!normalizedStagingUrl.startsWith("http://") && !normalizedStagingUrl.startsWith("https://")) {
+      normalizedStagingUrl = `https://${normalizedStagingUrl}`;
+    }
+
+    const orderRef = db.collection("orders").doc(orderId);
     const orderSnap = await orderRef.get();
 
     if (!orderSnap.exists) {
@@ -42,31 +61,50 @@ export async function POST(req: NextRequest) {
 
     const finalAmount = orderData.finalPrice || Math.round((orderData.totalPrice || 0) * 0.5);
 
-    await orderRef.update({
+    const updatePayload: Record<string, any> = {
       status: "awaiting_final_payment",
-      stagingUrl,
+      stagingUrl: normalizedStagingUrl,
+      demoUrl: normalizedStagingUrl,
       devNotes: devNotes?.trim() || null,
       devCompletedAt: new Date().toISOString(),
       statusCaption: "Work Completed — Staging Ready for Client Review 🚀",
       updatedAt: new Date().toISOString(),
-    });
+    };
+
+    if (handoverLinks) {
+      updatePayload.handoverLinks = {
+        githubRepo: handoverLinks.githubRepo?.trim() || orderData.handoverLinks?.githubRepo || null,
+        liveUrl: handoverLinks.liveUrl?.trim() || orderData.handoverLinks?.liveUrl || null,
+        driveZip: handoverLinks.driveZip?.trim() || orderData.handoverLinks?.driveZip || null,
+      };
+    }
+
+    if (handoverNotes) {
+      updatePayload.handoverNotes = handoverNotes.trim();
+    }
+
+    await orderRef.update(updatePayload);
 
     // Send real-time notification to customer
     if (orderData.userId) {
-      await adminDb!.collection("notifications").add({
-        title: "🚀 Project Completed by Developer — Staging Ready!",
-        message: `${authResult.name} has completed the build sprint for "${orderData.planName}". Live staging demo is ready for review at: ${stagingUrl}. Settle final 50% milestone (₹${finalAmount.toLocaleString()}) to release full code repository and handover assets.`,
-        actionLink: stagingUrl,
-        actionText: "Preview Staging",
-        targetType: "user",
-        targetUserId: orderData.userId,
-        targetEmail: orderData.userEmail || null,
-        senderName: authResult.name,
-        senderRole: "Developer",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
+      try {
+        await db.collection("notifications").add({
+          title: "🚀 Project Completed by Developer — Staging Ready!",
+          message: `${authResult.name} has completed the build sprint for "${orderData.planName}". Live staging demo is ready for review at: ${normalizedStagingUrl}. Settle final 50% milestone (₹${finalAmount.toLocaleString()}) to release full code repository and handover assets.`,
+          actionLink: `/preview?url=${encodeURIComponent(normalizedStagingUrl)}&title=${encodeURIComponent(orderData.planName || "Staging Demo")}`,
+          actionText: "Preview Staging",
+          targetType: "user",
+          targetUserId: orderData.userId,
+          targetEmail: orderData.userEmail || null,
+          senderName: authResult.name,
+          senderRole: "Developer",
+          createdAt: new Date().toISOString(),
+          readBy: [],
+          clearedBy: [],
+        });
+      } catch (notifErr) {
+        console.warn("Staging notification error:", notifErr);
+      }
     }
 
     await logSecurityEvent({
@@ -77,10 +115,10 @@ export async function POST(req: NextRequest) {
       resourceId: orderId,
       status: "success",
       ip: clientIp,
-      metadata: { stagingUrl },
+      metadata: { stagingUrl: normalizedStagingUrl },
     });
 
-    return NextResponse.json({ success: true, message: "Work submitted successfully." });
+    return NextResponse.json({ success: true, message: "Work submitted successfully.", stagingUrl: normalizedStagingUrl });
   } catch (error: any) {
     console.error("Submit work error:", error);
     return NextResponse.json({ success: false, error: error?.message || "Failed to submit work." }, { status: 500 });

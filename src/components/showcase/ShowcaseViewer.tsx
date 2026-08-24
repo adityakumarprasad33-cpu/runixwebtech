@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, ExternalLink, Maximize2, Monitor } from "lucide-react";
+import { X, ExternalLink, Maximize2, Monitor, Eye } from "lucide-react";
 import type { Project } from "@/data/projects";
+import { normalizeUrl } from "@/lib/safeFetch";
 
 interface ShowcaseViewerProps {
   project: Project | null;
@@ -33,29 +34,31 @@ export default function ShowcaseViewer({ project, onClose }: ShowcaseViewerProps
 
   if (!project) return null;
 
+  const validLiveUrl = project.live_url ? normalizeUrl(project.live_url) : null;
+
   return (
     <AnimatePresence>
       {project && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 md:p-10">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="absolute inset-0 bg-brand-bg/80 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/80 backdrop-blur-md"
           />
 
-          {/* Modal Window */}
+          {/* Modal Container */}
           <motion.div
-            initial={{ opacity: 0, y: 20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            transition={{ duration: 0.3, ease: "easeOut" }}
-            className="relative w-full max-w-6xl h-full max-h-[90vh] bg-brand-surface border border-brand-border rounded-2xl shadow-2xl overflow-hidden flex flex-col z-10"
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ type: "spring", duration: 0.5, bounce: 0.1 }}
+            className="relative w-full max-w-5xl h-[85vh] bg-brand-surface border border-brand-border rounded-xl shadow-2xl flex flex-col overflow-hidden z-10"
           >
-            {/* Browser-style Top Bar */}
-            <div className="h-12 bg-brand-card border-b border-brand-border flex items-center justify-between px-4">
+            {/* Top Bar (Browser style) */}
+            <div className="h-12 border-b border-brand-border bg-brand-surface/80 backdrop-blur px-4 flex items-center justify-between gap-4">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full bg-red-500/80" />
                 <div className="w-3 h-3 rounded-full bg-yellow-500/80" />
@@ -70,16 +73,26 @@ export default function ShowcaseViewer({ project, onClose }: ShowcaseViewerProps
               </div>
               
               <div className="flex items-center gap-2">
-                {project.live_url && (
-                  <a
-                    href={project.live_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-1.5 text-brand-muted hover:text-brand-text hover:bg-brand-bg rounded-md transition-colors"
-                    title="Open live site"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                  </a>
+                {validLiveUrl && (
+                  <>
+                    <a
+                      href={`/preview?url=${encodeURIComponent(validLiveUrl)}&title=${encodeURIComponent(project.title)}&ref=/`}
+                      className="flex items-center gap-1 px-2.5 py-1 text-xs font-bold text-indigo-400 bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/30 rounded-md transition-colors"
+                      title="Open in dedicated live viewer"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span className="hidden sm:inline">Live Viewer</span>
+                    </a>
+                    <a
+                      href={validLiveUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1.5 text-brand-muted hover:text-brand-text hover:bg-brand-bg rounded-md transition-colors"
+                      title="Open live site in new tab"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                    </a>
+                  </>
                 )}
                 <button
                   onClick={onClose}

@@ -23,20 +23,16 @@ export async function POST(req: NextRequest) {
     const formattedAmount = Number(amount).toFixed(2);
     const callbackUrl = `${req.nextUrl.origin}/api/payments/paytm/callback?orderId=${orderId}&milestone=${milestone}`;
 
-    // If live Paytm credentials are not yet set in .env.local, return simulation response
+    // If live Paytm credentials are not set in .env.local, return error directing user to UPI
     if (!mid || !mkey) {
-      return NextResponse.json({
-        success: true,
-        simulated: true,
-        txnToken: `SIMULATED_TOKEN_${Date.now()}`,
-        orderId: txnOrderId,
-        baseOrderId: orderId,
-        amount: formattedAmount,
-        milestone,
-        mid: "TEST_MID_SIMULATED",
-        callbackUrl,
-        message: "Paytm API credentials not configured yet in .env.local. Simulation mode active.",
-      });
+      return NextResponse.json(
+        {
+          success: false,
+          configured: false,
+          error: "Online Payment Gateway is currently undergoing maintenance. Please use Direct UPI / QR Code transfer to complete your payment.",
+        },
+        { status: 400 }
+      );
     }
 
     const paytmParams: Record<string, any> = {
@@ -74,9 +70,19 @@ export async function POST(req: NextRequest) {
       }
     );
 
-    const paytmData = await paytmRes.json();
+    let paytmData: any = null;
+    try {
+      const rawText = await paytmRes.text();
+      if (rawText && (rawText.trim().startsWith("{") || rawText.trim().startsWith("["))) {
+        paytmData = JSON.parse(rawText);
+      } else {
+        console.warn("Paytm initiate returned non-JSON text:", rawText);
+      }
+    } catch (parseErr) {
+      console.warn("Paytm response parse error:", parseErr);
+    }
 
-    if (paytmData.body?.resultInfo?.resultStatus === "S") {
+    if (paytmData && paytmData.body?.resultInfo?.resultStatus === "S") {
       return NextResponse.json({
         success: true,
         simulated: false,
@@ -90,11 +96,14 @@ export async function POST(req: NextRequest) {
         callbackUrl,
       });
     } else {
-      console.error("Paytm transaction initiation failed:", paytmData);
+      const errMsg =
+        paytmData?.body?.resultInfo?.resultMsg ||
+        "Paytm payment gateway returned an unexpected response. Please verify credentials or try another payment method.";
+      console.error("Paytm transaction initiation failed:", errMsg);
       return NextResponse.json(
         {
           success: false,
-          error: paytmData.body?.resultInfo?.resultMsg || "Payment initiation failed",
+          error: errMsg,
         },
         { status: 400 }
       );
@@ -102,7 +111,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Paytm initiate API error:", error);
     return NextResponse.json(
-      { success: false, error: error?.message || "Internal server error" },
+      { success: false, error: error?.message || "Failed to initiate online payment session" },
       { status: 500 }
     );
   }

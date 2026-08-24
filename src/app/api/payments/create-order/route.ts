@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb, adminAuth } from "@/lib/server/firebase-admin";
+import { getAdminDb, getAdminAuth } from "@/lib/server/firebase-admin";
 import { computeAuthoritativeOrderPrice, AUTHORITATIVE_ADDONS } from "@/lib/server/pricingCatalog";
 import { getTrustedClientIp } from "@/lib/server/clientIp";
 import { logSecurityEvent } from "@/lib/server/securityLogger";
@@ -26,9 +26,12 @@ export async function POST(req: NextRequest) {
   const clientIp = getTrustedClientIp(req);
 
   try {
-    if (!adminDb) {
+    const db = getAdminDb();
+    const auth = getAdminAuth();
+
+    if (!db) {
       return NextResponse.json(
-        { success: false, error: "Order engine is temporarily unavailable. Missing backend configuration." },
+        { success: false, error: "Order engine is temporarily unavailable. Missing backend database configuration." },
         { status: 503 }
       );
     }
@@ -59,16 +62,15 @@ export async function POST(req: NextRequest) {
 
     const { plan, rawTotal } = calculated;
 
-    // 2. Authentication & Safe Account Provisioning (SEC-008 Fix)
-    // Extract optional Bearer token if user is already authenticated
+    // 2. Authentication & Safe Account Provisioning
     let authenticatedUid: string | null = null;
     const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-    if (authHeader && authHeader.startsWith("Bearer ") && adminAuth) {
+    if (authHeader && authHeader.startsWith("Bearer ") && auth) {
       try {
         const token = authHeader.split("Bearer ")[1].trim();
-        const decoded = await adminAuth.verifyIdToken(token);
+        const decoded = await auth.verifyIdToken(token);
         authenticatedUid = decoded.uid;
-      } catch (authErr) {
+      } catch {
         // Unauthenticated guest checkout
       }
     }
@@ -76,31 +78,28 @@ export async function POST(req: NextRequest) {
     let finalUserId = authenticatedUid || "";
     let customAuthToken: string | null = null;
 
-    if (!finalUserId && adminAuth) {
+    if (!finalUserId && auth) {
       try {
-        // Check if account already exists
         let existingUser = null;
         try {
-          existingUser = await adminAuth.getUserByEmail(userEmail);
+          existingUser = await auth.getUserByEmail(userEmail);
         } catch (e: any) {
           if (e.code !== "auth/user-not-found") {
-            console.error("Auth check error:", e);
+            console.error("Auth check notice:", e);
           }
         }
 
         if (existingUser) {
-          // SEC-008: Account exists — DO NOT mint a token for unauthenticated request
           finalUserId = existingUser.uid;
         } else {
-          // Account does not exist — safely create new customer account
-          const newUser = await adminAuth.createUser({
+          const newUser = await auth.createUser({
             email: userEmail,
             displayName: formData.name.trim(),
             emailVerified: false,
           });
 
           finalUserId = newUser.uid;
-          await adminDb.collection("users").doc(newUser.uid).set({
+          await db.collection("users").doc(newUser.uid).set({
             name: formData.name.trim(),
             email: userEmail,
             role: "user",
@@ -110,8 +109,7 @@ export async function POST(req: NextRequest) {
             updatedAt: new Date().toISOString(),
           });
 
-          // Mint custom token exclusively for the newly created user session
-          customAuthToken = await adminAuth.createCustomToken(newUser.uid);
+          customAuthToken = await auth.createCustomToken(newUser.uid);
         }
       } catch (userProvisionErr) {
         console.error("Account provisioning note:", userProvisionErr);
@@ -137,21 +135,24 @@ export async function POST(req: NextRequest) {
       const cleanCouponCode = couponCode.toUpperCase().trim();
 
       try {
-        const couponResult = await adminDb.runTransaction(async (transaction) => {
-          const couponQuery = await adminDb!
-            .collection("coupons")
-            .where("code", "==", cleanCouponCode)
-            .limit(1)
-            .get();
+        const couponQuery = await db
+          .collection("coupons")
+          .where("code", "==", cleanCouponCode)
+          .limit(1)
+          .get();
 
-          if (couponQuery.empty) {
-            throw new Error("Invalid promo code.");
-          }
+        if (couponQuery.empty) {
+          return NextResponse.json(
+            { success: false, error: `Promo code "${cleanCouponCode}" was not found or has expired.` },
+            { status: 400 }
+          );
+        }
 
-          const couponDoc = couponQuery.docs[0];
-          const couponRef = couponDoc.ref;
+        const couponDoc = couponQuery.docs[0];
+        const couponRef = couponDoc.ref;
+
+        const couponResult = await db.runTransaction(async (transaction) => {
           const freshSnap = await transaction.get(couponRef);
-
           if (!freshSnap.exists) {
             throw new Error("Promo code not found.");
           }
@@ -175,20 +176,17 @@ export async function POST(req: NextRequest) {
             throw new Error("This promo code is exclusively for Website Maintenance Retainers.");
           }
 
-          // Concurrency check: usedCount + pendingReservations < usageLimit
           const usedCount = freshCoupon.usedCount || 0;
           const pendingReservations = freshCoupon.pendingReservations || 0;
           if (freshCoupon.usageLimit > 0 && usedCount + pendingReservations >= freshCoupon.usageLimit) {
             throw new Error("This promo code has reached its maximum usage limit.");
           }
 
-          // Same-user reuse check
           const userIdentifier = finalUserId || userEmail;
           if (freshCoupon.usedByUsers && freshCoupon.usedByUsers.includes(userIdentifier)) {
             throw new Error("You have already used this promo code.");
           }
 
-          // Scope calculation
           let discountBaseAmount = rawTotal;
           if (scope === "addons") {
             const applicableAddons: string[] = freshCoupon.applicableAddons || ["all"];
@@ -291,21 +289,67 @@ export async function POST(req: NextRequest) {
       orderData.couponReservedAt = new Date().toISOString();
     }
 
-    const docRef = await adminDb.collection("orders").add(orderData);
+    // 5. Duplicate Submission Guard — prevent double-click / rage-click duplicates
+    //    If the same user already placed the same plan within the last 5 minutes and it's still
+    //    in an initial state, return the existing order instead of creating a duplicate.
+    try {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+      const existingSnap = await db
+        .collection("orders")
+        .where("userId", "==", finalUserId)
+        .where("planId", "==", plan.id)
+        .where("status", "in", ["awaiting_advance", "pending_payment", "awaiting_verification"])
+        .where("createdAt", ">=", fiveMinutesAgo)
+        .limit(1)
+        .get();
+
+      if (!existingSnap.empty) {
+        const existingDoc = existingSnap.docs[0];
+        const existingData = existingDoc.data();
+        return NextResponse.json({
+          success: true,
+          orderId: existingDoc.id,
+          totalPrice: existingData.totalPrice,
+          originalTotalPrice: existingData.originalTotalPrice || existingData.totalPrice,
+          advancePrice: existingData.advancePrice,
+          finalPrice: existingData.finalPrice,
+          customAuthToken,
+          userId: finalUserId,
+          couponApplied: existingData.couponCode
+            ? {
+                code: existingData.couponCode,
+                discountAmount: existingData.discountAmount || 0,
+                type: existingData.discountType || "flat",
+                value: existingData.discountValue || 0,
+              }
+            : null,
+          duplicate: true,
+        });
+      }
+    } catch (dupeCheckErr) {
+      // Non-critical — if the guard query fails, proceed to create the order normally
+      console.warn("Duplicate order guard check notice:", dupeCheckErr);
+    }
+
+    const docRef = await db.collection("orders").add(orderData);
     const orderId = docRef.id;
 
     // Create server-side notification for operations team
-    await adminDb.collection("notifications").add({
-      title: `New Project Booking: ${plan.name}`,
-      message: `${formData.name} (${userEmail}) configured a ${plan.name} build (Total: ₹${appliedTotalPrice.toLocaleString()}, 50% Advance: ₹${calculatedAdvance.toLocaleString()}).`,
-      targetType: "admin_dev",
-      targetRoles: ["admin", "super_admin", "developer"],
-      senderName: "Booking Engine",
-      senderRole: "System",
-      createdAt: new Date().toISOString(),
-      readBy: [],
-      clearedBy: [],
-    });
+    try {
+      await db.collection("notifications").add({
+        title: `New Project Booking: ${plan.name}`,
+        message: `${formData.name} (${userEmail}) configured a ${plan.name} build (Total: ₹${appliedTotalPrice.toLocaleString()}, 50% Advance: ₹${calculatedAdvance.toLocaleString()}).`,
+        targetType: "admin_dev",
+        targetRoles: ["admin", "super_admin", "developer"],
+        senderName: "Booking Engine",
+        senderRole: "System",
+        createdAt: new Date().toISOString(),
+        readBy: [],
+        clearedBy: [],
+      });
+    } catch (notifErr) {
+      console.warn("Notification dispatch notice:", notifErr);
+    }
 
     await logSecurityEvent({
       action: "order:create",
@@ -345,7 +389,7 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(
-      { success: false, error: "Failed to create project booking. Please try again or contact support." },
+      { success: false, error: error?.message || "Failed to create project booking. Please try again." },
       { status: 500 }
     );
   }

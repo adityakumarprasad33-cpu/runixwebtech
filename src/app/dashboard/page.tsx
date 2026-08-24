@@ -34,9 +34,15 @@ import {
   AlertCircle,
   HelpCircle,
   Wrench,
+  X,
+  Copy,
+  Check,
+  IndianRupee,
+  QrCode,
 } from "lucide-react";
 import DeveloperInteractionRoom from "@/components/dashboard/DeveloperInteractionRoom";
 import Link from "next/link";
+import { safeFetchJson, normalizeUrl } from "@/lib/safeFetch";
 
 interface UserProfile {
   name: string;
@@ -91,6 +97,7 @@ interface Order {
     addons?: string[];
   };
   stagingUrl?: string;
+  demoUrl?: string;
   handoverLinks?: {
     githubRepo?: string;
     liveUrl?: string;
@@ -100,12 +107,42 @@ interface Order {
   adminQuery?: string;
   userResponse?: string;
   hasPendingQuery?: boolean;
+  statusCaption?: string;
+  finalUtrNumber?: string;
+  maintenanceUtr?: string;
 }
 
 const fadeUp: any = {
   initial: { opacity: 0, y: 16 },
   animate: { opacity: 1, y: 0 },
   transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
+};
+
+// Content-aware order deduplication: collapse rage-click duplicates
+// (same plan + status created within 10 minutes) into a single entry.
+const dedupeOrders = (orders: any[]): any[] => {
+  if (!orders || orders.length === 0) return [];
+  const idSeen = new Set<string>();
+  const unique = orders.filter((o) => {
+    if (!o?.id) return true;
+    if (idSeen.has(o.id)) return false;
+    idSeen.add(o.id);
+    return true;
+  });
+  const sorted = [...unique].sort((a, b) => {
+    return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
+  });
+  const kept: any[] = [];
+  const seen = new Map<string, number>();
+  for (const o of sorted) {
+    const fp = `${o.userId || ""}|${o.planId || o.planName || ""}|${o.status || ""}`;
+    const ts = new Date(o.createdAt || 0).getTime();
+    const prev = seen.get(fp);
+    if (prev && Math.abs(ts - prev) < 10 * 60 * 1000) continue;
+    seen.set(fp, ts);
+    kept.push(o);
+  }
+  return kept;
 };
 
 export default function DashboardOverview() {
@@ -124,12 +161,45 @@ export default function DashboardOverview() {
   // Developer Room toggle
   const [openRoomOrderId, setOpenRoomOrderId] = useState<string | null>(null);
 
-  // Paying milestone state
+  // Milestone Payment Modal state
   const [payingMilestoneOrder, setPayingMilestoneOrder] = useState<{
     order: Order;
-    milestone: "advance" | "final";
+    milestone: "advance" | "final" | "maintenance";
+    amount: number;
+    title: string;
   } | null>(null);
+  const [utrInput, setUtrInput] = useState("");
+  const [submittingUtr, setSubmittingUtr] = useState(false);
+  const [copiedUpi, setCopiedUpi] = useState(false);
+  const [copiedPhone, setCopiedPhone] = useState(false);
+  const [paymentTab, setPaymentTab] = useState<"upi" | "gateway">("upi");
   const [initiatingPaytm, setInitiatingPaytm] = useState(false);
+  const [paymentSettings, setPaymentSettings] = useState<{
+    upiId: string;
+    upiName: string;
+    upiNumber?: string;
+    qrCodeUrl?: string;
+    paymentMode?: string;
+  }>({
+    upiId: "adityakumarprasad33-1@okaxis",
+    upiName: "RUNIX WEBTECH",
+    upiNumber: "8058204689",
+    paymentMode: "manual",
+  });
+
+  useEffect(() => {
+    // Real-time payment settings listener
+    const unsubSettings = onSnapshot(
+      doc(db, "settings", "payment"),
+      (snap) => {
+        if (snap.exists()) {
+          setPaymentSettings((prev) => ({ ...prev, ...(snap.data() as any) }));
+        }
+      },
+      (err) => console.warn("Payment settings listener notice:", err?.message || err)
+    );
+    return () => unsubSettings();
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -166,7 +236,7 @@ export default function DashboardOverview() {
     const unsubOrders = onSnapshot(
       ordersQuery,
       (snap) => {
-        setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+        setOrders(dedupeOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order))));
         setLoadingOrders(false);
       },
       (err) => {
@@ -209,15 +279,52 @@ export default function DashboardOverview() {
     }
   };
 
+  const handleSubmitUtr = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!utrInput.trim()) {
+      alert("Please enter the 12-digit UTR / UPI Reference ID from your payment app");
+      return;
+    }
+    if (!payingMilestoneOrder) return;
+    setSubmittingUtr(true);
+    try {
+      const res = await safeFetchJson<any>("/api/orders/submit-utr", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orderId: payingMilestoneOrder.order.id,
+          utrNumber: utrInput.trim(),
+          milestone: payingMilestoneOrder.milestone,
+        }),
+      });
+
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to submit UTR reference");
+      }
+
+      alert(
+        `UTR reference (${utrInput.trim()}) submitted successfully for ${payingMilestoneOrder.title}! Our team is verifying with the bank.`
+      );
+      setPayingMilestoneOrder(null);
+      setUtrInput("");
+    } catch (e: any) {
+      console.error("UTR submission error:", e);
+      alert(e.message || "Failed to submit UTR reference. Please try again.");
+    } finally {
+      setSubmittingUtr(false);
+    }
+  };
+
   const handlePaytmCheckout = async (
     order: Order,
-    milestone: "advance" | "final" | "maintenance",
-    amountOverride?: number
+    milestone: "advance" | "final" | "maintenance" = "advance",
+    amountOverride?: number,
+    allowSimulation: boolean = false
   ) => {
     setInitiatingPaytm(true);
     try {
-      const amount = amountOverride || (milestone === "advance" ? order.advancePrice : order.finalPrice);
-      const res = await fetch("/api/payments/paytm/initiate", {
+      const amount = amountOverride || (milestone === "advance" ? order.advancePrice : order.finalPrice) || 0;
+      const res = await safeFetchJson<any>("/api/payments/paytm/initiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -229,38 +336,23 @@ export default function DashboardOverview() {
         }),
       });
 
-      const data = await res.json();
-
-      if (data.simulated) {
-        // Simulated success callback (for development / testing before live Paytm keys)
-        await fetch(`/api/payments/paytm/callback?orderId=${order.id}&milestone=${milestone}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            STATUS: "TXN_SUCCESS",
-            ORDERID: data.orderId,
-            TXNAMOUNT: amount?.toString(),
-            TXNID: `PAYTM_SIM_${Date.now()}`,
-            simulated: true,
-          }),
-        });
-
-        alert(
-          `Payment of ₹${amount?.toLocaleString()} for ${
-            milestone === "advance"
-              ? "50% Advance"
-              : milestone === "final"
-              ? "50% Final Settlement"
-              : "30-Day Website Maintenance Retainer"
-          } confirmed successfully!`
+      if (!res.ok || !res.data?.success) {
+        throw new Error(
+          res.error ||
+            "Online Payment Gateway is currently under setup. Please use the Direct UPI / QR Code option to complete your payment."
         );
-        setPayingMilestoneOrder(null);
-      } else if (data.txnToken) {
-        window.location.href = `${data.callbackUrl}&txnToken=${data.txnToken}`;
       }
-    } catch (e) {
-      console.error("Paytm checkout error:", e);
-      alert("Failed to initiate Paytm payment. Please try again.");
+
+      const data = res.data;
+      if (data.txnToken && data.callbackUrl) {
+        window.location.href = `${data.callbackUrl}&txnToken=${data.txnToken}`;
+      } else {
+        throw new Error("Online Payment Gateway is not configured. Please pay via Direct UPI / QR Code and submit your 12-digit UTR.");
+      }
+    } catch (e: any) {
+      console.error("Paytm checkout notice:", e);
+      alert(e.message || "Online Payment Gateway is currently unavailable. Please use Direct UPI / QR Code.");
+      setPaymentTab("upi");
     } finally {
       setInitiatingPaytm(false);
     }
@@ -463,10 +555,16 @@ export default function DashboardOverview() {
                         <div className="text-base font-black text-white">₹{advanceAmount.toLocaleString()}</div>
                         {!isAdvancePaid && (
                           <Button
-                            onClick={() => handlePaytmCheckout(order, "advance")}
+                            onClick={() =>
+                              setPayingMilestoneOrder({
+                                order,
+                                milestone: "advance",
+                                amount: advanceAmount,
+                                title: "50% Advance Booking Deposit",
+                              })
+                            }
                             variant="accent"
                             size="sm"
-                            disabled={initiatingPaytm}
                             className="rounded-xl text-xs w-full mt-2 h-8"
                           >
                             Pay ₹{advanceAmount.toLocaleString()} Advance
@@ -517,15 +615,17 @@ export default function DashboardOverview() {
                             </span>
                           )}
                         </div>
-                        {order.stagingUrl ? (
-                          <a
-                            href={order.stagingUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-indigo-300 underline font-medium flex items-center gap-1 hover:text-white"
-                          >
-                            Preview Demo <ExternalLink className="w-3 h-3" />
-                          </a>
+                        {order.stagingUrl || order.demoUrl ? (
+                          <div className="pt-1">
+                            <Link
+                              href={`/preview?url=${encodeURIComponent(normalizeUrl(order.stagingUrl || order.demoUrl || ""))}&title=${encodeURIComponent(order.planName || "Staging Preview")}&ref=/dashboard`}
+                              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 hover:text-white border border-purple-500/40 flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-purple-500/10"
+                            >
+                              <Globe className="w-3.5 h-3.5" /> Preview Demo ↗
+                            </Link>
+                          </div>
+                        ) : order.status === "awaiting_final_payment" || order.status === "completed" ? (
+                          <div className="text-xs text-purple-300 font-medium">Staging deployment active</div>
                         ) : (
                           <div className="text-xs text-zinc-500">Staging URL deployed soon</div>
                         )}
@@ -556,10 +656,16 @@ export default function DashboardOverview() {
                         <div className="text-base font-black text-white">₹{finalAmount.toLocaleString()}</div>
                         {order.status === "awaiting_final_payment" && !isFinalPaid && (
                           <Button
-                            onClick={() => handlePaytmCheckout(order, "final")}
+                            onClick={() =>
+                              setPayingMilestoneOrder({
+                                order,
+                                milestone: "final",
+                                amount: finalAmount,
+                                title: "Final 50% Milestone & Repository Handover",
+                              })
+                            }
                             variant="accent"
                             size="sm"
-                            disabled={initiatingPaytm}
                             className="rounded-xl text-xs w-full mt-2 h-8 bg-amber-500 hover:bg-amber-600 text-black font-bold"
                           >
                             Pay Final ₹{finalAmount.toLocaleString()}
@@ -646,10 +752,16 @@ export default function DashboardOverview() {
                           </Link>
                         ) : (
                           <Button
-                            onClick={() => handlePaytmCheckout(order, "maintenance", 1999)}
+                            onClick={() =>
+                              setPayingMilestoneOrder({
+                                order,
+                                milestone: "maintenance",
+                                amount: 1999,
+                                title: "30-Day Website Maintenance Retainer",
+                              })
+                            }
                             variant="accent"
                             size="sm"
-                            disabled={initiatingPaytm}
                             className="rounded-xl text-xs flex items-center gap-1.5 shrink-0 bg-purple-600 hover:bg-purple-700 font-bold"
                           >
                             <Sparkles className="w-3.5 h-3.5" /> Activate Maintenance (₹1,999/mo)
@@ -747,6 +859,262 @@ export default function DashboardOverview() {
           </div>
         )}
       </div>
+
+      {/* ── Interactive Milestone Payment & UTR Verification Modal ── */}
+      <AnimatePresence>
+        {payingMilestoneOrder && (
+          <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md"
+              onClick={() => setPayingMilestoneOrder(null)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", stiffness: 300, damping: 30 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
+            >
+              <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-xl p-6 sm:p-8 relative shadow-2xl my-8">
+                <button
+                  onClick={() => setPayingMilestoneOrder(null)}
+                  className="absolute top-5 right-5 p-2 rounded-xl text-zinc-500 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+
+                {/* Modal Header */}
+                <div className="flex items-center gap-3 mb-5">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                    <IndianRupee className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-white">
+                      {payingMilestoneOrder.title}
+                    </h3>
+                    <p className="text-xs text-zinc-400">
+                      Project: <span className="text-zinc-200 font-medium">{payingMilestoneOrder.order.planName}</span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Amount Due Banner */}
+                <div className="p-4 rounded-2xl bg-black/60 border border-white/10 mb-5 flex items-center justify-between">
+                  <div>
+                    <span className="text-[11px] text-zinc-500 uppercase font-bold tracking-wider block">
+                      Amount Due
+                    </span>
+                    <span className="text-2xl font-black text-white">
+                      ₹{payingMilestoneOrder.amount.toLocaleString()}
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold">
+                    {payingMilestoneOrder.milestone === "advance"
+                      ? "Milestone 1 (50%)"
+                      : payingMilestoneOrder.milestone === "final"
+                      ? "Milestone 4 (50%)"
+                      : "Maintenance Retainer"}
+                  </span>
+                </div>
+
+                {/* Payment Method Selector Tabs */}
+                <div className="flex items-center gap-2 p-1 bg-white/[0.04] border border-white/10 rounded-xl mb-5 text-xs font-bold">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentTab("upi")}
+                    className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      paymentTab === "upi"
+                        ? "bg-indigo-600 text-white shadow-lg"
+                        : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <QrCode className="w-3.5 h-3.5" /> Direct UPI / QR Code
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentTab("gateway")}
+                    className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                      paymentTab === "gateway"
+                        ? "bg-indigo-600 text-white shadow-lg"
+                        : "text-zinc-400 hover:text-white"
+                    }`}
+                  >
+                    <CreditCard className="w-3.5 h-3.5" /> Online Gateway (Paytm)
+                  </button>
+                </div>
+
+                {/* TAB 1: Direct UPI QR Code & UTR Submission */}
+                {paymentTab === "upi" && (
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-2xl bg-black/40 border border-white/10 text-center space-y-3">
+                      <p className="text-xs text-amber-300 font-medium">
+                        Scan with any UPI App (Google Pay, PhonePe, Paytm, BHIM)
+                      </p>
+
+                      {/* Dynamic Amount QR Code */}
+                      <div className="w-40 h-40 mx-auto bg-white p-2 rounded-2xl shadow-xl flex items-center justify-center border border-white/20">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={
+                            paymentSettings.qrCodeUrl ||
+                            `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(
+                              `upi://pay?pa=${paymentSettings.upiId}&pn=${encodeURIComponent(
+                                paymentSettings.upiName
+                              )}&am=${payingMilestoneOrder.amount}&cu=INR`
+                            )}`
+                          }
+                          alt="Scan UPI QR Code"
+                          className="w-full h-full object-contain rounded-xl"
+                        />
+                      </div>
+
+                      {/* UPI ID & Number with Copy Buttons */}
+                      <div className="space-y-2 pt-1">
+                        <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between text-left">
+                          <div className="min-w-0">
+                            <span className="text-[10px] text-zinc-500 uppercase block font-bold">UPI ID:</span>
+                            <span className="text-xs font-mono font-bold text-indigo-300 truncate block">
+                              {paymentSettings.upiId}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard.writeText(paymentSettings.upiId);
+                              setCopiedUpi(true);
+                              setTimeout(() => setCopiedUpi(false), 2000);
+                            }}
+                            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors text-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span className="text-[10px]">{copiedUpi ? "Copied" : "Copy"}</span>
+                          </button>
+                        </div>
+
+                        {paymentSettings.upiNumber && (
+                          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between text-left">
+                            <div className="min-w-0">
+                              <span className="text-[10px] text-zinc-500 uppercase block font-bold">Paytm / PhonePe Number:</span>
+                              <span className="text-xs font-mono font-bold text-indigo-300 truncate block">
+                                {paymentSettings.upiNumber}
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                navigator.clipboard.writeText(paymentSettings.upiNumber || "");
+                                setCopiedPhone(true);
+                                setTimeout(() => setCopiedPhone(false), 2000);
+                              }}
+                              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors text-xs flex items-center gap-1 cursor-pointer"
+                            >
+                              {copiedPhone ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                              <span className="text-[10px]">{copiedPhone ? "Copied" : "Copy"}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* UTR Submission Form */}
+                    <form onSubmit={handleSubmitUtr} className="space-y-3">
+                      <div>
+                        <label className="text-xs font-bold text-zinc-300 block mb-1">
+                          Bank UTR / UPI Transaction Reference ID <span className="text-indigo-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          required
+                          value={utrInput}
+                          onChange={(e) => setUtrInput(e.target.value)}
+                          placeholder="e.g. 423189023412 or UPI Ref No"
+                          className="w-full bg-[#18181b] border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 font-mono"
+                        />
+                        <p className="text-[11px] text-zinc-500 mt-1">
+                          Enter the 12-digit reference number generated after completing your UPI transfer.
+                        </p>
+                      </div>
+
+                      <div className="flex items-center justify-end gap-2 pt-2">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setPayingMilestoneOrder(null)}
+                          className="text-xs"
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          variant="accent"
+                          size="sm"
+                          disabled={submittingUtr || !utrInput.trim()}
+                          className="text-xs flex items-center gap-1.5"
+                        >
+                          {submittingUtr ? (
+                            "Verifying..."
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Submit UTR for Bank Verification
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+                  </div>
+                )}
+
+                {/* TAB 2: Online Payment Gateway (Paytm) */}
+                {paymentTab === "gateway" && (
+                  <div className="space-y-4 py-2">
+                    <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-2 text-xs text-zinc-300">
+                      <div className="flex items-center gap-2 font-bold text-white">
+                        <ShieldCheck className="w-4 h-4 text-indigo-400" /> Paytm Secure Payment Gateway
+                      </div>
+                      <p>
+                        Pay securely with Netbanking, Debit Card, Credit Card, or Paytm Wallet.
+                      </p>
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3">
+                      <div className="text-xs text-zinc-400">
+                        Click below to launch the gateway checkout session for ₹{payingMilestoneOrder.amount.toLocaleString()}.
+                      </div>
+                      <Button
+                        type="button"
+                        variant="accent"
+                        size="sm"
+                        disabled={initiatingPaytm}
+                        onClick={() =>
+                          handlePaytmCheckout(
+                            payingMilestoneOrder.order,
+                            payingMilestoneOrder.milestone,
+                            payingMilestoneOrder.amount,
+                            true
+                          )
+                        }
+                        className="w-full h-11 text-xs font-bold rounded-xl flex items-center justify-center gap-2"
+                      >
+                        {initiatingPaytm ? (
+                          "Initiating Secure Gateway..."
+                        ) : (
+                          <>
+                            <CreditCard className="w-4 h-4" /> Proceed with Online Gateway (₹{payingMilestoneOrder.amount.toLocaleString()})
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

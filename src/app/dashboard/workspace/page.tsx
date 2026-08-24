@@ -31,9 +31,12 @@ import {
   FileText,
   Wrench,
   ShieldCheck,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import MaintenanceDesk from "@/components/dashboard/MaintenanceDesk";
+import Link from "next/link";
+import { safeFetchJson, normalizeUrl } from "@/lib/safeFetch";
 
 interface Order {
   id: string;
@@ -64,6 +67,13 @@ interface Order {
   maintenanceAssignmentMode?: string;
   maintenanceAmount?: number;
   stagingUrl?: string;
+  demoUrl?: string;
+  handoverLinks?: {
+    githubRepo?: string | null;
+    liveUrl?: string | null;
+    driveZip?: string | null;
+  } | null;
+  handoverNotes?: string | null;
   devStage?: "in_progress" | "testing" | "staging_deployed";
   createdAt: any;
   formData?: {
@@ -107,6 +117,9 @@ export default function WorkspacePage() {
   // Submit Work Modal State
   const [submittingWorkOrder, setSubmittingWorkOrder] = useState<Order | null>(null);
   const [stagingUrlInput, setStagingUrlInput] = useState("");
+  const [liveUrlInput, setLiveUrlInput] = useState("");
+  const [githubRepoInput, setGithubRepoInput] = useState("");
+  const [driveZipInput, setDriveZipInput] = useState("");
   const [workNotesInput, setWorkNotesInput] = useState("");
   const [isSubmittingWork, setIsSubmittingWork] = useState(false);
 
@@ -191,7 +204,7 @@ export default function WorkspacePage() {
   // Handler: Initiate Maintenance Checkout
   const handleInitiateMaintenanceCheckout = async (order: Order, amount: number = 1999, couponCode?: string) => {
     try {
-      const res = await fetch("/api/payments/paytm/initiate", {
+      const res = await safeFetchJson<any>("/api/payments/paytm/initiate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -204,27 +217,21 @@ export default function WorkspacePage() {
         }),
       });
 
-      const data = await res.json();
-
-      if (data.simulated) {
-        await fetch(`/api/payments/paytm/callback?orderId=${order.id}&milestone=maintenance`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            STATUS: "TXN_SUCCESS",
-            ORDERID: data.orderId,
-            TXNAMOUNT: amount.toString(),
-            TXNID: `PAYTM_SIM_${Date.now()}`,
-            simulated: true,
-          }),
-        });
-        alert("30-Day Website Maintenance Retainer activated successfully!");
-      } else if (data.txnToken) {
-        window.location.href = `${data.callbackUrl}&txnToken=${data.txnToken}`;
+      if (!res.ok || !res.data?.success) {
+        throw new Error(
+          res.error || "Online Payment Gateway is currently under setup. Please use the UPI option."
+        );
       }
-    } catch (e) {
+
+      const data = res.data;
+      if (data.txnToken && data.callbackUrl) {
+        window.location.href = `${data.callbackUrl}&txnToken=${data.txnToken}`;
+      } else {
+        throw new Error("Online Payment Gateway is not configured. Please use Direct UPI.");
+      }
+    } catch (e: any) {
       console.error("Maintenance checkout error:", e);
-      alert("Failed to initiate maintenance checkout.");
+      alert(e?.message || "Failed to initiate online payment session.");
     }
   };
 
@@ -233,7 +240,7 @@ export default function WorkspacePage() {
     setUpdatingStageId(orderId);
     try {
       const token = await user?.getIdToken();
-      const res = await fetch("/api/developer/orders/update-stage", {
+      const res = await safeFetchJson<any>("/api/developer/orders/update-stage", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -241,13 +248,12 @@ export default function WorkspacePage() {
         },
         body: JSON.stringify({ orderId, stage }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update status stage");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to update status stage");
       }
 
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, devStage: stage, statusCaption: data.caption } : o))
+        prev.map((o) => (o.id === orderId ? { ...o, devStage: stage, statusCaption: res.data?.caption } : o))
       );
     } catch (e: any) {
       console.error("Failed to update dev stage:", e);
@@ -268,10 +274,16 @@ export default function WorkspacePage() {
     setIsSubmittingWork(true);
     try {
       const orderId = submittingWorkOrder.id;
-      const stagingUrl = stagingUrlInput.trim();
+      const stagingUrl = normalizeUrl(stagingUrlInput.trim());
       const token = await user?.getIdToken();
 
-      const res = await fetch("/api/developer/orders/submit-work", {
+      const handoverLinks = {
+        liveUrl: liveUrlInput.trim() ? normalizeUrl(liveUrlInput.trim()) : undefined,
+        githubRepo: githubRepoInput.trim() ? normalizeUrl(githubRepoInput.trim()) : undefined,
+        driveZip: driveZipInput.trim() ? normalizeUrl(driveZipInput.trim()) : undefined,
+      };
+
+      const res = await safeFetchJson<any>("/api/developer/orders/submit-work", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -281,29 +293,38 @@ export default function WorkspacePage() {
           orderId,
           stagingUrl,
           devNotes: workNotesInput.trim() || undefined,
+          handoverLinks,
+          handoverNotes: workNotesInput.trim() || undefined,
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to submit work");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to submit work");
       }
 
       setOrders((prev) =>
         prev.map((o) =>
           o.id === orderId
             ? {
-                ...o,
-                status: "awaiting_final_payment",
-                stagingUrl,
-                statusCaption: "Work Completed — Staging Ready for Client Review 🚀",
-              }
+              ...o,
+              status: "awaiting_final_payment",
+              stagingUrl,
+              handoverLinks: {
+                ...o.handoverLinks,
+                ...handoverLinks,
+              },
+              handoverNotes: workNotesInput.trim() || o.handoverNotes,
+              statusCaption: "Work Completed — Staging Ready for Client Review 🚀",
+            }
             : o
         )
       );
 
       setSubmittingWorkOrder(null);
       setStagingUrlInput("");
+      setLiveUrlInput("");
+      setGithubRepoInput("");
+      setDriveZipInput("");
       setWorkNotesInput("");
       alert("Project build submitted successfully! Staging URL is now available to the client.");
     } catch (e: any) {
@@ -346,34 +367,30 @@ export default function WorkspacePage() {
         <div className="flex items-center gap-3 border-b border-white/10 pb-4">
           <button
             onClick={() => setWorkspaceSection("sprints")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-              workspaceSection === "sprints"
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${workspaceSection === "sprints"
                 ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-lg shadow-cyan-500/10"
                 : "bg-white/[0.02] text-zinc-400 border border-white/5 hover:text-white hover:border-white/10"
-            }`}
+              }`}
           >
             <Code2 className="w-4 h-4 text-cyan-400" />
             <span>Active Sprints</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
-              workspaceSection === "sprints" ? "bg-cyan-500/30 text-cyan-200" : "bg-white/5 text-zinc-500"
-            }`}>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${workspaceSection === "sprints" ? "bg-cyan-500/30 text-cyan-200" : "bg-white/5 text-zinc-500"
+              }`}>
               {orders.filter((o) => o.status !== "completed").length}
             </span>
           </button>
 
           <button
             onClick={() => setWorkspaceSection("maintenance")}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${
-              workspaceSection === "maintenance"
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${workspaceSection === "maintenance"
                 ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-lg shadow-purple-500/10"
                 : "bg-white/[0.02] text-zinc-400 border border-white/5 hover:text-white hover:border-white/10"
-            }`}
+              }`}
           >
             <Wrench className="w-4 h-4 text-purple-400" />
             <span>Maintenance Requests</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
-              workspaceSection === "maintenance" ? "bg-purple-500/30 text-purple-200" : "bg-white/5 text-zinc-500"
-            }`}>
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${workspaceSection === "maintenance" ? "bg-purple-500/30 text-purple-200" : "bg-white/5 text-zinc-500"
+              }`}>
               {orders.filter((o) => o.maintenanceActive).length}
             </span>
           </button>
@@ -452,11 +469,10 @@ export default function WorkspacePage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: i * 0.05 }}
-                    className={`rounded-2xl border transition-all duration-200 ${
-                      isOpen
+                    className={`rounded-2xl border transition-all duration-200 ${isOpen
                         ? "border-indigo-500/30 bg-[#0e0e0e]"
                         : "border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]"
-                    }`}
+                      }`}
                   >
                     {/* Order Header — click to expand/collapse */}
                     <div className="p-5">
@@ -466,13 +482,12 @@ export default function WorkspacePage() {
                           className="flex items-start gap-4 text-left flex-1 min-w-0 cursor-pointer"
                         >
                           <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                              isLocked
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isLocked
                                 ? "bg-zinc-800 text-zinc-500"
                                 : isDeveloper && workspaceSection === "maintenance"
-                                ? "bg-purple-500/20 text-purple-400"
-                                : "bg-indigo-500/10 text-indigo-400"
-                            }`}
+                                  ? "bg-purple-500/20 text-purple-400"
+                                  : "bg-indigo-500/10 text-indigo-400"
+                              }`}
                           >
                             {isLocked ? (
                               <Lock className="w-5 h-5" />
@@ -503,10 +518,14 @@ export default function WorkspacePage() {
                                   ₹{(order.totalPrice || order.price || 0).toLocaleString()}
                                 </span>
                               )}
-                              {order.stagingUrl && (
-                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/20">
-                                  Staging Live
-                                </span>
+                              {(order.stagingUrl || order.demoUrl) && (
+                                <Link
+                                  href={`/preview?url=${encodeURIComponent(normalizeUrl(order.stagingUrl || order.demoUrl || ""))}&title=${encodeURIComponent(order.planName || "Staging Demo")}&ref=/dashboard/workspace`}
+                                  className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 hover:text-white border border-purple-500/30 flex items-center gap-1 transition-all"
+                                  title="Open Live Web Viewer"
+                                >
+                                  <Globe className="w-3 h-3 text-purple-400" /> Staging Live ↗
+                                </Link>
                               )}
                               {order.maintenanceActive && (
                                 <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1">
@@ -544,22 +563,20 @@ export default function WorkspacePage() {
                               <button
                                 disabled={updatingStageId === order.id}
                                 onClick={() => handleUpdateDevStage(order.id, "in_progress")}
-                                className={`px-2.5 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${
-                                  order.devStage === "in_progress" || (!order.devStage && order.status === "in_progress")
+                                className={`px-2.5 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${order.devStage === "in_progress" || (!order.devStage && order.status === "in_progress")
                                     ? "bg-blue-500/20 text-blue-300"
                                     : "text-zinc-500 hover:text-zinc-300"
-                                }`}
+                                  }`}
                               >
                                 Building
                               </button>
                               <button
                                 disabled={updatingStageId === order.id}
                                 onClick={() => handleUpdateDevStage(order.id, "testing")}
-                                className={`px-2.5 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${
-                                  order.devStage === "testing"
+                                className={`px-2.5 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${order.devStage === "testing"
                                     ? "bg-amber-500/20 text-amber-300"
                                     : "text-zinc-500 hover:text-zinc-300"
-                                }`}
+                                  }`}
                               >
                                 Testing
                               </button>
@@ -608,11 +625,10 @@ export default function WorkspacePage() {
                               <div className="flex items-center gap-2 p-1 bg-black/40 border border-white/10 rounded-xl w-fit">
                                 <button
                                   onClick={() => setWorkspaceTabs((prev) => ({ ...prev, [order.id]: "sprint" }))}
-                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                    (workspaceTabs[order.id] || "sprint") === "sprint"
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${(workspaceTabs[order.id] || "sprint") === "sprint"
                                       ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-sm"
                                       : "text-zinc-400 hover:text-white"
-                                  }`}
+                                    }`}
                                 >
                                   <MessageSquare className="w-3.5 h-3.5" />
                                   <span>Sprint Room & Chat</span>
@@ -620,11 +636,10 @@ export default function WorkspacePage() {
 
                                 <button
                                   onClick={() => setWorkspaceTabs((prev) => ({ ...prev, [order.id]: "maintenance" }))}
-                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                                    workspaceTabs[order.id] === "maintenance"
+                                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${workspaceTabs[order.id] === "maintenance"
                                       ? "bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-sm"
                                       : "text-zinc-400 hover:text-white"
-                                  }`}
+                                    }`}
                                 >
                                   <Wrench className="w-3.5 h-3.5 text-purple-400" />
                                   <span>Maintenance Desk</span>
@@ -652,6 +667,76 @@ export default function WorkspacePage() {
                               />
                             ) : (
                               <div className="space-y-4">
+                                {/* Handover Assets & Deployment Package */}
+                                {order.status === "completed" || order.finalPaid ? (
+                                  <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 space-y-3">
+                                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs sm:text-sm">
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                      <span>Final Handover Assets & Code Repository Unlocked!</span>
+                                    </div>
+                                    <div className="flex flex-wrap items-center gap-3 text-xs">
+                                      {order.handoverLinks?.liveUrl && (
+                                        <a
+                                          href={order.handoverLinks.liveUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white hover:bg-white/10 border border-white/10 transition-colors"
+                                        >
+                                          <Globe className="w-3.5 h-3.5 text-indigo-400" /> Live Production URL ↗
+                                        </a>
+                                      )}
+                                      {order.handoverLinks?.githubRepo && (
+                                        <a
+                                          href={order.handoverLinks.githubRepo}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white hover:bg-white/10 border border-white/10 transition-colors"
+                                        >
+                                          <Code2 className="w-3.5 h-3.5 text-cyan-400" /> GitHub Repository ↗
+                                        </a>
+                                      )}
+                                      {order.handoverLinks?.driveZip && (
+                                        <a
+                                          href={order.handoverLinks.driveZip}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white hover:bg-white/10 border border-white/10 transition-colors"
+                                        >
+                                          <Download className="w-3.5 h-3.5 text-purple-400" /> Source Code Zip ↗
+                                        </a>
+                                      )}
+                                    </div>
+                                    {order.handoverNotes && (
+                                      <div className="p-3 bg-black/40 rounded-lg border border-white/5 text-xs text-zinc-300 space-y-1">
+                                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider block">
+                                          Handover Notes & Credentials:
+                                        </span>
+                                        <p className="whitespace-pre-wrap leading-relaxed">{order.handoverNotes}</p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : (
+                                  <div className="p-4 rounded-xl bg-purple-950/10 border border-purple-500/20 space-y-2.5">
+                                    <div className="flex items-center justify-between flex-wrap gap-2">
+                                      <div className="flex items-center gap-2 text-xs font-bold text-purple-300">
+                                        <Lock className="w-3.5 h-3.5 text-purple-400" />
+                                        <span>Code Repository & Handover Package (Locked)</span>
+                                      </div>
+                                      {(order.stagingUrl || order.demoUrl) && (
+                                        <Link
+                                          href={`/preview?url=${encodeURIComponent(normalizeUrl(order.stagingUrl || order.demoUrl || ""))}&title=${encodeURIComponent(order.planName || "Staging Preview")}&ref=/dashboard/workspace`}
+                                          className="text-xs font-bold px-3 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 flex items-center gap-1.5 transition-all shadow-sm"
+                                        >
+                                          <Globe className="w-3.5 h-3.5" /> Preview Staging Demo ↗
+                                        </Link>
+                                      )}
+                                    </div>
+                                    <p className="text-[11px] text-zinc-400 leading-relaxed">
+                                      GitHub repository ownership, source code zip, and production deployment keys are encrypted and protected. Complete the final 50% milestone settlement to release all assets instantly.
+                                    </p>
+                                  </div>
+                                )}
+
                                 {/* Expandable Client Requirements */}
                                 {(order.formData || order.details) && (
                                   <div className="p-3.5 bg-white/[0.02] border border-white/5 rounded-xl text-xs space-y-1.5 text-zinc-300">
@@ -755,14 +840,40 @@ export default function WorkspacePage() {
 
                   <div>
                     <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
+                      GitHub Repository Link (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      value={githubRepoInput}
+                      onChange={(e) => setGithubRepoInput(e.target.value)}
+                      placeholder="https://github.com/runix/client-repo"
+                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
+                      Source Code Download / Drive Zip Link (Optional)
+                    </label>
+                    <input
+                      type="url"
+                      value={driveZipInput}
+                      onChange={(e) => setDriveZipInput(e.target.value)}
+                      placeholder="https://drive.google.com/file/d/..."
+                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500 font-mono"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
                       Developer Handover Notes / Summary (Optional)
                     </label>
                     <textarea
                       value={workNotesInput}
                       onChange={(e) => setWorkNotesInput(e.target.value)}
-                      rows={3}
+                      rows={2}
                       placeholder="e.g. All requested pages, responsive layouts, forms, and API integrations have been implemented and tested..."
-                      className="w-full bg-black/60 border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500 transition-colors"
+                      className="w-full bg-black/60 border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500 transition-colors resize-none"
                     />
                   </div>
 

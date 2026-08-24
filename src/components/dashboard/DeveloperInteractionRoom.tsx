@@ -21,6 +21,7 @@ import {
   Package,
   CheckCheck,
 } from "lucide-react";
+import { normalizeUrl } from "@/lib/safeFetch";
 
 interface Message {
   id: string;
@@ -119,8 +120,9 @@ export default function DeveloperInteractionRoom({
   const handleSend = async () => {
     if (isSprintCompletedReadOnly) return;
     const msg = text.trim();
-    const url = linkUrl.trim();
-    if (!msg && !url) return;
+    const rawUrl = linkUrl.trim();
+    const targetUrl = rawUrl ? normalizeUrl(rawUrl) : null;
+    if (!msg && !targetUrl) return;
     setSending(true);
     try {
       await addDoc(collection(db, "orders", orderId, messagesCollectionName), {
@@ -130,8 +132,8 @@ export default function DeveloperInteractionRoom({
         senderDesignation: currentUserDesignation || (channel === "maintenance" && currentUserRole === "admin" ? "Maintenance Engineer" : null),
         senderDepartment: currentUserDepartment || null,
         text: msg || null,
-        linkUrl: url || null,
-        linkType: url ? linkType : null,
+        linkUrl: targetUrl,
+        linkType: targetUrl ? linkType : null,
         channel,
         createdAt: new Date().toISOString(),
       });
@@ -255,10 +257,12 @@ export default function DeveloperInteractionRoom({
                 >
                   {m.text && <p className="leading-relaxed">{m.text}</p>}
                   {m.linkUrl && (
-                    <div className="mt-1.5 flex items-center gap-2 p-2 bg-black/30 rounded-xl border border-white/10">
+                    <div className="mt-1.5 flex items-center gap-2 p-2 bg-black/40 rounded-xl border border-white/10 flex-wrap sm:flex-nowrap">
                       {(() => {
                         const meta = LINK_TYPE_META[m.linkType || "general"];
                         const Icon = meta.icon;
+                        const validUrl = normalizeUrl(m.linkUrl);
+                        const isStagingOrPreview = m.linkType === "preview" || validUrl.includes("preview") || validUrl.includes(".vercel.app") || validUrl.includes("runix.") || validUrl.includes("staging");
                         return (
                           <>
                             <Icon className={`w-3.5 h-3.5 shrink-0 ${meta.color}`} />
@@ -266,28 +270,38 @@ export default function DeveloperInteractionRoom({
                               {meta.label}:
                             </span>
                             <a
-                              href={m.linkUrl}
+                              href={validUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-blue-400 hover:text-blue-300 flex-1 truncate"
+                              className="text-xs text-indigo-300 hover:text-indigo-200 underline underline-offset-2 flex-1 truncate"
                             >
                               {m.linkUrl}
                             </a>
+                            {isStagingOrPreview && (
+                              <a
+                                href={`/preview?url=${encodeURIComponent(validUrl)}&title=${encodeURIComponent(m.text || "Live Preview")}&ref=/dashboard/workspace`}
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 transition-colors shrink-0"
+                              >
+                                Preview Demo
+                              </a>
+                            )}
                             <button
-                              onClick={() => copyToClipboard(m.linkUrl!)}
-                              className="text-zinc-500 hover:text-white transition-colors shrink-0 cursor-pointer"
+                              onClick={() => copyToClipboard(validUrl)}
+                              className="text-zinc-500 hover:text-white transition-colors shrink-0 cursor-pointer p-0.5"
+                              title="Copy Link"
                             >
-                              {copied === m.linkUrl ? (
+                              {copied === validUrl ? (
                                 <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />
                               )}
                             </button>
                             <a
-                              href={m.linkUrl}
+                              href={validUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-zinc-500 hover:text-white transition-colors shrink-0"
+                              className="text-zinc-500 hover:text-white transition-colors shrink-0 p-0.5"
+                              title="Open in new tab"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
                             </a>

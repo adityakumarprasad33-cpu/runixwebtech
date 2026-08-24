@@ -166,9 +166,9 @@ export default function Home() {
 
           {dbProjects.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {dbProjects.slice(0, 4).map((project) => (
+              {dbProjects.slice(0, 4).map((project, idx) => (
                 <motion.div
-                  key={project.slug}
+                  key={project.id || project.slug || `home-proj-${idx}`}
                   initial={{ opacity: 0, y: 30 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, margin: "-50px" }}

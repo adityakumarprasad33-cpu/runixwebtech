@@ -4,6 +4,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, Eye } from "lucide-react";
 import type { Project } from "@/data/projects";
 import { Button } from "@/components/ui/Button";
+import { normalizeUrl } from "@/lib/safeFetch";
 
 interface ProjectCardProps {
   project: Project;
@@ -11,6 +12,8 @@ interface ProjectCardProps {
 }
 
 export default function ProjectCard({ project, onOpenViewer }: ProjectCardProps) {
+  const validLiveUrl = project.live_url ? normalizeUrl(project.live_url) : null;
+
   return (
     <motion.div
       whileHover={{ y: -4 }}
@@ -18,40 +21,42 @@ export default function ProjectCard({ project, onOpenViewer }: ProjectCardProps)
     >
       {/* Thumbnail area */}
       <div className="relative aspect-[16/10] bg-brand-surface overflow-hidden">
-        {project.live_url ? (
+        {validLiveUrl ? (
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
             <div className="absolute top-0 left-0 w-[400%] h-[400%] origin-top-left scale-[0.25]">
               <iframe
-                src={project.live_url}
-                className="w-full h-full border-0 pointer-events-none"
+                src={validLiveUrl}
+                title={project.title}
                 tabIndex={-1}
-                scrolling="no"
-                aria-hidden="true"
+                className="w-full h-full border-0 pointer-events-none"
               />
             </div>
           </div>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center bg-brand-surface text-brand-muted/20 text-4xl font-bold">
-            {project.title.substring(0, 2).toUpperCase()}
+          <div className="absolute inset-0 flex items-center justify-center text-xs text-zinc-600">
+            No live preview available
           </div>
         )}
-        
-        {/* Hover overlay */}
-        <div className="absolute inset-0 bg-brand-bg/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-4">
+
+        {/* Hover overlay with Action Buttons */}
+        <div className="absolute inset-0 bg-brand-bg/80 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3">
           <Button
             variant="default"
             size="sm"
             onClick={() => onOpenViewer(project)}
-            className="flex items-center gap-2 font-bold px-6 py-2 shadow-xl"
+            className="flex items-center gap-2 font-bold px-4 py-2 shadow-xl cursor-pointer"
           >
             <Eye className="w-4 h-4" />
             Full View
           </Button>
-          {project.live_url && (
+          {validLiveUrl && (
             <Button asChild variant="secondary" size="sm">
-              <a href={project.live_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2">
+              <a
+                href={`/preview?url=${encodeURIComponent(validLiveUrl)}&title=${encodeURIComponent(project.title)}&ref=/work`}
+                className="flex items-center gap-1.5"
+              >
                 <ExternalLink className="w-4 h-4" />
-                Live
+                Live Demo
               </a>
             </Button>
           )}

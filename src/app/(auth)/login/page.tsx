@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/Button";
 import { motion } from "framer-motion";
 import { ArrowLeft } from "lucide-react";
 import { useAuthHero } from "@/components/auth/AuthHeroContext";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 function GoogleIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
@@ -59,22 +60,21 @@ export default function LoginPage() {
     logLoginEvent({ email, action: "login" });
 
     try {
-      const secRes = await fetch("/api/auth/check-limit", {
+      const secRes = await safeFetchJson<any>("/api/auth/check-limit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "login", email, status: "attempt" }),
       });
 
-      if (!secRes.ok) {
-        const data = await secRes.json();
+      if (!secRes.ok || !secRes.data?.allowed) {
         setFailCount((c) => c + 1);
         setBackoffUntil(Date.now() + 3000);
-        throw new Error(data.error || "Security check failed. Try again later.");
+        throw new Error(secRes.error || "Security check failed. Try again later.");
       }
 
       await signInWithEmailAndPassword(auth, email, password);
 
-      await fetch("/api/auth/check-limit", {
+      await safeFetchJson("/api/auth/check-limit", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "login", email, status: "success" }),

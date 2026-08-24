@@ -66,6 +66,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import Link from "next/link";
+import { safeFetchJson, normalizeUrl } from "@/lib/safeFetch";
 
 interface ProjectForm {
   title: string;
@@ -127,6 +129,32 @@ const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
   });
 };
 
+// Content-aware order deduplication: if same user placed same plan with same status
+// within 10 minutes, keep only the earliest order (others are rage-click duplicates).
+const dedupeOrders = (orders: any[]): any[] => {
+  if (!orders || orders.length === 0) return [];
+  const deduped = dedupeById(orders);
+  const sorted = [...deduped].sort((a, b) => {
+    const ta = new Date(a.createdAt || 0).getTime();
+    const tb = new Date(b.createdAt || 0).getTime();
+    return ta - tb; // earliest first
+  });
+  const kept: any[] = [];
+  const seen = new Map<string, number>(); // fingerprint → createdAt timestamp
+  for (const o of sorted) {
+    const fp = `${o.userId || ""}|${o.planId || o.planName || ""}|${o.status || ""}`;
+    const ts = new Date(o.createdAt || 0).getTime();
+    const prev = seen.get(fp);
+    if (prev && Math.abs(ts - prev) < 10 * 60 * 1000) {
+      // Duplicate within 10-minute window — skip
+      continue;
+    }
+    seen.set(fp, ts);
+    kept.push(o);
+  }
+  return kept;
+};
+
 export default function AdminPanel() {
   const { profile, loading, user, isSuperAdmin, isAdmin, canDo } = useAuth();
   const router = useRouter();
@@ -145,6 +173,8 @@ export default function AdminPanel() {
   // Developer Assignment state
   const [assigningDevOrderId, setAssigningDevOrderId] = useState<string | null>(null);
   const [assigningDevLoading, setAssigningDevLoading] = useState(false);
+  const [devSearchQuery, setDevSearchQuery] = useState("");
+  const [maintDevSearchQuery, setMaintDevSearchQuery] = useState("");
 
   // Global Search
   const [globalSearch, setGlobalSearch] = useState("");
@@ -262,7 +292,7 @@ export default function AdminPanel() {
     setAssigningMaintLoading(true);
     try {
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/orders/assign-developer", {
+      const res = await safeFetchJson<any>("/api/admin/orders/assign-developer", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -270,9 +300,8 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ orderId, developerId: devId }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to assign developer");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to assign developer");
       }
 
       setOrders((prev) =>
@@ -301,7 +330,7 @@ export default function AdminPanel() {
   const handleGrantMaintenanceCoverage = async (order: any) => {
     try {
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/orders/grant-maintenance", {
+      const res = await safeFetchJson<any>("/api/admin/orders/grant-maintenance", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -309,9 +338,8 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ orderId: order.id, days: 30 }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to grant maintenance");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to grant maintenance");
       }
 
       const expirationDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -338,7 +366,7 @@ export default function AdminPanel() {
   const handleSaveUtr = async (orderId: string) => {
     try {
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/orders/update-status", {
+      const res = await safeFetchJson<any>("/api/admin/orders/update-status", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -346,9 +374,8 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ orderId, status: "awaiting_verification" }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update UTR");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to update UTR");
       }
 
       setOrders((prev) =>
@@ -370,7 +397,7 @@ export default function AdminPanel() {
     try {
       const currentOrder = orders.find((o) => o.id === orderId);
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/orders/update-status", {
+      const res = await safeFetchJson<any>("/api/admin/orders/update-status", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -382,9 +409,8 @@ export default function AdminPanel() {
           statusCaption: captionValue.trim(),
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update status caption");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to update status caption");
       }
 
       setOrders((prev) =>
@@ -421,6 +447,10 @@ export default function AdminPanel() {
   const [notifMessage, setNotifMessage] = useState("");
   const [notifTargetType, setNotifTargetType] = useState<"broadcast" | "user">("broadcast");
   const [notifTargetUserId, setNotifTargetUserId] = useState("");
+  const [notifUserSearch, setNotifUserSearch] = useState("");
+  const [isNotifUserDropdownOpen, setIsNotifUserDropdownOpen] = useState(false);
+  const [offerUserSearch, setOfferUserSearch] = useState("");
+  const [isOfferUserDropdownOpen, setIsOfferUserDropdownOpen] = useState(false);
   const [sendingNotif, setSendingNotif] = useState(false);
   const [notifSent, setNotifSent] = useState(false);
 
@@ -457,7 +487,7 @@ export default function AdminPanel() {
         const unsubUsers = onSnapshot(
           collection(db, "users"),
           (snap) => {
-            setUsers(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            setUsers(dedupeById(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
           },
           (err) => console.warn("Realtime users listener notice:", err?.message || err)
         );
@@ -465,7 +495,7 @@ export default function AdminPanel() {
         const unsubOrders = onSnapshot(
           collection(db, "orders"),
           (snap) => {
-            setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            setOrders(dedupeOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
           },
           (err) => console.warn("Realtime orders listener notice:", err?.message || err)
         );
@@ -473,7 +503,7 @@ export default function AdminPanel() {
         const unsubProjects = onSnapshot(
           collection(db, "projects"),
           (snap) => {
-            setDbProjects(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+            setDbProjects(dedupeById(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
           },
           (err) => console.warn("Realtime projects listener notice:", err?.message || err)
         );
@@ -483,9 +513,11 @@ export default function AdminPanel() {
           (snap) => {
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             setNotifications(
-              list.sort(
-                (a: any, b: any) =>
-                  new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              dedupeById(
+                list.sort(
+                  (a: any, b: any) =>
+                    new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+                )
               )
             );
           },
@@ -497,9 +529,11 @@ export default function AdminPanel() {
           (snap) => {
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             setActivityLogs(
-              list.sort(
-                (a: any, b: any) =>
-                  new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+              dedupeById(
+                list.sort(
+                  (a: any, b: any) =>
+                    new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
+                )
               )
             );
           },
@@ -511,9 +545,11 @@ export default function AdminPanel() {
           (snap) => {
             const list = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
             setOffers(
-              list.sort(
-                (a: any, b: any) =>
-                  new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+              dedupeById(
+                list.sort(
+                  (a: any, b: any) =>
+                    new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
+                )
               )
             );
           },
@@ -537,68 +573,55 @@ export default function AdminPanel() {
     setLoadingData(true);
     try {
       const token = await user.getIdToken();
-      const res = await fetch("/api/admin/data", {
+      const res = await safeFetchJson<any>("/api/admin/data", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
-      if (!res.ok) {
-        let errorMsg = `HTTP ${res.status}`;
-        try {
-          const errData = await res.json();
-          errorMsg = errData.error || errorMsg;
-        } catch {
-          // Response body was not JSON
-        }
-        console.warn("Failed to fetch admin data from server API:", errorMsg);
+      if (!res.ok || !res.data?.success) {
+        console.warn("Failed to fetch admin data from server API:", res.error);
         await fallbackClientFetch();
         return;
       }
 
-      const data = await res.json();
-
-      if (data.success) {
-        setUsers(dedupeById(data.users || []));
-        setDbProjects(dedupeById(data.dbProjects || []));
-        setOrders(dedupeById(data.orders || []));
-        setLogs(dedupeById(data.logs || []));
-        setOffers(
-          dedupeById(
-            (data.offers || []).sort(
-              (a: any, b: any) =>
-                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-            )
+      const data = res.data;
+      setUsers(dedupeById(data.users || []));
+      setDbProjects(dedupeById(data.dbProjects || []));
+      setOrders(dedupeOrders(data.orders || []));
+      setLogs(dedupeById(data.logs || []));
+      setOffers(
+        dedupeById(
+          (data.offers || []).sort(
+            (a: any, b: any) =>
+              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
           )
-        );
-        setActivityLogs(
-          dedupeById(
-            (data.activityLogs || []).sort(
-              (a: any, b: any) =>
-                new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
-            )
+        )
+      );
+      setActivityLogs(
+        dedupeById(
+          (data.activityLogs || []).sort(
+            (a: any, b: any) =>
+              new Date(b.timestamp || 0).getTime() - new Date(a.timestamp || 0).getTime()
           )
-        );
-        setNotifications(
-          dedupeById(
-            (data.notifications || []).sort(
-              (a: any, b: any) =>
-                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-            )
+        )
+      );
+      setNotifications(
+        dedupeById(
+          (data.notifications || []).sort(
+            (a: any, b: any) =>
+              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
           )
-        );
-        setCoupons(
-          dedupeById(
-            (data.coupons || []).sort(
-              (a: any, b: any) =>
-                new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
-            )
+        )
+      );
+      setCoupons(
+        dedupeById(
+          (data.coupons || []).sort(
+            (a: any, b: any) =>
+              new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime()
           )
-        );
-      } else {
-        console.warn("Failed to fetch admin data:", data?.error);
-        await fallbackClientFetch();
-      }
+        )
+      );
     } catch (err) {
       console.error("Admin data fetch error:", err);
       await fallbackClientFetch();
@@ -633,7 +656,7 @@ export default function AdminPanel() {
 
       setUsers(dedupeById(usersData));
       setDbProjects(dedupeById(projectsData));
-      setOrders(dedupeById(ordersData));
+      setOrders(dedupeOrders(ordersData));
       setLogs(dedupeById(logsData));
       setOffers(
         dedupeById(
@@ -719,7 +742,7 @@ export default function AdminPanel() {
     setSavingPayment(true);
     try {
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/settings/payment", {
+      const res = await safeFetchJson<any>("/api/admin/settings/payment", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -734,9 +757,8 @@ export default function AdminPanel() {
           paymentInstructions,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to save payment settings");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to save payment settings");
       }
 
       setPaymentSaved(true);
@@ -752,15 +774,25 @@ export default function AdminPanel() {
   const handleSaveHeroStats = async () => {
     setSavingHeroStats(true);
     try {
-      await setDoc(doc(db, "settings", "hero_stats"), {
-        ...heroStats,
-        updatedAt: new Date().toISOString(),
+      const token = await user?.getIdToken();
+      const res = await safeFetchJson<any>("/api/admin/settings/hero", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(heroStats),
       });
+
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to save hero stats");
+      }
+
       setHeroStatsSaved(true);
       setTimeout(() => setHeroStatsSaved(false), 3000);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to save hero stats:", e);
-      alert("Failed to save hero stats");
+      alert(e.message || "Failed to save hero stats");
     } finally {
       setSavingHeroStats(false);
     }
@@ -777,25 +809,29 @@ export default function AdminPanel() {
     }
     setSendingNotif(true);
     try {
+      const token = await user?.getIdToken();
       const targetUserObj = users.find((u) => u.id === notifTargetUserId || u.uid === notifTargetUserId);
-      await addDoc(collection(db, "notifications"), {
-        title: notifTitle.trim(),
-        message: notifMessage.trim(),
-        imageUrl: notifImageUrl.trim() || null,
-        actionLink: notifActionLink.trim() || null,
-        actionText: notifActionText.trim() || null,
-        targetType: notifTargetType,
-        targetUserId: notifTargetType === "user" ? notifTargetUserId : null,
-        targetEmail: notifTargetType === "user" ? targetUserObj?.email || null : null,
-        senderName: user?.displayName || profile?.name || "Admin",
-        senderRole: "Admin",
-        senderDesignation: profile?.designation || null,
-        senderDepartment: profile?.department || null,
-        senderEmail: user?.email || "",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
+      const res = await safeFetchJson<any>("/api/admin/notifications", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          title: notifTitle.trim(),
+          message: notifMessage.trim(),
+          actionLink: notifActionLink.trim() || null,
+          actionText: notifActionText.trim() || null,
+          targetType: notifTargetType,
+          targetUserId: notifTargetType === "user" ? notifTargetUserId : null,
+          targetEmail: notifTargetType === "user" ? targetUserObj?.email || null : null,
+        }),
       });
+
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to send notification");
+      }
+
       // Audit log
       logAdminAction({
         adminId: user?.uid || "",
@@ -806,10 +842,10 @@ export default function AdminPanel() {
           title: notifTitle.trim(),
           targetType: notifTargetType,
           targetUserId: notifTargetUserId || null,
-          hasImage: !!notifImageUrl.trim(),
           actionLink: notifActionLink.trim() || null,
         },
       });
+
       setNotifSent(true);
       setNotifTitle("");
       setNotifMessage("");
@@ -817,9 +853,9 @@ export default function AdminPanel() {
       setNotifActionLink("");
       setNotifActionText("");
       setTimeout(() => setNotifSent(false), 3000);
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to send notification:", e);
-      alert("Failed to send notification");
+      alert(e.message || "Failed to send notification");
     } finally {
       setSendingNotif(false);
     }
@@ -828,7 +864,18 @@ export default function AdminPanel() {
   const handleDeleteNotification = async (notifId: string, title: string) => {
     if (!confirm(`Are you sure you want to delete notification "${title}"?`)) return;
     try {
-      await deleteDoc(doc(db, "notifications", notifId));
+      const token = await user?.getIdToken();
+      const res = await safeFetchJson<any>(`/api/admin/notifications?id=${notifId}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to delete notification");
+      }
+
       setNotifications((prev) => prev.filter((n) => n.id !== notifId));
       logAdminAction({
         adminId: user?.uid || "",
@@ -837,9 +884,9 @@ export default function AdminPanel() {
         action: "DELETED_NOTIFICATION",
         details: { notifId, title },
       });
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to delete notification:", e);
-      alert("Failed to delete notification");
+      alert(e.message || "Failed to delete notification");
     }
   };
 
@@ -865,9 +912,13 @@ export default function AdminPanel() {
         description: offerForm.description.trim(),
         imageUrl: offerForm.imageUrl.trim() || "",
         discountBadge: offerForm.discountBadge.trim() || "",
+        badge: offerForm.discountBadge.trim() || "",
         promoCode: offerForm.promoCode.trim().toUpperCase() || "",
+        couponCode: offerForm.promoCode.trim().toUpperCase() || "",
         actionLink: offerForm.actionLink.trim() || "/dashboard",
+        ctaLink: offerForm.actionLink.trim() || "/dashboard",
         buttonText: offerForm.buttonText.trim() || "Claim Offer",
+        ctaText: offerForm.buttonText.trim() || "Claim Offer",
         startDate: new Date(offerForm.startDate).toISOString(),
         endDate: new Date(offerForm.endDate).toISOString(),
         targetType: offerForm.targetType,
@@ -877,7 +928,7 @@ export default function AdminPanel() {
       };
 
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/offers", {
+      const res = await safeFetchJson<any>("/api/admin/offers", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -886,12 +937,11 @@ export default function AdminPanel() {
         body: JSON.stringify(offerData),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to create offer");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to create offer");
       }
 
-      setOffers((prev) => dedupeById([{ id: data.id, ...offerData }, ...prev]));
+      setOffers((prev) => dedupeById([{ id: res.data?.id, ...offerData }, ...prev]));
       setOfferForm(defaultOfferForm);
       setShowAddOfferModal(false);
       alert("Offer created and published successfully!");
@@ -907,15 +957,14 @@ export default function AdminPanel() {
     if (!confirm(`Are you sure you want to delete offer "${title}"? This cannot be undone.`)) return;
     try {
       const token = await user?.getIdToken();
-      const res = await fetch(`/api/admin/offers?id=${offerId}`, {
+      const res = await safeFetchJson<any>(`/api/admin/offers?id=${offerId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to delete offer");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to delete offer");
       }
 
       setOffers((prev) => prev.filter((o) => o.id !== offerId));
@@ -929,7 +978,7 @@ export default function AdminPanel() {
     try {
       const nextStatus = !currentStatus;
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/offers", {
+      const res = await safeFetchJson<any>("/api/admin/offers", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -937,9 +986,8 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ id: offerId, isActive: nextStatus }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update offer status");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to update offer status");
       }
 
       setOffers((prev) =>
@@ -983,7 +1031,7 @@ export default function AdminPanel() {
       };
 
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/coupons", {
+      const res = await safeFetchJson<any>("/api/admin/coupons", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -992,12 +1040,11 @@ export default function AdminPanel() {
         body: JSON.stringify(couponData),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to create coupon");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to create coupon");
       }
 
-      setCoupons((prev) => dedupeById([{ id: data.id, ...couponData, usedCount: 0 }, ...prev]));
+      setCoupons((prev) => dedupeById([{ id: res.data?.id, ...couponData, usedCount: 0 }, ...prev]));
       setCouponForm(defaultCouponForm);
       setShowAddCouponModal(false);
       alert(`Coupon "${normalizedCode}" created successfully!`);
@@ -1013,15 +1060,14 @@ export default function AdminPanel() {
     if (!confirm(`Are you sure you want to delete coupon "${code}"? This cannot be undone.`)) return;
     try {
       const token = await user?.getIdToken();
-      const res = await fetch(`/api/admin/coupons?id=${couponId}`, {
+      const res = await safeFetchJson<any>(`/api/admin/coupons?id=${couponId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to delete coupon");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to delete coupon");
       }
 
       setCoupons((prev) => prev.filter((c) => c.id !== couponId));
@@ -1035,7 +1081,7 @@ export default function AdminPanel() {
     try {
       const nextStatus = !currentStatus;
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/coupons", {
+      const res = await safeFetchJson<any>("/api/admin/coupons", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -1043,9 +1089,8 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ id: couponId, isActive: nextStatus }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update coupon status");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to update coupon status");
       }
 
       setCoupons((prev) =>
@@ -1060,7 +1105,7 @@ export default function AdminPanel() {
   const handleUpdateOrderStatus = async (orderId: string, newStatus: string) => {
     try {
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/orders/update-status", {
+      const res = await safeFetchJson<any>("/api/admin/orders/update-status", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1068,9 +1113,8 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ orderId, status: newStatus }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update order status");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to update order status");
       }
 
       setOrders((prev) =>
@@ -1085,7 +1129,7 @@ export default function AdminPanel() {
   const handleVerifyAdvance = async (orderId: string) => {
     try {
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/orders/verify-advance", {
+      const res = await safeFetchJson<any>("/api/admin/orders/verify-advance", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1093,9 +1137,8 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ orderId }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to verify advance payment");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to verify advance payment");
       }
 
       setOrders((prev) =>
@@ -1129,7 +1172,7 @@ export default function AdminPanel() {
     try {
       const oldDevId = order?.assignedDeveloperId;
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/orders/assign-developer", {
+      const res = await safeFetchJson<any>("/api/admin/orders/assign-developer", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1137,9 +1180,8 @@ export default function AdminPanel() {
         },
         body: JSON.stringify({ orderId, developerId: devId }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to assign developer");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to assign developer");
       }
 
       setOrders((prev) =>
@@ -1174,10 +1216,10 @@ export default function AdminPanel() {
     setDeployingStaging(true);
     try {
       const orderId = stagingModalOrder.id;
-      const stagingUrl = stagingInputUrl.trim();
+      const stagingUrl = normalizeUrl(stagingInputUrl.trim());
       const token = await user?.getIdToken();
 
-      const res = await fetch("/api/admin/orders/update-status", {
+      const res = await safeFetchJson<any>("/api/admin/orders/update-status", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1187,11 +1229,11 @@ export default function AdminPanel() {
           orderId,
           status: "awaiting_final_payment",
           statusCaption: "Work Completed — Staging Ready for Client Review 🚀",
+          stagingUrl,
         }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update staging deployment");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to update staging deployment");
       }
 
       setOrders((prev) =>
@@ -1216,17 +1258,25 @@ export default function AdminPanel() {
       const orderId = handoverModalOrder.id;
       const token = await user?.getIdToken();
 
-      const res = await fetch("/api/admin/orders/verify-final", {
+      const res = await safeFetchJson<any>("/api/admin/orders/verify-final", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ orderId }),
+        body: JSON.stringify({
+          orderId,
+          finalUtrNumber: handoverModalOrder.finalUtrNumber || handoverModalOrder.utrNumber || null,
+          handoverLinks: {
+            githubRepo: handoverForm.githubRepo.trim() || null,
+            liveUrl: handoverForm.liveUrl.trim() || null,
+            driveZip: handoverForm.driveZip.trim() || null,
+          },
+          handoverNotes: handoverForm.handoverNotes.trim() || null,
+        }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to complete handover");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to complete handover");
       }
 
       setOrders((prev) =>
@@ -1262,28 +1312,22 @@ export default function AdminPanel() {
     if (!queryOrder || !queryText.trim()) return;
     setSendingQuery(true);
     try {
-      await updateDoc(doc(db, "orders", queryOrder.id), {
-        adminQuery: queryText.trim(),
-        hasPendingQuery: true,
-        queryCreatedAt: new Date().toISOString(),
+      const token = await user?.getIdToken();
+      const res = await safeFetchJson<any>("/api/admin/orders/query", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: queryOrder.id,
+          queryText: queryText.trim(),
+        }),
       });
 
-      // Send notification to user
-      await addDoc(collection(db, "notifications"), {
-        title: "Action Required: Project Query",
-        message: `Admin has asked a question regarding your order "${queryOrder.planName}". Please respond on your dashboard.`,
-        targetType: "user",
-        targetUserId: queryOrder.userId || null,
-        targetEmail: queryOrder.userEmail || queryOrder.email || null,
-        senderName: user?.displayName || profile?.name || "Admin",
-        senderRole: "Admin",
-        senderDesignation: profile?.designation || null,
-        senderDepartment: profile?.department || null,
-        senderEmail: user?.email || "",
-        createdAt: new Date().toISOString(),
-        readBy: [],
-        clearedBy: [],
-      });
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to send query");
+      }
 
       // Audit log
       logAdminAction({
@@ -1304,9 +1348,9 @@ export default function AdminPanel() {
       setQueryOrder(null);
       setQueryText("");
       alert("Query sent to user successfully!");
-    } catch (e) {
+    } catch (e: any) {
       console.error("Failed to send query:", e);
-      alert("Failed to send query");
+      alert(e.message || "Failed to send query");
     } finally {
       setSendingQuery(false);
     }
@@ -1321,15 +1365,14 @@ export default function AdminPanel() {
       return;
     try {
       const token = await user?.getIdToken();
-      const res = await fetch(`/api/admin/projects?id=${projectId}`, {
+      const res = await safeFetchJson<any>(`/api/admin/projects?id=${projectId}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to delete project");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to delete project");
       }
 
       setDbProjects((prev) => prev.filter((p) => p.id !== projectId));
@@ -1363,7 +1406,7 @@ export default function AdminPanel() {
       };
 
       const token = await user?.getIdToken();
-      const res = await fetch("/api/admin/projects", {
+      const res = await safeFetchJson<any>("/api/admin/projects", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1372,15 +1415,14 @@ export default function AdminPanel() {
         body: JSON.stringify(projectData),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to add project");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to add project");
       }
 
-      setDbProjects((prev) => [
+      setDbProjects((prev) => dedupeById([
         ...prev,
-        { id: data.id, ...projectData },
-      ]);
+        { id: res.data?.id, ...projectData },
+      ]));
       setProjectForm(emptyProject);
       setShowAddModal(false);
     } catch (e: any) {
@@ -1602,9 +1644,9 @@ export default function AdminPanel() {
                   </Button>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {dbProjects.map((p) => (
+                  {dedupeById(dbProjects).map((p, idx) => (
                     <motion.div
-                      key={p.id}
+                      key={p.id ? `${p.id}-${idx}` : `proj-${idx}`}
                       layout
                       initial={{ opacity: 0, scale: 0.95 }}
                       animate={{ opacity: 1, scale: 1 }}
@@ -1620,15 +1662,23 @@ export default function AdminPanel() {
                             {p.slug}
                           </p>
                           {p.websiteLink && (
-                            <a
-                              href={p.websiteLink}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 mt-2 transition-colors"
-                            >
-                              <ExternalLink className="w-3 h-3" />
-                              {p.websiteLink.replace(/^https?:\/\//, "")}
-                            </a>
+                            <div className="flex items-center gap-2 mt-2 flex-wrap">
+                              <a
+                                href={normalizeUrl(p.websiteLink)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                              >
+                                <ExternalLink className="w-3 h-3" />
+                                {p.websiteLink.replace(/^https?:\/\//, "")}
+                              </a>
+                              <a
+                                href={`/preview?url=${encodeURIComponent(normalizeUrl(p.websiteLink))}&title=${encodeURIComponent(p.title)}&ref=/dashboard/admin`}
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 transition-colors"
+                              >
+                                Live Viewer
+                              </a>
+                            </div>
                           )}
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
@@ -1986,10 +2036,10 @@ export default function AdminPanel() {
                 Personnel Directory
               </h2>
               <div className="space-y-4">
-                {filteredUsers.map((u) => {
+                {filteredUsers.map((u, idx) => {
                   const userOrders = orders.filter((o) => o.userId === u.id);
                   return (
-                    <div key={u.id} className="p-5 border border-white/5 rounded-2xl bg-black/40">
+                    <div key={u.id ? `${u.id}-${idx}` : `user-${idx}`} className="p-5 border border-white/5 rounded-2xl bg-black/40">
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 rounded-full bg-zinc-800 flex items-center justify-center text-lg font-bold text-zinc-400">
@@ -2193,7 +2243,7 @@ export default function AdminPanel() {
                     <p className="text-xs text-zinc-600">Try selecting "All Orders" or clearing your search query.</p>
                   </div>
                 )}
-                {filteredOrders.map((o) => {
+                {filteredOrders.map((o, idx) => {
                   const advanceAmount = o.advancePrice || (o.totalPrice ? Math.round(o.totalPrice * 0.5) : o.price ? Math.round(o.price * 0.5) : 0);
                   const finalAmount = o.finalPrice || (o.totalPrice ? o.totalPrice - advanceAmount : o.price ? o.price - advanceAmount : 0);
                   const isAdvancePaid = o.advancePaid || o.status === "in_progress" || o.status === "awaiting_final_payment" || o.status === "completed";
@@ -2201,7 +2251,7 @@ export default function AdminPanel() {
 
                   return (
                     <div
-                      key={o.id}
+                      key={o.id ? `${o.id}-${idx}` : `ord-${idx}`}
                       className="p-5 border border-white/10 rounded-2xl bg-black/50 space-y-4"
                     >
                       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -2298,53 +2348,92 @@ export default function AdminPanel() {
                                 <ChevronDown className="w-3 h-3" />
                               </button>
 
-                              {assigningDevOrderId === o.id && (
-                                <div className="absolute top-full left-0 mt-1 z-40 w-72 bg-[#111] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-                                  <div className="p-2 border-b border-white/5">
-                                    <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold px-2 py-1">
-                                      Available Developers ({availableDevelopers.length})
-                                    </p>
+                              {assigningDevOrderId === o.id && (() => {
+                                const assignableDevs = availableDevelopers
+                                  .filter((dev: any) => dev.id !== o.assignedDeveloperId)
+                                  .filter((dev: any) => {
+                                    if (!devSearchQuery.trim()) return true;
+                                    const q = devSearchQuery.toLowerCase().trim();
+                                    return (
+                                      dev.name?.toLowerCase().includes(q) ||
+                                      dev.email?.toLowerCase().includes(q)
+                                    );
+                                  });
+
+                                return (
+                                  <div className="absolute top-full left-0 mt-1 z-40 w-80 bg-[#111] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+                                    <div className="p-2.5 border-b border-white/5 space-y-2">
+                                      <div className="flex items-center justify-between">
+                                        <p className="text-[10px] text-zinc-400 uppercase tracking-wider font-bold">
+                                          {o.assignedDeveloperId ? "Transfer To Developer" : "Assign Developer"} ({assignableDevs.length})
+                                        </p>
+                                        {o.assignedDeveloperName && (
+                                          <span className="text-[9px] text-zinc-500 truncate max-w-[120px]">
+                                            Current: {o.assignedDeveloperName}
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="relative">
+                                        <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2" />
+                                        <input
+                                          type="text"
+                                          value={devSearchQuery}
+                                          onChange={(e) => setDevSearchQuery(e.target.value)}
+                                          placeholder="Search developer by name or email..."
+                                          className="w-full bg-[#18181b] border border-white/10 rounded-lg pl-8 pr-2.5 py-1 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
+                                          onClick={(e) => e.stopPropagation()}
+                                        />
+                                      </div>
+                                    </div>
+                                    <div className="max-h-48 overflow-y-auto">
+                                      {assignableDevs.length === 0 && (
+                                        <p className="text-xs text-zinc-500 p-4 text-center">
+                                          {devSearchQuery.trim()
+                                            ? `No developers found matching "${devSearchQuery}".`
+                                            : o.assignedDeveloperId
+                                            ? "No other available developers with capacity."
+                                            : "No developers available. All at max capacity (5/5)."}
+                                        </p>
+                                      )}
+                                      {assignableDevs.map((dev: any) => (
+                                        <button
+                                          key={dev.id}
+                                          disabled={assigningDevLoading}
+                                          onClick={() => {
+                                            handleAssignDeveloper(o.id, dev.id, dev.name || dev.email, dev.email, o);
+                                            setDevSearchQuery("");
+                                          }}
+                                          className="w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/5 transition-colors border-b border-white/[0.03] last:border-0"
+                                        >
+                                          <div className="w-7 h-7 rounded-full bg-cyan-500/20 flex items-center justify-center text-[10px] font-bold text-cyan-300 shrink-0">
+                                            {(dev.name || dev.email || "D")[0].toUpperCase()}
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-xs text-white font-medium truncate">{dev.name || "Unnamed"}</p>
+                                            <p className="text-[10px] text-zinc-500 truncate">{dev.email}</p>
+                                          </div>
+                                          <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${
+                                            (dev.activeProjectCount || 0) >= 4
+                                              ? "text-amber-400 border-amber-500/20 bg-amber-500/10"
+                                              : "text-emerald-400 border-emerald-500/20 bg-emerald-500/10"
+                                          }`}>
+                                            {dev.activeProjectCount || 0}/{dev.maxProjects || 5}
+                                          </span>
+                                        </button>
+                                      ))}
+                                    </div>
+                                    <button
+                                      onClick={() => {
+                                        setAssigningDevOrderId(null);
+                                        setDevSearchQuery("");
+                                      }}
+                                      className="w-full text-center text-[10px] text-zinc-500 hover:text-white py-2 border-t border-white/5 transition-colors cursor-pointer"
+                                    >
+                                      Cancel
+                                    </button>
                                   </div>
-                                  <div className="max-h-48 overflow-y-auto">
-                                    {availableDevelopers.length === 0 && (
-                                      <p className="text-xs text-zinc-500 p-3 text-center">
-                                        No developers available. All at max capacity or none promoted yet.
-                                      </p>
-                                    )}
-                                    {availableDevelopers.map((dev: any) => (
-                                      <button
-                                        key={dev.id}
-                                        disabled={assigningDevLoading}
-                                        onClick={() => handleAssignDeveloper(o.id, dev.id, dev.name || dev.email, dev.email, o)}
-                                        className={`w-full flex items-center gap-3 px-3 py-2.5 text-left hover:bg-white/5 transition-colors border-b border-white/[0.03] last:border-0 ${
-                                          o.assignedDeveloperId === dev.id ? "bg-indigo-500/10" : ""
-                                        }`}
-                                      >
-                                        <div className="w-7 h-7 rounded-full bg-cyan-500/20 flex items-center justify-center text-[10px] font-bold text-cyan-300 shrink-0">
-                                          {(dev.name || dev.email || "D")[0].toUpperCase()}
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-xs text-white font-medium truncate">{dev.name || "Unnamed"}</p>
-                                          <p className="text-[10px] text-zinc-500 truncate">{dev.email}</p>
-                                        </div>
-                                        <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0 ${
-                                          (dev.activeProjectCount || 0) >= 4
-                                            ? "text-amber-400 border-amber-500/20 bg-amber-500/10"
-                                            : "text-emerald-400 border-emerald-500/20 bg-emerald-500/10"
-                                        }`}>
-                                          {dev.activeProjectCount || 0}/{dev.maxProjects || 5}
-                                        </span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                  <button
-                                    onClick={() => setAssigningDevOrderId(null)}
-                                    className="w-full text-center text-[10px] text-zinc-500 hover:text-white py-2 border-t border-white/5 transition-colors"
-                                  >
-                                    Cancel
-                                  </button>
-                                </div>
-                              )}
+                                );
+                              })()}
                             </div>
                           </div>
 
@@ -2377,55 +2466,93 @@ export default function AdminPanel() {
                                     <ChevronDown className="w-3 h-3" />
                                   </button>
 
-                                  {assigningMaintDevOrderId === o.id && (
-                                    <div className="absolute top-full left-0 mt-1 z-40 w-72 bg-[#111] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
-                                      <div className="p-2 border-b border-white/5">
-                                        <p className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold px-2 py-1">
-                                          Assign Maintenance Engineer
-                                        </p>
+                                  {assigningMaintDevOrderId === o.id && (() => {
+                                    const assignableMaintDevs = allDevelopers
+                                      .filter((dev: any) => dev.id !== o.maintenanceAssignedDevId)
+                                      .filter((dev: any) => {
+                                        if (!maintDevSearchQuery.trim()) return true;
+                                        const q = maintDevSearchQuery.toLowerCase().trim();
+                                        return (
+                                          dev.name?.toLowerCase().includes(q) ||
+                                          dev.email?.toLowerCase().includes(q)
+                                        );
+                                      });
+
+                                    return (
+                                      <div className="absolute top-full left-0 mt-1 z-40 w-80 bg-[#111] border border-white/10 rounded-xl shadow-2xl overflow-hidden">
+                                        <div className="p-2.5 border-b border-white/5 space-y-2">
+                                          <div className="flex items-center justify-between">
+                                            <p className="text-[10px] text-zinc-400 uppercase tracking-wider font-bold">
+                                              Assign Maintenance Engineer ({assignableMaintDevs.length})
+                                            </p>
+                                            {o.maintenanceAssignedDevName && (
+                                              <span className="text-[9px] text-zinc-500 truncate max-w-[120px]">
+                                                Current: {o.maintenanceAssignedDevName}
+                                              </span>
+                                            )}
+                                          </div>
+                                          <div className="relative">
+                                            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2" />
+                                            <input
+                                              type="text"
+                                              value={maintDevSearchQuery}
+                                              onChange={(e) => setMaintDevSearchQuery(e.target.value)}
+                                              placeholder="Search engineer by name or email..."
+                                              className="w-full bg-[#18181b] border border-white/10 rounded-lg pl-8 pr-2.5 py-1 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500"
+                                              onClick={(e) => e.stopPropagation()}
+                                            />
+                                          </div>
+                                        </div>
+                                        <div className="max-h-48 overflow-y-auto">
+                                          {assignableMaintDevs.length === 0 && (
+                                            <p className="text-xs text-zinc-500 p-4 text-center">
+                                              {maintDevSearchQuery.trim()
+                                                ? `No engineers found matching "${maintDevSearchQuery}".`
+                                                : "No other engineers available."}
+                                            </p>
+                                          )}
+                                          {assignableMaintDevs.map((dev: any) => (
+                                            <button
+                                              key={dev.id}
+                                              disabled={assigningMaintLoading}
+                                              onClick={() => {
+                                                handleAssignMaintenanceDeveloper(
+                                                  o.id,
+                                                  dev.id,
+                                                  dev.name || dev.email,
+                                                  dev.email,
+                                                  o
+                                                );
+                                                setMaintDevSearchQuery("");
+                                              }}
+                                              className="w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors border-b border-white/[0.03] last:border-0"
+                                            >
+                                              <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center text-[10px] font-bold text-purple-300 shrink-0">
+                                                {(dev.name || dev.email || "D")[0].toUpperCase()}
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                <p className="text-xs text-white font-medium truncate">
+                                                  {dev.name || "Unnamed"}
+                                                </p>
+                                                <p className="text-[10px] text-zinc-500 truncate">
+                                                  {dev.email}
+                                                </p>
+                                              </div>
+                                            </button>
+                                          ))}
+                                        </div>
+                                        <button
+                                          onClick={() => {
+                                            setAssigningMaintDevOrderId(null);
+                                            setMaintDevSearchQuery("");
+                                          }}
+                                          className="w-full text-center text-[10px] text-zinc-500 hover:text-white py-1.5 border-t border-white/5 transition-colors cursor-pointer"
+                                        >
+                                          Cancel
+                                        </button>
                                       </div>
-                                      <div className="max-h-48 overflow-y-auto">
-                                        {allDevelopers.map((dev: any) => (
-                                          <button
-                                            key={dev.id}
-                                            disabled={assigningMaintLoading}
-                                            onClick={() =>
-                                              handleAssignMaintenanceDeveloper(
-                                                o.id,
-                                                dev.id,
-                                                dev.name || dev.email,
-                                                dev.email,
-                                                o
-                                              )
-                                            }
-                                            className={`w-full flex items-center gap-3 px-3 py-2 text-left hover:bg-white/5 transition-colors border-b border-white/[0.03] last:border-0 ${
-                                              o.maintenanceAssignedDevId === dev.id
-                                                ? "bg-purple-500/10"
-                                                : ""
-                                            }`}
-                                          >
-                                            <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center text-[10px] font-bold text-purple-300 shrink-0">
-                                              {(dev.name || dev.email || "D")[0].toUpperCase()}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                              <p className="text-xs text-white font-medium truncate">
-                                                {dev.name || "Unnamed"}
-                                              </p>
-                                              <p className="text-[10px] text-zinc-500 truncate">
-                                                {dev.email}
-                                              </p>
-                                            </div>
-                                          </button>
-                                        ))}
-                                      </div>
-                                      <button
-                                        onClick={() => setAssigningMaintDevOrderId(null)}
-                                        className="w-full text-center text-[10px] text-zinc-500 hover:text-white py-1.5 border-t border-white/5 transition-colors"
-                                      >
-                                        Cancel
-                                      </button>
-                                    </div>
-                                  )}
+                                    );
+                                  })()}
                                 </div>
                               </div>
                             ) : o.status === "completed" ? (
@@ -2481,16 +2608,17 @@ export default function AdminPanel() {
 
                           {/* Staging URL Link if present */}
                           {o.stagingUrl && (
-                            <div className="mt-2 text-xs text-zinc-400 flex items-center gap-1.5">
-                              <span className="text-purple-400 font-semibold">Staging Demo:</span>
-                              <a
-                                href={o.stagingUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-indigo-300 underline hover:text-white"
+                            <div className="mt-2 text-xs text-zinc-400 flex items-center justify-between bg-purple-500/[0.05] p-2 rounded-xl border border-purple-500/10">
+                              <div className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-purple-400 font-semibold shrink-0">Staging:</span>
+                                <span className="text-zinc-300 font-mono truncate">{o.stagingUrl}</span>
+                              </div>
+                              <Link
+                                href={`/preview?url=${encodeURIComponent(normalizeUrl(o.stagingUrl))}&title=${encodeURIComponent(o.planName || "Staging Demo")}&ref=/dashboard/admin`}
+                                className="px-2.5 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white font-bold text-[11px] flex items-center gap-1 transition-all shrink-0 ml-2"
                               >
-                                {o.stagingUrl}
-                              </a>
+                                Launch Viewer ↗
+                              </Link>
                             </div>
                           )}
 
@@ -2541,7 +2669,7 @@ export default function AdminPanel() {
                       <div className="pt-3 border-t border-white/5 flex flex-wrap items-center justify-between gap-3">
                         <div className="flex flex-wrap items-center gap-2">
                           {/* 1. Advance Verification Button */}
-                          {!isAdvancePaid && o.status !== "rejected" && (
+                          {!isAdvancePaid && o.status !== "rejected" && o.status !== "cancelled" && (
                             <button
                               onClick={() => handleVerifyAdvance(o.id)}
                               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition-all cursor-pointer shadow-md"
@@ -2551,20 +2679,20 @@ export default function AdminPanel() {
                           )}
 
                           {/* 2. Deploy Staging & Request Final 50% */}
-                          {o.status === "in_progress" && (
+                          {isAdvancePaid && !isFinalPaid && o.status !== "completed" && (
                             <button
                               onClick={() => {
                                 setStagingModalOrder(o);
                                 setStagingInputUrl(o.stagingUrl || "");
                               }}
-                              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30 transition-all cursor-pointer shadow-md"
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40 hover:bg-purple-500/30 transition-all cursor-pointer shadow-md"
                             >
-                              <Globe className="w-3.5 h-3.5" /> Deploy Staging & Request Final 50%
+                              <Globe className="w-3.5 h-3.5" /> {o.stagingUrl ? "Update Staging URL" : "Deploy Staging & Request Final"}
                             </button>
                           )}
 
                           {/* 3. Verify Final 50% & Complete Handover */}
-                          {o.status === "awaiting_final_payment" && (
+                          {isAdvancePaid && !isFinalPaid && o.status !== "completed" && o.status !== "rejected" && (
                             <button
                               onClick={() => {
                                 setHandoverModalOrder(o);
@@ -2575,9 +2703,32 @@ export default function AdminPanel() {
                                   handoverNotes: o.handoverNotes || "",
                                 });
                               }}
-                              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-500/30 transition-all cursor-pointer shadow-md"
+                              className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer shadow-md border ${
+                                o.status === "awaiting_verification" || o.status === "awaiting_final_payment"
+                                  ? "bg-emerald-500 text-black border-emerald-400 hover:bg-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.4)] animate-pulse"
+                                  : "bg-emerald-500/20 text-emerald-300 border-emerald-500/40 hover:bg-emerald-500/30"
+                              }`}
                             >
-                              <CheckCircle2 className="w-3.5 h-3.5" /> Complete Handover & Verify Final
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              {o.status === "awaiting_verification" ? "Verify Final Payment & Complete Handover" : "Complete Handover & Verify Final"}
+                            </button>
+                          )}
+
+                          {/* 4. Edit Handover Assets when already completed */}
+                          {isFinalPaid && (
+                            <button
+                              onClick={() => {
+                                setHandoverModalOrder(o);
+                                setHandoverForm({
+                                  githubRepo: o.handoverLinks?.githubRepo || "",
+                                  liveUrl: o.handoverLinks?.liveUrl || "",
+                                  driveZip: o.handoverLinks?.driveZip || "",
+                                  handoverNotes: o.handoverNotes || "",
+                                });
+                              }}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all cursor-pointer"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" /> Edit Handover Links
                             </button>
                           )}
 
@@ -3196,25 +3347,148 @@ export default function AdminPanel() {
                     </div>
                   </div>
 
-                  {notifTargetType === "user" && (
-                    <div className="md:col-span-2">
-                      <label className={labelClasses}>Select Target User <span className="text-indigo-400">*</span></label>
-                      <select
-                        value={notifTargetUserId}
-                        onChange={(e) => setNotifTargetUserId(e.target.value)}
-                        className="w-full bg-[#161618] border border-white/20 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-indigo-500 font-medium cursor-pointer shadow-lg"
-                      >
-                        <option value="" disabled className="bg-[#161618] text-zinc-400">
-                          Select a user...
-                        </option>
-                        {users.map((u) => (
-                          <option key={u.id} value={u.id} className="bg-[#161618] text-white py-2">
-                            {u.displayName || u.name || u.email} ({u.email})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  {notifTargetType === "user" && (() => {
+                    const selectedUser = users.find((u) => u.id === notifTargetUserId || u.uid === notifTargetUserId);
+                    const filteredUsers = users.filter((u) => {
+                      if (!notifUserSearch.trim()) return true;
+                      const q = notifUserSearch.toLowerCase().trim();
+                      return (
+                        u.name?.toLowerCase().includes(q) ||
+                        u.displayName?.toLowerCase().includes(q) ||
+                        u.email?.toLowerCase().includes(q) ||
+                        u.company?.toLowerCase().includes(q)
+                      );
+                    });
+
+                    return (
+                      <div className="md:col-span-2 relative">
+                        <label className={labelClasses}>
+                          Select Target User <span className="text-indigo-400">*</span>
+                        </label>
+
+                        {/* Selected Box / Trigger Button */}
+                        <div className="relative">
+                          <button
+                            type="button"
+                            onClick={() => setIsNotifUserDropdownOpen(!isNotifUserDropdownOpen)}
+                            className="w-full bg-[#161618] border border-white/20 hover:border-white/30 rounded-xl px-4 py-3 text-sm text-left flex items-center justify-between transition-all cursor-pointer shadow-lg"
+                          >
+                            {selectedUser ? (
+                              <div className="flex items-center gap-3 min-w-0">
+                                <div className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0">
+                                  {(selectedUser.name || selectedUser.displayName || selectedUser.email || "U")[0].toUpperCase()}
+                                </div>
+                                <div className="truncate">
+                                  <p className="text-white font-medium text-xs leading-none truncate">
+                                    {selectedUser.name || selectedUser.displayName || "User"}
+                                  </p>
+                                  <p className="text-[11px] text-zinc-400 truncate mt-0.5">{selectedUser.email}</p>
+                                </div>
+                                <span className="text-[9px] px-1.5 py-0.2 rounded font-mono uppercase bg-white/5 text-zinc-400 border border-white/10 shrink-0 ml-1">
+                                  {selectedUser.role || "user"}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-zinc-500 text-xs">Search and select a target user...</span>
+                            )}
+
+                            <div className="flex items-center gap-1.5 text-zinc-400">
+                              {selectedUser && (
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setNotifTargetUserId("");
+                                  }}
+                                  className="p-1 hover:text-white rounded hover:bg-white/10 transition-colors"
+                                  title="Clear selection"
+                                >
+                                  <X className="w-3.5 h-3.5" />
+                                </span>
+                              )}
+                              <ChevronDown className="w-4 h-4 text-zinc-400" />
+                            </div>
+                          </button>
+
+                          {/* Dropdown Panel */}
+                          {isNotifUserDropdownOpen && (
+                            <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-[#111] border border-white/15 rounded-2xl shadow-2xl overflow-hidden">
+                              <div className="p-2.5 border-b border-white/10 space-y-1.5 bg-[#141416]">
+                                <div className="relative">
+                                  <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
+                                  <input
+                                    type="text"
+                                    autoFocus
+                                    value={notifUserSearch}
+                                    onChange={(e) => setNotifUserSearch(e.target.value)}
+                                    placeholder="Search user by name, email, or company..."
+                                    className="w-full bg-[#1e1e22] border border-white/10 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500"
+                                    onClick={(e) => e.stopPropagation()}
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between px-1 text-[10px] text-zinc-500 font-mono">
+                                  <span>Matching Users ({filteredUsers.length})</span>
+                                  {notifUserSearch && (
+                                    <button
+                                      type="button"
+                                      onClick={() => setNotifUserSearch("")}
+                                      className="hover:text-white underline cursor-pointer"
+                                    >
+                                      Clear search
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              <div className="max-h-56 overflow-y-auto divide-y divide-white/[0.03]">
+                                {filteredUsers.length === 0 ? (
+                                  <div className="p-4 text-center text-xs text-zinc-500">
+                                    No users found matching &quot;{notifUserSearch}&quot;
+                                  </div>
+                                ) : (
+                                  filteredUsers.map((u) => {
+                                    const isSelected = notifTargetUserId === u.id || notifTargetUserId === u.uid;
+                                    return (
+                                      <button
+                                        key={u.id}
+                                        type="button"
+                                        onClick={() => {
+                                          setNotifTargetUserId(u.id);
+                                          setIsNotifUserDropdownOpen(false);
+                                          setNotifUserSearch("");
+                                        }}
+                                        className={`w-full flex items-center justify-between gap-3 px-4 py-2.5 text-left hover:bg-white/5 transition-colors cursor-pointer ${
+                                          isSelected ? "bg-indigo-500/15" : ""
+                                        }`}
+                                      >
+                                        <div className="flex items-center gap-3 min-w-0">
+                                          <div className="w-7 h-7 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-xs shrink-0">
+                                            {(u.name || u.displayName || u.email || "U")[0].toUpperCase()}
+                                          </div>
+                                          <div className="truncate">
+                                            <p className="text-xs font-semibold text-white truncate">
+                                              {u.name || u.displayName || "User"}
+                                            </p>
+                                            <p className="text-[11px] text-zinc-400 truncate">{u.email}</p>
+                                          </div>
+                                        </div>
+
+                                        <div className="flex items-center gap-2 shrink-0">
+                                          <span className="text-[9px] px-1.5 py-0.5 rounded font-mono uppercase bg-white/5 text-zinc-400 border border-white/10">
+                                            {u.role || "user"}
+                                          </span>
+                                          {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                                        </div>
+                                      </button>
+                                    );
+                                  })
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {/* Title */}
                   <div className="md:col-span-2">
@@ -3407,9 +3681,9 @@ export default function AdminPanel() {
 
                     return (
                       <div className="grid grid-cols-1 gap-3">
-                        {subList.map((n) => (
+                        {subList.map((n, idx) => (
                           <div
-                            key={n.id}
+                            key={n.id ? `${n.id}-${idx}` : `notif-${idx}`}
                             className="p-4 rounded-xl bg-black/40 border border-white/10 hover:border-white/20 transition-all flex flex-col justify-between space-y-3"
                           >
                             <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
@@ -3639,7 +3913,7 @@ export default function AdminPanel() {
                                 setPromotingUser(u.id);
                                 try {
                                   const token = await user?.getIdToken();
-                                  const res = await fetch("/api/admin/users", {
+                                  const res = await safeFetchJson<any>("/api/admin/users", {
                                     method: "PUT",
                                     headers: {
                                       "Content-Type": "application/json",
@@ -3647,8 +3921,7 @@ export default function AdminPanel() {
                                     },
                                     body: JSON.stringify({ targetUserId: u.id, role: "developer" }),
                                   });
-                                  const data = await res.json();
-                                  if (!res.ok || !data.success) throw new Error(data.error);
+                                  if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update role");
                                   setUsers((prev: any[]) => prev.map((x: any) => x.id === u.id ? { ...x, role: "developer", activeProjectCount: u.activeProjectCount || 0, maxProjects: u.maxProjects || 5 } : x));
                                 } catch (e: any) { alert(e.message || "Failed to update role"); }
                                 finally { setPromotingUser(null); }
@@ -3666,7 +3939,7 @@ export default function AdminPanel() {
                               const newRole = u.role === "admin" ? "user" : u.role === "developer" ? "user" : "admin";
                               try {
                                 const token = await user?.getIdToken();
-                                const res = await fetch("/api/admin/users", {
+                                const res = await safeFetchJson<any>("/api/admin/users", {
                                   method: "PUT",
                                   headers: {
                                     "Content-Type": "application/json",
@@ -3674,8 +3947,7 @@ export default function AdminPanel() {
                                   },
                                   body: JSON.stringify({ targetUserId: u.id, role: newRole }),
                                 });
-                                const data = await res.json();
-                                if (!res.ok || !data.success) throw new Error(data.error);
+                                if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update role");
                                 setUsers((prev: any[]) => prev.map((x: any) => x.id === u.id ? { ...x, role: newRole } : x));
                               } catch (e: any) { alert(e.message || "Failed to update role"); }
                               finally { setPromotingUser(null); }
@@ -3737,10 +4009,20 @@ export default function AdminPanel() {
                                   setSavingPermissions(admin.id);
                                   const newPerms = { ...perms, [key]: !enabled };
                                   try {
-                                    await updateDoc(doc(db, "users", admin.id), { adminPermissions: newPerms });
+                                    const token = await user?.getIdToken();
+                                    const res = await safeFetchJson<any>("/api/admin/users", {
+                                      method: "PUT",
+                                      headers: {
+                                        "Content-Type": "application/json",
+                                        Authorization: `Bearer ${token}`,
+                                      },
+                                      body: JSON.stringify({ targetUserId: admin.id, adminPermissions: newPerms }),
+                                    });
+                                    if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update");
+
                                     setUsers((prev: any[]) => prev.map((u: any) => u.id === admin.id ? { ...u, adminPermissions: newPerms } : u));
                                     logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "UPDATED_ADMIN_PERMISSIONS", details: { targetAdminId: admin.id, permission: key, enabled: !enabled } });
-                                  } catch { alert("Failed to update permissions"); }
+                                  } catch (err: any) { alert(err.message || "Failed to update permissions"); }
                                   finally { setSavingPermissions(null); }
                                 }}
                                 className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-medium transition-all ${
@@ -3768,10 +4050,20 @@ export default function AdminPanel() {
                               if(newVal !== admin.designation) {
                                 setSavingPermissions(admin.id);
                                 try {
-                                  await updateDoc(doc(db, "users", admin.id), { designation: newVal });
+                                  const token = await user?.getIdToken();
+                                  const res = await safeFetchJson<any>("/api/admin/users", {
+                                    method: "PUT",
+                                    headers: {
+                                      "Content-Type": "application/json",
+                                      Authorization: `Bearer ${token}`,
+                                    },
+                                    body: JSON.stringify({ targetUserId: admin.id, designation: newVal }),
+                                  });
+                                  if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update");
+
                                   setUsers((prev: any[]) => prev.map((u: any) => u.id === admin.id ? { ...u, designation: newVal } : u));
                                   logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "UPDATED_ADMIN_DESIGNATION", details: { targetAdminId: admin.id, designation: newVal } });
-                                } catch { alert("Failed to update designation"); }
+                                } catch (err: any) { alert(err.message || "Failed to update designation"); }
                                 finally { setSavingPermissions(null); }
                               }
                             }}
@@ -3786,10 +4078,20 @@ export default function AdminPanel() {
                               if(newVal !== admin.department) {
                                 setSavingPermissions(admin.id);
                                 try {
-                                  await updateDoc(doc(db, "users", admin.id), { department: newVal });
+                                  const token = await user?.getIdToken();
+                                  const res = await safeFetchJson<any>("/api/admin/users", {
+                                    method: "PUT",
+                                    headers: {
+                                      "Content-Type": "application/json",
+                                      Authorization: `Bearer ${token}`,
+                                    },
+                                    body: JSON.stringify({ targetUserId: admin.id, department: newVal }),
+                                  });
+                                  if (!res.ok || !res.data?.success) throw new Error(res.error || "Failed to update");
+
                                   setUsers((prev: any[]) => prev.map((u: any) => u.id === admin.id ? { ...u, department: newVal } : u));
                                   logAdminAction({ adminId: user?.uid || "", adminName: user?.displayName || profile?.name || "Admin", adminEmail: user?.email || "", action: "UPDATED_ADMIN_DEPARTMENT", details: { targetAdminId: admin.id, department: newVal } });
-                                } catch { alert("Failed to update department"); }
+                                } catch (err: any) { alert(err.message || "Failed to update department"); }
                                 finally { setSavingPermissions(null); }
                               }
                             }}
@@ -4204,32 +4506,133 @@ export default function AdminPanel() {
                   </div>
 
                   {/* Target User select if user */}
-                  {offerForm.targetType === "user" && (
-                    <div>
-                      <label className={labelClasses}>Select Target User <span className="text-indigo-400">*</span></label>
-                      <select
-                        value={offerForm.targetUserId}
-                        onChange={(e) => {
-                          const u = users.find((usr) => usr.id === e.target.value || usr.uid === e.target.value);
-                          setOfferForm({
-                            ...offerForm,
-                            targetUserId: e.target.value,
-                            targetEmail: u?.email || "",
-                          });
-                        }}
-                        className="w-full bg-[#161618] border border-white/20 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-medium cursor-pointer shadow-lg"
-                      >
-                        <option value="" disabled className="bg-[#161618] text-zinc-400">
-                          Select a user...
-                        </option>
-                        {users.map((u) => (
-                          <option key={u.id} value={u.id} className="bg-[#161618] text-white">
-                            {u.displayName || u.name || u.email} ({u.email})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
+                  {offerForm.targetType === "user" && (() => {
+                      const selectedUser = users.find((u) => u.id === offerForm.targetUserId || u.uid === offerForm.targetUserId);
+                      const filteredUsers = users.filter((u) => {
+                        if (!offerUserSearch.trim()) return true;
+                        const q = offerUserSearch.toLowerCase().trim();
+                        return (
+                          u.name?.toLowerCase().includes(q) ||
+                          u.displayName?.toLowerCase().includes(q) ||
+                          u.email?.toLowerCase().includes(q) ||
+                          u.company?.toLowerCase().includes(q)
+                        );
+                      });
+
+                      return (
+                        <div className="relative">
+                          <label className={labelClasses}>
+                            Select Target User <span className="text-indigo-400">*</span>
+                          </label>
+
+                          <div className="relative">
+                            <button
+                              type="button"
+                              onClick={() => setIsOfferUserDropdownOpen(!isOfferUserDropdownOpen)}
+                              className="w-full bg-[#161618] border border-white/20 hover:border-white/30 rounded-xl px-4 py-2.5 text-xs text-left flex items-center justify-between transition-all cursor-pointer shadow-lg"
+                            >
+                              {selectedUser ? (
+                                <div className="flex items-center gap-2.5 min-w-0">
+                                  <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                    {(selectedUser.name || selectedUser.displayName || selectedUser.email || "U")[0].toUpperCase()}
+                                  </div>
+                                  <div className="truncate">
+                                    <p className="text-white font-medium text-xs leading-none truncate">
+                                      {selectedUser.name || selectedUser.displayName || "User"}
+                                    </p>
+                                    <p className="text-[10px] text-zinc-400 truncate mt-0.5">{selectedUser.email}</p>
+                                  </div>
+                                </div>
+                              ) : (
+                                <span className="text-zinc-500 text-xs">Search and select a user...</span>
+                              )}
+
+                              <div className="flex items-center gap-1 text-zinc-400">
+                                {selectedUser && (
+                                  <span
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setOfferForm({ ...offerForm, targetUserId: "", targetEmail: "" });
+                                    }}
+                                    className="p-1 hover:text-white rounded hover:bg-white/10 transition-colors"
+                                    title="Clear"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </span>
+                                )}
+                                <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
+                              </div>
+                            </button>
+
+                            {isOfferUserDropdownOpen && (
+                              <div className="absolute top-full left-0 right-0 mt-1 z-50 bg-[#111] border border-white/15 rounded-2xl shadow-2xl overflow-hidden">
+                                <div className="p-2 border-b border-white/10 space-y-1 bg-[#141416]">
+                                  <div className="relative">
+                                    <Search className="w-3 h-3 text-zinc-500 absolute left-2.5 top-2.5" />
+                                    <input
+                                      type="text"
+                                      autoFocus
+                                      value={offerUserSearch}
+                                      onChange={(e) => setOfferUserSearch(e.target.value)}
+                                      placeholder="Search by name, email..."
+                                      className="w-full bg-[#1e1e22] border border-white/10 rounded-lg pl-7 pr-2.5 py-1 text-xs text-white placeholder:text-zinc-500 focus:outline-none focus:border-indigo-500"
+                                      onClick={(e) => e.stopPropagation()}
+                                    />
+                                  </div>
+                                  <div className="flex items-center justify-between px-1 text-[9px] text-zinc-500 font-mono">
+                                    <span>Matching ({filteredUsers.length})</span>
+                                  </div>
+                                </div>
+
+                                <div className="max-h-48 overflow-y-auto divide-y divide-white/[0.03]">
+                                  {filteredUsers.length === 0 ? (
+                                    <div className="p-3 text-center text-xs text-zinc-500">
+                                      No users found matching &quot;{offerUserSearch}&quot;
+                                    </div>
+                                  ) : (
+                                    filteredUsers.map((u) => {
+                                      const isSelected = offerForm.targetUserId === u.id || offerForm.targetUserId === u.uid;
+                                      return (
+                                        <button
+                                          key={u.id}
+                                          type="button"
+                                          onClick={() => {
+                                            setOfferForm({
+                                              ...offerForm,
+                                              targetUserId: u.id,
+                                              targetEmail: u.email || "",
+                                            });
+                                            setIsOfferUserDropdownOpen(false);
+                                            setOfferUserSearch("");
+                                          }}
+                                          className={`w-full flex items-center justify-between gap-2 px-3 py-2 text-left hover:bg-white/5 transition-colors cursor-pointer ${
+                                            isSelected ? "bg-indigo-500/15" : ""
+                                          }`}
+                                        >
+                                          <div className="flex items-center gap-2.5 min-w-0">
+                                            <div className="w-6 h-6 rounded-full bg-indigo-500/20 text-indigo-300 flex items-center justify-center font-bold text-[10px] shrink-0">
+                                              {(u.name || u.displayName || u.email || "U")[0].toUpperCase()}
+                                            </div>
+                                            <div className="truncate">
+                                              <p className="text-xs font-semibold text-white truncate">
+                                                {u.name || u.displayName || "User"}
+                                              </p>
+                                              <p className="text-[10px] text-zinc-400 truncate">{u.email}</p>
+                                            </div>
+                                          </div>
+
+                                          {isSelected && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                                        </button>
+                                      );
+                                    })
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })()}
 
                   {/* Offer Title */}
                   <div>

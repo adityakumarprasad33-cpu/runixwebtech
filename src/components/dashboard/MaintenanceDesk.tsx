@@ -30,6 +30,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import DeveloperInteractionRoom from "@/components/dashboard/DeveloperInteractionRoom";
+import { safeFetchJson } from "@/lib/safeFetch";
 
 export interface MaintenanceTask {
   id: string;
@@ -245,7 +246,7 @@ export default function MaintenanceDesk({
       const user = auth?.currentUser;
       const token = await user?.getIdToken();
 
-      const res = await fetch("/api/maintenance/tasks", {
+      const res = await safeFetchJson<any>("/api/maintenance/tasks", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -260,9 +261,8 @@ export default function MaintenanceDesk({
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to submit task ticket.");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to submit task ticket.");
       }
 
       setTaskTitle("");
@@ -284,7 +284,7 @@ export default function MaintenanceDesk({
       const user = auth?.currentUser;
       const token = await user?.getIdToken();
 
-      const res = await fetch("/api/maintenance/tasks", {
+      const res = await safeFetchJson<any>("/api/maintenance/tasks", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -297,9 +297,8 @@ export default function MaintenanceDesk({
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update status.");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to update status.");
       }
     } catch (err: any) {
       console.error("Failed to update task status:", err);

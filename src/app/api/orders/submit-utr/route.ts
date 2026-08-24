@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/server/firebase-admin";
+import { getAdminDb } from "@/lib/server/firebase-admin";
 import { getTrustedClientIp } from "@/lib/server/clientIp";
 import { logSecurityEvent } from "@/lib/server/securityLogger";
 import { z } from "zod";
@@ -8,8 +8,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 const SubmitUtrSchema = z.object({
-  orderId: z.string().min(5).max(100),
-  utrNumber: z.string().min(6).max(30).regex(/^[A-Za-z0-9_-]+$/, "UTR must contain alphanumeric characters only."),
+  orderId: z.string().min(1).max(100),
+  utrNumber: z.string().min(4).max(50).regex(/^[A-Za-z0-9_-]+$/, "UTR must contain alphanumeric characters only."),
   milestone: z.enum(["advance", "final", "maintenance"]).optional().default("advance"),
 });
 
@@ -17,8 +17,9 @@ export async function POST(req: NextRequest) {
   const clientIp = getTrustedClientIp(req);
 
   try {
-    if (!adminDb) {
-      return NextResponse.json({ success: false, error: "Service temporarily unavailable." }, { status: 503 });
+    const db = getAdminDb();
+    if (!db) {
+      return NextResponse.json({ success: false, error: "Database service temporarily unavailable." }, { status: 503 });
     }
 
     const body = await req.json();
@@ -32,7 +33,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { orderId, utrNumber, milestone } = parseResult.data;
-    const orderRef = adminDb.collection("orders").doc(orderId);
+    const orderRef = db.collection("orders").doc(orderId);
     const orderSnap = await orderRef.get();
 
     if (!orderSnap.exists) {
@@ -62,19 +63,23 @@ export async function POST(req: NextRequest) {
     await orderRef.update(updatePayload);
 
     // Notify operations desk
-    await adminDb.collection("notifications").add({
-      title: `UTR Reference Submitted: ${orderData.planName || "Project"}`,
-      message: `Client (${orderData.userEmail}) submitted UTR "${cleanUtr}" for ${milestone} milestone verification.`,
-      targetType: "admin_dev",
-      targetRoles: ["admin", "super_admin"],
-      actionLink: "/dashboard/admin",
-      actionText: "Verify in Admin Panel",
-      senderName: "Billing Desk",
-      senderRole: "System",
-      createdAt: new Date().toISOString(),
-      readBy: [],
-      clearedBy: [],
-    });
+    try {
+      await db.collection("notifications").add({
+        title: `UTR Reference Submitted: ${orderData.planName || "Project"}`,
+        message: `Client (${orderData.userEmail}) submitted UTR "${cleanUtr}" for ${milestone} milestone verification.`,
+        targetType: "admin_dev",
+        targetRoles: ["admin", "super_admin"],
+        actionLink: "/dashboard/admin",
+        actionText: "Verify in Admin Panel",
+        senderName: "Billing Desk",
+        senderRole: "System",
+        createdAt: new Date().toISOString(),
+        readBy: [],
+        clearedBy: [],
+      });
+    } catch (notifErr) {
+      console.warn("UTR notification warning:", notifErr);
+    }
 
     await logSecurityEvent({
       action: "order:submit_utr",

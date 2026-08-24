@@ -27,46 +27,32 @@ export async function POST(req: NextRequest) {
       paytmParams = await req.json();
     }
 
-    // 1. Simulation Guard (Strictly prohibited in production)
-    const isSimulated = paytmParams.simulated === true || paytmParams.simulated === "true";
-    if (process.env.NODE_ENV === "production" && isSimulated) {
-      await logSecurityEvent({
-        action: "paytm:callback_simulation_rejected",
-        status: "denied",
-        ip: clientIp,
-        reason: "Simulated payment callback attempted in production environment.",
-      });
-      return NextResponse.json({ success: false, error: "Simulation rejected in production." }, { status: 403 });
-    }
-
-    // 2. Checksum Signature Verification
+    // 1. Checksum Signature Verification
     const mkey = process.env.PAYTM_MERCHANT_KEY;
     const checksum = paytmParams.CHECKSUMHASH;
 
-    if (!isSimulated) {
-      if (!mkey || !checksum) {
-        await logSecurityEvent({
-          action: "paytm:callback_missing_checksum",
-          status: "denied",
-          ip: clientIp,
-          reason: "Missing Paytm merchant key or checksum hash.",
-        });
-        return NextResponse.redirect(new URL("/dashboard?payment_status=invalid_signature", req.url));
-      }
-
-      const isValidSignature = PaytmChecksum.verifySignature(paytmParams, mkey, checksum);
-      if (!isValidSignature) {
-        await logSecurityEvent({
-          action: "paytm:callback_signature_failed",
-          status: "denied",
-          ip: clientIp,
-          reason: "Cryptographic SHA256 checksum verification failed.",
-        });
-        return NextResponse.redirect(new URL("/dashboard?payment_status=invalid_signature", req.url));
-      }
+    if (!mkey || !checksum) {
+      await logSecurityEvent({
+        action: "paytm:callback_missing_checksum",
+        status: "denied",
+        ip: clientIp,
+        reason: "Missing Paytm merchant key or checksum hash.",
+      });
+      return NextResponse.redirect(new URL("/dashboard?payment_status=invalid_signature", req.url));
     }
 
-    // 3. Merchant ID Verification
+    const isValidSignature = PaytmChecksum.verifySignature(paytmParams, mkey, checksum);
+    if (!isValidSignature) {
+      await logSecurityEvent({
+        action: "paytm:callback_signature_failed",
+        status: "denied",
+        ip: clientIp,
+        reason: "Cryptographic SHA256 checksum verification failed.",
+      });
+      return NextResponse.redirect(new URL("/dashboard?payment_status=invalid_signature", req.url));
+    }
+
+    // 2. Merchant ID Verification
     const configuredMid = process.env.PAYTM_MID;
     if (configuredMid && paytmParams.MID && paytmParams.MID !== configuredMid) {
       await logSecurityEvent({
@@ -78,7 +64,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.redirect(new URL("/dashboard?payment_status=invalid_merchant", req.url));
     }
 
-    // 4. Server-Authoritative Order & Milestone Resolution (Zero URL param trust)
+    // 3. Server-Authoritative Order & Milestone Resolution (Zero URL param trust)
     const rawOrderIdParam: string = paytmParams.ORDERID || "";
     if (!rawOrderIdParam) {
       return NextResponse.redirect(new URL("/dashboard?payment_status=error&msg=missing_order", req.url));
@@ -101,12 +87,17 @@ export async function POST(req: NextRequest) {
       internalOrderId = rawOrderIdParam.split("_")[0];
     }
 
-    const isSuccess =
-      paytmParams.STATUS === "TXN_SUCCESS" ||
-      paytmParams.RESPCODE === "01" ||
-      isSimulated;
+    const isSuccess = paytmParams.STATUS === "TXN_SUCCESS" || paytmParams.RESPCODE === "01";
+    if (!isSuccess) {
+      return NextResponse.redirect(
+        new URL(`/dashboard?payment_status=failed&orderId=${internalOrderId}&msg=${encodeURIComponent(paytmParams.RESPMSG || "Payment failed")}`, req.url)
+      );
+    }
 
-    const txnId = paytmParams.TXNID || `SIM_TXN_${Date.now()}`;
+    const txnId = paytmParams.TXNID;
+    if (!txnId) {
+      return NextResponse.redirect(new URL("/dashboard?payment_status=error&msg=missing_txnid", req.url));
+    }
     const idempotencyKey = `paytm_${txnId}_${expectedMilestone}`;
 
     if (!isSuccess) {
@@ -152,7 +143,7 @@ export async function POST(req: NextRequest) {
       }
 
       const receivedAmount = parseFloat(paytmParams.TXNAMOUNT || "0");
-      if (!isSimulated && Math.abs(receivedAmount - expectedAmount) > 1.0) {
+      if (Math.abs(receivedAmount - expectedAmount) > 1.0) {
         throw new Error(`Payment amount mismatch: Received ₹${receivedAmount}, Expected ₹${expectedAmount}`);
       }
 
@@ -164,6 +155,48 @@ export async function POST(req: NextRequest) {
 
       let assignedDevData: any = null;
 
+      // ═══════════════════════════════════════════════════════════════
+      // 1. ALL READS FIRST (Strict Firestore Transaction Protocol)
+      // ═══════════════════════════════════════════════════════════════
+      let devRef: any = null;
+      let devSnap: any = null;
+      let selectedDev: any = null;
+      let couponRef: any = null;
+      let couponSnap: any = null;
+
+      if (expectedMilestone === "advance") {
+        // Read available developers if not yet assigned
+        if (!orderData.assignedDeveloperId) {
+          const devsSnap = await adminDb!.collection("users").where("role", "==", "developer").get();
+          const availableDevs = devsSnap.docs
+            .map((d) => ({ id: d.id, ...d.data() }))
+            .filter((d: any) => (d.activeProjectCount || 0) < (d.maxProjects || 5));
+
+          availableDevs.sort((a: any, b: any) => (a.activeProjectCount || 0) - (b.activeProjectCount || 0));
+
+          if (availableDevs.length > 0) {
+            selectedDev = availableDevs[0];
+            devRef = adminDb!.collection("users").doc(selectedDev.id);
+            devSnap = await transaction.get(devRef);
+          }
+        }
+
+        // Read coupon document
+        if (orderData.couponId) {
+          couponRef = adminDb!.collection("coupons").doc(orderData.couponId);
+          couponSnap = await transaction.get(couponRef);
+        }
+      } else if (expectedMilestone === "final") {
+        // Read developer document
+        if (orderData.assignedDeveloperId) {
+          devRef = adminDb!.collection("users").doc(orderData.assignedDeveloperId);
+          devSnap = await transaction.get(devRef);
+        }
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 2. ALL WRITES AFTER (Strict Firestore Transaction Protocol)
+      // ═══════════════════════════════════════════════════════════════
       if (expectedMilestone === "advance") {
         updatePayload.advancePaid = true;
         updatePayload.advancePaymentId = txnId;
@@ -174,50 +207,36 @@ export async function POST(req: NextRequest) {
           updatePayload.status = "in_progress";
         }
 
-        // e. Atomic Developer Auto-Assignment
-        if (!orderData.assignedDeveloperId) {
-          const devsSnap = await adminDb!.collection("users").where("role", "==", "developer").get();
-          const availableDevs = devsSnap.docs
-            .map((d) => ({ id: d.id, ...d.data() }))
-            .filter((d: any) => (d.activeProjectCount || 0) < (d.maxProjects || 5));
+        // Developer auto-assignment write
+        if (selectedDev && devRef && devSnap?.exists) {
+          const freshDevData = devSnap.data() || {};
+          updatePayload.assignedDeveloperId = selectedDev.id;
+          updatePayload.assignedDeveloperName = freshDevData.name || freshDevData.email || "Developer";
+          updatePayload.assignedDeveloperEmail = freshDevData.email || "";
+          updatePayload.assignedAt = nowIso;
+          updatePayload.assignmentMode = "dynamic";
 
-          availableDevs.sort((a: any, b: any) => (a.activeProjectCount || 0) - (b.activeProjectCount || 0));
+          transaction.update(devRef, {
+            activeProjectCount: (freshDevData.activeProjectCount || 0) + 1,
+            updatedAt: nowIso,
+          });
 
-          if (availableDevs.length > 0) {
-            const selectedDev: any = availableDevs[0];
-            updatePayload.assignedDeveloperId = selectedDev.id;
-            updatePayload.assignedDeveloperName = selectedDev.name || selectedDev.email || "Developer";
-            updatePayload.assignedDeveloperEmail = selectedDev.email || "";
-            updatePayload.assignedAt = nowIso;
-            updatePayload.assignmentMode = "dynamic";
-
-            const devRef = adminDb!.collection("users").doc(selectedDev.id);
-            transaction.update(devRef, {
-              activeProjectCount: (selectedDev.activeProjectCount || 0) + 1,
-              updatedAt: nowIso,
-            });
-
-            assignedDevData = selectedDev;
-          }
+          assignedDevData = selectedDev;
         }
 
-        // f. Finalize Coupon Redemption (Phase 2)
-        if (orderData.couponId) {
-          const couponRef = adminDb!.collection("coupons").doc(orderData.couponId);
-          const couponSnap = await transaction.get(couponRef);
-          if (couponSnap.exists) {
-            const cData = couponSnap.data() || {};
-            const userIdentifier = orderData.userId || orderData.userEmail;
-            const existingUsers = cData.usedByUsers || [];
-            const newUsers = existingUsers.includes(userIdentifier) ? existingUsers : [...existingUsers, userIdentifier];
+        // Finalize Coupon Redemption write
+        if (couponRef && couponSnap?.exists) {
+          const cData = couponSnap.data() || {};
+          const userIdentifier = orderData.userId || orderData.userEmail;
+          const existingUsers = cData.usedByUsers || [];
+          const newUsers = existingUsers.includes(userIdentifier) ? existingUsers : [...existingUsers, userIdentifier];
 
-            transaction.update(couponRef, {
-              usedCount: (cData.usedCount || 0) + 1,
-              pendingReservations: Math.max(0, (cData.pendingReservations || 1) - 1),
-              usedByUsers: newUsers,
-              updatedAt: nowIso,
-            });
-          }
+          transaction.update(couponRef, {
+            usedCount: (cData.usedCount || 0) + 1,
+            pendingReservations: Math.max(0, (cData.pendingReservations || 1) - 1),
+            usedByUsers: newUsers,
+            updatedAt: nowIso,
+          });
         }
       } else if (expectedMilestone === "final") {
         updatePayload.finalPaid = true;
@@ -226,17 +245,13 @@ export async function POST(req: NextRequest) {
         updatePayload.finalPaymentMethod = "paytm_gateway";
         updatePayload.status = "completed";
 
-        // Decrement developer load upon project completion
-        if (orderData.assignedDeveloperId) {
-          const devRef = adminDb!.collection("users").doc(orderData.assignedDeveloperId);
-          const devSnap = await transaction.get(devRef);
-          if (devSnap.exists) {
-            const currentDev = devSnap.data() || {};
-            transaction.update(devRef, {
-              activeProjectCount: Math.max(0, (currentDev.activeProjectCount || 1) - 1),
-              updatedAt: nowIso,
-            });
-          }
+        // Decrement developer load upon project completion write
+        if (devRef && devSnap?.exists) {
+          const currentDev = devSnap.data() || {};
+          transaction.update(devRef, {
+            activeProjectCount: Math.max(0, (currentDev.activeProjectCount || 1) - 1),
+            updatedAt: nowIso,
+          });
         }
       } else if (expectedMilestone === "maintenance") {
         const expiryDate = new Date();

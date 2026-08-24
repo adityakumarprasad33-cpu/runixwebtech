@@ -33,6 +33,8 @@ import {
 import { Button } from "@/components/ui/Button";
 import DeveloperInteractionRoom from "@/components/dashboard/DeveloperInteractionRoom";
 import MaintenanceDesk from "@/components/dashboard/MaintenanceDesk";
+import Link from "next/link";
+import { safeFetchJson, normalizeUrl } from "@/lib/safeFetch";
 
 const fadeUp: any = {
   initial: { opacity: 0, y: 16 },
@@ -148,7 +150,7 @@ export default function DeveloperPortal() {
     setUpdatingStageId(orderId);
     try {
       const token = await user?.getIdToken();
-      const res = await fetch("/api/developer/orders/update-stage", {
+      const res = await safeFetchJson<any>("/api/developer/orders/update-stage", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -156,13 +158,12 @@ export default function DeveloperPortal() {
         },
         body: JSON.stringify({ orderId, stage }),
       });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to update status stage");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to update status stage");
       }
 
       setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, devStage: stage, statusCaption: data.caption } : o))
+        prev.map((o) => (o.id === orderId ? { ...o, devStage: stage, statusCaption: res.data?.caption } : o))
       );
     } catch (e: any) {
       console.error("Failed to update dev stage:", e);
@@ -183,10 +184,10 @@ export default function DeveloperPortal() {
     setIsSubmittingWork(true);
     try {
       const orderId = submittingWorkOrder.id;
-      const stagingUrl = stagingUrlInput.trim();
+      const stagingUrl = normalizeUrl(stagingUrlInput.trim());
       const token = await user?.getIdToken();
 
-      const res = await fetch("/api/developer/orders/submit-work", {
+      const res = await safeFetchJson<any>("/api/developer/orders/submit-work", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -199,9 +200,8 @@ export default function DeveloperPortal() {
         }),
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.error || "Failed to submit work");
+      if (!res.ok || !res.data?.success) {
+        throw new Error(res.error || "Failed to submit work");
       }
 
       setOrders((prev) =>
@@ -498,17 +498,18 @@ export default function DeveloperPortal() {
 
                     {/* Staging Link */}
                     {o.stagingUrl && (
-                      <div className="text-xs text-zinc-400 flex items-center gap-1.5 bg-purple-500/[0.05] p-2.5 rounded-xl border border-purple-500/10">
-                        <Globe className="w-3.5 h-3.5 text-purple-400" />
-                        <span className="text-purple-400 font-semibold">Live Staging Demo:</span>
-                        <a
-                          href={o.stagingUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-indigo-300 underline hover:text-white transition-colors"
+                      <div className="text-xs text-zinc-400 flex items-center justify-between bg-purple-500/[0.05] p-2.5 rounded-xl border border-purple-500/10">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Globe className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                          <span className="text-purple-400 font-semibold shrink-0">Live Demo:</span>
+                          <span className="text-zinc-300 font-mono truncate">{o.stagingUrl}</span>
+                        </div>
+                        <Link
+                          href={`/preview?url=${encodeURIComponent(normalizeUrl(o.stagingUrl))}&title=${encodeURIComponent(o.planName || "Staging Demo")}&ref=/dashboard/developer`}
+                          className="px-2.5 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white font-bold text-[11px] flex items-center gap-1 transition-all shrink-0 ml-2"
                         >
-                          {o.stagingUrl}
-                        </a>
+                          Launch Viewer ↗
+                        </Link>
                       </div>
                     )}
 

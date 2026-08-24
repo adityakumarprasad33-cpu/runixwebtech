@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminDb } from "@/lib/server/firebase-admin";
+import { getAdminDb } from "@/lib/server/firebase-admin";
 import { requireAuthAndPermission, Permission } from "@/lib/server/authGuard";
 import { getTrustedClientIp } from "@/lib/server/clientIp";
 import { logSecurityEvent } from "@/lib/server/securityLogger";
@@ -11,6 +11,14 @@ export const runtime = "nodejs";
 const VerifyFinalSchema = z.object({
   orderId: z.string().min(5).max(100),
   finalUtrNumber: z.string().max(50).optional(),
+  handoverLinks: z
+    .object({
+      liveUrl: z.string().max(300).optional().nullable(),
+      githubRepo: z.string().max(300).optional().nullable(),
+      driveZip: z.string().max(300).optional().nullable(),
+    })
+    .optional(),
+  handoverNotes: z.string().max(2000).optional().nullable(),
 });
 
 export async function POST(req: NextRequest) {
@@ -22,16 +30,24 @@ export async function POST(req: NextRequest) {
       return authResult;
     }
 
+    const db = getAdminDb();
+    if (!db) {
+      return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });
+    }
+
     const body = await req.json();
     const parseResult = VerifyFinalSchema.safeParse(body);
     if (!parseResult.success) {
       return NextResponse.json({ success: false, error: "Invalid order parameters." }, { status: 400 });
     }
 
-    const { orderId, finalUtrNumber } = parseResult.data;
-    const orderRef = adminDb!.collection("orders").doc(orderId);
+    const { orderId, finalUtrNumber, handoverLinks, handoverNotes } = parseResult.data;
+    const orderRef = db.collection("orders").doc(orderId);
 
-    const result = await adminDb!.runTransaction(async (transaction) => {
+    const result = await db.runTransaction(async (transaction) => {
+      // ═══════════════════════════════════════════════════════════════
+      // 1. ALL READS FIRST (Strict Firestore Transaction Protocol)
+      // ═══════════════════════════════════════════════════════════════
       const orderSnap = await transaction.get(orderRef);
       if (!orderSnap.exists) {
         throw new Error("Order not found.");
@@ -40,6 +56,16 @@ export async function POST(req: NextRequest) {
       const orderData = orderSnap.data() || {};
       const nowIso = new Date().toISOString();
 
+      let devRef: any = null;
+      let devSnap: any = null;
+      if (orderData.assignedDeveloperId) {
+        devRef = db.collection("users").doc(orderData.assignedDeveloperId);
+        devSnap = await transaction.get(devRef);
+      }
+
+      // ═══════════════════════════════════════════════════════════════
+      // 2. ALL WRITES AFTER (Strict Firestore Transaction Protocol)
+      // ═══════════════════════════════════════════════════════════════
       const updatePayload: Record<string, any> = {
         finalPaid: true,
         finalPaidAt: nowIso,
@@ -51,17 +77,21 @@ export async function POST(req: NextRequest) {
         updatePayload.finalUtrNumber = finalUtrNumber.trim().toUpperCase();
       }
 
+      if (handoverLinks) {
+        updatePayload.handoverLinks = handoverLinks;
+      }
+
+      if (handoverNotes) {
+        updatePayload.handoverNotes = handoverNotes;
+      }
+
       // Decrement developer active project load
-      if (orderData.assignedDeveloperId) {
-        const devRef = adminDb!.collection("users").doc(orderData.assignedDeveloperId);
-        const devSnap = await transaction.get(devRef);
-        if (devSnap.exists) {
-          const currentDev = devSnap.data() || {};
-          transaction.update(devRef, {
-            activeProjectCount: Math.max(0, (currentDev.activeProjectCount || 1) - 1),
-            updatedAt: nowIso,
-          });
-        }
+      if (devRef && devSnap?.exists) {
+        const currentDev = devSnap.data() || {};
+        transaction.update(devRef, {
+          activeProjectCount: Math.max(0, (currentDev.activeProjectCount || 1) - 1),
+          updatedAt: nowIso,
+        });
       }
 
       transaction.update(orderRef, updatePayload);
@@ -70,7 +100,7 @@ export async function POST(req: NextRequest) {
 
     // Notify customer of completion
     if (result.userId) {
-      await adminDb!.collection("notifications").add({
+      await db.collection("notifications").add({
         title: "🎉 Final Milestone Verified & Handover Complete!",
         message: `Your final payment for "${result.planName}" has been verified. GitHub codebase and deployment keys are now released in your workspace.`,
         actionLink: "/dashboard/workspace",
