@@ -64,10 +64,13 @@ import {
   Briefcase,
   Layers,
   Wrench,
+  Receipt,
+  TrendingUp,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { safeFetchJson, normalizeUrl } from "@/lib/safeFetch";
+import FinancialLedgerPanel from "@/components/dashboard/FinancialLedgerPanel";
 
 interface ProjectForm {
   title: string;
@@ -160,7 +163,7 @@ export default function AdminPanel() {
   const router = useRouter();
 
   const [activeTab, setActiveTab] = useState<
-    "users" | "cms" | "orders" | "offers" | "notifications" | "logs" | "activity" | "team"
+    "users" | "cms" | "orders" | "offers" | "ledger" | "notifications" | "logs" | "activity" | "team"
   >("cms");
 
   // Team management state (super_admin only)
@@ -1469,6 +1472,7 @@ export default function AdminPanel() {
           { id: "offers",        label: "Offers & Deals",   icon: Tag,           show: canDo("cms") || canDo("offers") },
           { id: "users",         label: "Personnel",        icon: Users,         show: true },
           { id: "orders",        label: "Orders & Payments",icon: ShoppingCart,  show: canDo("payments") },
+          { id: "ledger",        label: "P&L & Accounts",   icon: Receipt,       show: canDo("payments") || isSuperAdmin || isAdmin },
           { id: "notifications", label: "Notifications",    icon: Bell,          show: canDo("notifications") },
           { id: "logs",          label: "Security Logs",    icon: ShieldCheck,   show: canDo("logs") },
           { id: "activity",      label: "Admin Activity",   icon: Activity,      show: canDo("logs") },
@@ -2817,6 +2821,18 @@ export default function AdminPanel() {
                   </div>
                 )}
               </div>
+            </div>
+          )}
+
+          {/* P&L & ACCOUNTING LEDGER TAB */}
+          {activeTab === "ledger" && (
+            <div className="space-y-6">
+              <FinancialLedgerPanel
+                orders={orders}
+                users={users}
+                currentUser={user}
+                isSuperAdmin={isSuperAdmin}
+              />
             </div>
           )}
 
