@@ -1508,7 +1508,7 @@ export default function AdminPanel() {
           { id: "offers",        label: "Offers & Deals",   icon: Tag,           show: canDo("cms") || canDo("offers") },
           { id: "users",         label: "Personnel",        icon: Users,         show: true },
           { id: "orders",        label: "Orders & Payments",icon: ShoppingCart,  show: canDo("payments") },
-          { id: "ledger",        label: "P&L & Accounts",   icon: Receipt,       show: canDo("payments") || isSuperAdmin || isAdmin },
+          { id: "ledger",        label: "P&L & Accounts",   icon: Receipt,       show: canDo("financials") || canDo("payments") },
           { id: "notifications", label: "Notifications",    icon: Bell,          show: canDo("notifications") },
           { id: "logs",          label: "Security Logs",    icon: ShieldCheck,   show: canDo("logs") },
           { id: "activity",      label: "Admin Activity",   icon: Activity,      show: canDo("logs") },
@@ -4033,6 +4033,8 @@ export default function AdminPanel() {
                     const PERM_LIST: { key: string; label: string }[] = [
                       { key: "cms",           label: "CMS / Content" },
                       { key: "payments",      label: "Payment Verification" },
+                      { key: "financials",    label: "P&L / Accounts Ledger" },
+                      { key: "offers",        label: "Promotional Offers" },
                       { key: "notifications", label: "Send Notifications" },
                       { key: "queries",       label: "User Queries" },
                       { key: "logs",          label: "View Logs" },

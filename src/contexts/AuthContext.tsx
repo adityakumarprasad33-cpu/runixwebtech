@@ -12,6 +12,7 @@ export interface AdminPermissions {
   cms: boolean;            // Can manage CMS (projects, hero stats, payment settings)
   offers: boolean;         // Can manage promotional offers & deals
   logs: boolean;           // Can view security & activity logs
+  financials: boolean;     // Can view & manage P&L, accounts, and financial ledger
 }
 
 export interface UserProfile {
