@@ -381,26 +381,25 @@ export default function DashboardOverview() {
       {/* ── Welcome Banner with New Project CTA ── */}
       <motion.div
         {...fadeUp}
-        className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-black border border-white/10 p-8 sm:p-10 shadow-2xl"
+        className="relative overflow-hidden rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] p-8 sm:p-10 shadow-[0_12px_40px_rgba(21,24,29,0.06)]"
       >
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <div className="flex items-center gap-2 text-indigo-400 text-xs font-bold uppercase tracking-[0.2em] mb-3">
+            <div className="flex items-center gap-2 text-[#315EF7] text-xs font-bold uppercase tracking-[0.2em] mb-3">
               <LayoutDashboard className="w-3.5 h-3.5" />
               Client Workspace
             </div>
-            <h1 className="font-jakarta text-3xl sm:text-4xl font-bold text-white tracking-tight mb-2">
+            <h1 className=" text-3xl sm:text-4xl font-extrabold text-[#111317] tracking-tight mb-2">
               {greeting}, {firstName}
             </h1>
-            <p className="text-zinc-400 text-sm max-w-lg leading-relaxed">
+            <p className="text-[#4B5563] text-sm max-w-lg leading-relaxed font-normal">
               Track your active sprints, review live staging builds, collaborate in real-time with your lead developer, and manage milestone settlements.
             </p>
           </div>
 
           <Link href="/pricing" className="shrink-0">
             <Button
-              variant="accent"
-              className="rounded-2xl h-12 px-6 text-sm font-bold flex items-center gap-2 shadow-lg shadow-indigo-500/20 hover:scale-105 transition-all"
+              className="rounded-[13px] h-12 px-6 text-sm font-semibold flex items-center gap-2 bg-[#315EF7] text-white hover:bg-[#2A50D4] shadow-sm transition-all"
             >
               <Sparkles className="w-4 h-4" /> Book New Project <ArrowRight className="w-4 h-4" />
             </Button>
@@ -410,33 +409,33 @@ export default function DashboardOverview() {
 
       {/* ── Metric Highlights ── */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="p-6 rounded-2xl bg-black/40 border border-white/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center shrink-0">
+        <div className="p-6 rounded-2xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] flex items-center gap-4 shadow-[0_4px_20px_rgba(21,24,29,0.03)]">
+          <div className="w-12 h-12 rounded-xl bg-[#315EF7]/10 text-[#315EF7] flex items-center justify-center shrink-0">
             <Zap className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">Active Sprints</span>
-            <span className="text-2xl font-black text-white">{activeProjectsCount}</span>
+            <span className="text-xs text-[#6B7280] font-semibold uppercase tracking-wider block">Active Sprints</span>
+            <span className="text-2xl font-black text-[#111317]">{activeProjectsCount}</span>
           </div>
         </div>
 
-        <div className="p-6 rounded-2xl bg-black/40 border border-white/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center shrink-0">
+        <div className="p-6 rounded-2xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] flex items-center gap-4 shadow-[0_4px_20px_rgba(21,24,29,0.03)]">
+          <div className="w-12 h-12 rounded-xl bg-[#169B62]/10 text-[#169B62] flex items-center justify-center shrink-0">
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">Completed Builds</span>
-            <span className="text-2xl font-black text-white">{completedProjectsCount}</span>
+            <span className="text-xs text-[#6B7280] font-semibold uppercase tracking-wider block">Completed Builds</span>
+            <span className="text-2xl font-black text-[#111317]">{completedProjectsCount}</span>
           </div>
         </div>
 
-        <div className="p-6 rounded-2xl bg-black/40 border border-white/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center shrink-0">
+        <div className="p-6 rounded-2xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] flex items-center gap-4 shadow-[0_4px_20px_rgba(21,24,29,0.03)]">
+          <div className="w-12 h-12 rounded-xl bg-[#111317]/5 text-[#111317] flex items-center justify-center shrink-0">
             <CreditCard className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs text-zinc-500 font-semibold uppercase tracking-wider block">Total Milestone Paid</span>
-            <span className="text-2xl font-black text-white">₹{totalSpent.toLocaleString()}</span>
+            <span className="text-xs text-[#6B7280] font-semibold uppercase tracking-wider block">Total Milestone Paid</span>
+            <span className="text-2xl font-black text-[#111317]">₹{totalSpent.toLocaleString()}</span>
           </div>
         </div>
       </div>
@@ -444,14 +443,14 @@ export default function DashboardOverview() {
       {/* ── Active Projects & Milestone Trackers ── */}
       <div className="space-y-6">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-white font-jakarta tracking-tight">Your Projects & Sprints</h2>
+          <h2 className="text-xl font-bold text-white  tracking-tight">Your Projects & Sprints</h2>
           <span className="text-xs text-zinc-500 font-mono">{orders.length} Total</span>
         </div>
 
         {loadingOrders ? (
           <div className="text-center py-16 text-zinc-500 text-sm">Loading project workspaces...</div>
         ) : orders.length === 0 ? (
-          <div className="p-10 rounded-3xl bg-zinc-950/40 border border-white/5 text-center space-y-4">
+          <div className="p-10 rounded-xl bg-zinc-950/40 border border-white/5 text-center space-y-4">
             <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto">
               <FileText className="w-7 h-7" />
             </div>
@@ -481,22 +480,22 @@ export default function DashboardOverview() {
               return (
                 <div
                   key={order.id}
-                  className="rounded-3xl bg-[#0e0e0e] border border-white/10 p-6 sm:p-8 space-y-6 hover:border-white/20 transition-all shadow-xl"
+                  className="rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] p-6 sm:p-8 space-y-6 shadow-[0_8px_30px_rgba(21,24,29,0.04)]"
                 >
                   {/* Project Header */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-[rgba(21,24,29,0.08)]">
                     <div>
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="text-xl font-bold text-white tracking-tight">{order.planName}</h3>
+                        <h3 className="text-xl font-extrabold text-[#111317] tracking-tight">{order.planName}</h3>
                         <span
                           className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                             isCompleted
-                              ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30"
+                              ? "bg-[#169B62]/10 text-[#169B62] border border-[#169B62]/20"
                               : order.status === "awaiting_final_payment"
-                              ? "bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                              ? "bg-[#B77900]/10 text-[#B77900] border border-[#B77900]/20"
                               : order.status === "in_progress"
-                              ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-                              : "bg-purple-500/20 text-purple-300 border border-purple-500/30"
+                              ? "bg-[#315EF7]/10 text-[#315EF7] border border-[#315EF7]/20"
+                              : "bg-[#6B7280]/10 text-[#4B5563] border border-[#6B7280]/20"
                           }`}
                         >
                           {isCompleted
@@ -508,7 +507,7 @@ export default function DashboardOverview() {
                             : "Awaiting 50% Advance"}
                         </span>
                       </div>
-                      <p className="text-xs text-zinc-400">
+                      <p className="text-xs text-[#6B7280]">
                         {order.formData?.company ? `${order.formData.company} • ` : ""}
                         Timeline: {order.formData?.timeline || "Standard"}
                       </p>
@@ -519,9 +518,9 @@ export default function DashboardOverview() {
                         onClick={() => setOpenRoomOrderId(openRoomOrderId === order.id ? null : order.id)}
                         variant="outline"
                         size="sm"
-                        className="rounded-xl text-xs flex items-center gap-1.5"
+                        className="rounded-xl text-xs flex items-center gap-1.5 border-[rgba(21,24,29,0.12)] text-[#111317] hover:bg-[rgba(21,24,29,0.04)] cursor-pointer"
                       >
-                        <MessageSquare className="w-3.5 h-3.5 text-indigo-400" />
+                        <MessageSquare className="w-3.5 h-3.5 text-[#315EF7]" />
                         {openRoomOrderId === order.id ? "Close Chat" : "Developer Chat"}
                       </Button>
                     </div>
@@ -529,7 +528,7 @@ export default function DashboardOverview() {
 
                   {/* 50/50 Milestone Tracker Visualizer */}
                   <div className="space-y-3">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest block">
+                    <span className="text-xs font-bold text-[#6B7280] uppercase tracking-widest block font-mono">
                       50 / 50 Milestone Roadmap:
                     </span>
 
@@ -538,21 +537,21 @@ export default function DashboardOverview() {
                       <div
                         className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
                           isAdvancePaid
-                            ? "bg-emerald-950/20 border-emerald-500/30"
-                            : "bg-indigo-950/20 border-indigo-500/40"
+                            ? "bg-[#169B62]/5 border-[#169B62]/20"
+                            : "bg-[#315EF7]/5 border-[#315EF7]/25"
                         }`}
                       >
                         <div className="flex items-center justify-between text-xs">
-                          <span className="font-bold text-white">1. 50% Advance</span>
+                          <span className="font-bold text-[#111317]">1. 50% Advance</span>
                           {isAdvancePaid ? (
-                            <span className="text-emerald-400 font-extrabold flex items-center gap-1">
+                            <span className="text-[#169B62] font-bold flex items-center gap-1 font-mono">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Paid
                             </span>
                           ) : (
-                            <span className="text-indigo-400 font-bold">Due</span>
+                            <span className="text-[#315EF7] font-bold font-mono">Due</span>
                           )}
                         </div>
-                        <div className="text-base font-black text-white">₹{advanceAmount.toLocaleString()}</div>
+                        <div className="text-base font-black text-[#111317]">₹{advanceAmount.toLocaleString()}</div>
                         {!isAdvancePaid && (
                           <Button
                             onClick={() =>
@@ -563,9 +562,8 @@ export default function DashboardOverview() {
                                 title: "50% Advance Booking Deposit",
                               })
                             }
-                            variant="accent"
                             size="sm"
-                            className="rounded-xl text-xs w-full mt-2 h-8"
+                            className="rounded-xl text-xs w-full mt-2 h-8 bg-[#315EF7] text-white hover:bg-[#2A50D4] cursor-pointer"
                           >
                             Pay ₹{advanceAmount.toLocaleString()} Advance
                           </Button>
@@ -576,23 +574,23 @@ export default function DashboardOverview() {
                       <div
                         className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
                           isAdvancePaid && !isCompleted
-                            ? "bg-blue-950/20 border-blue-500/30"
+                            ? "bg-[#315EF7]/5 border-[#315EF7]/20"
                             : isCompleted
-                            ? "bg-emerald-950/20 border-emerald-500/30"
-                            : "bg-black/30 border-white/5 text-zinc-600"
+                            ? "bg-[#169B62]/5 border-[#169B62]/20"
+                            : "bg-[#FAFAFA] border-[rgba(21,24,29,0.08)] text-[#6B7280]"
                         }`}
                       >
                         <div className="flex items-center justify-between text-xs">
-                          <span className={`font-bold ${isAdvancePaid ? "text-white" : "text-zinc-600"}`}>
+                          <span className={`font-bold ${isAdvancePaid ? "text-[#111317]" : "text-[#6B7280]"}`}>
                             2. Active Sprint
                           </span>
                           {isAdvancePaid && (
-                            <span className="text-blue-400 font-bold flex items-center gap-1">
+                            <span className="text-[#315EF7] font-bold flex items-center gap-1 font-mono">
                               <Zap className="w-3.5 h-3.5" /> In Dev
                             </span>
                           )}
                         </div>
-                        <div className="text-xs text-zinc-400">
+                        <div className="text-xs text-[#4B5563]">
                           {isAdvancePaid ? "Code architecture & design active" : "Starts after advance"}
                         </div>
                       </div>
@@ -601,16 +599,16 @@ export default function DashboardOverview() {
                       <div
                         className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
                           isStagingReady
-                            ? "bg-purple-950/20 border-purple-500/30"
-                            : "bg-black/30 border-white/5 text-zinc-600"
+                            ? "bg-[#315EF7]/5 border-[#315EF7]/20"
+                            : "bg-[#FAFAFA] border-[rgba(21,24,29,0.08)] text-[#6B7280]"
                         }`}
                       >
                         <div className="flex items-center justify-between text-xs">
-                          <span className={`font-bold ${isStagingReady ? "text-white" : "text-zinc-600"}`}>
+                          <span className={`font-bold ${isStagingReady ? "text-[#111317]" : "text-[#6B7280]"}`}>
                             3. Live Staging Demo
                           </span>
                           {isStagingReady && (
-                            <span className="text-purple-400 font-bold flex items-center gap-1">
+                            <span className="text-[#315EF7] font-bold flex items-center gap-1 font-mono">
                               <Globe className="w-3.5 h-3.5" /> Ready
                             </span>
                           )}
@@ -619,15 +617,15 @@ export default function DashboardOverview() {
                           <div className="pt-1">
                             <Link
                               href={`/preview?url=${encodeURIComponent(normalizeUrl(order.stagingUrl || order.demoUrl || ""))}&title=${encodeURIComponent(order.planName || "Staging Preview")}&ref=/dashboard`}
-                              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 hover:text-white border border-purple-500/40 flex items-center justify-center gap-1.5 transition-all shadow-lg shadow-purple-500/10"
+                              className="text-xs font-bold px-3 py-1.5 rounded-xl bg-[#315EF7]/10 text-[#315EF7] hover:bg-[#315EF7]/20 border border-[#315EF7]/20 flex items-center justify-center gap-1.5 transition-all shadow-xs"
                             >
                               <Globe className="w-3.5 h-3.5" /> Preview Demo ↗
                             </Link>
                           </div>
                         ) : order.status === "awaiting_final_payment" || order.status === "completed" ? (
-                          <div className="text-xs text-purple-300 font-medium">Staging deployment active</div>
+                          <div className="text-xs text-[#315EF7] font-medium">Staging deployment active</div>
                         ) : (
-                          <div className="text-xs text-zinc-500">Staging URL deployed soon</div>
+                          <div className="text-xs text-[#6B7280]">Staging URL deployed soon</div>
                         )}
                       </div>
 
@@ -635,25 +633,25 @@ export default function DashboardOverview() {
                       <div
                         className={`p-4 rounded-2xl border flex flex-col justify-between space-y-2 ${
                           isFinalPaid
-                            ? "bg-emerald-950/20 border-emerald-500/30"
+                            ? "bg-[#169B62]/5 border-[#169B62]/20"
                             : order.status === "awaiting_final_payment"
-                            ? "bg-amber-950/20 border-amber-500/40"
-                            : "bg-black/30 border-white/5 text-zinc-600"
+                            ? "bg-[#B77900]/10 border-[#B77900]/25"
+                            : "bg-[#FAFAFA] border-[rgba(21,24,29,0.08)] text-[#6B7280]"
                         }`}
                       >
                         <div className="flex items-center justify-between text-xs">
-                          <span className={`font-bold ${isStagingReady ? "text-white" : "text-zinc-600"}`}>
+                          <span className={`font-bold ${isStagingReady ? "text-[#111317]" : "text-[#6B7280]"}`}>
                             4. Final 50% & Handover
                           </span>
                           {isFinalPaid ? (
-                            <span className="text-emerald-400 font-bold flex items-center gap-1">
+                            <span className="text-[#169B62] font-bold flex items-center gap-1 font-mono">
                               <CheckCircle2 className="w-3.5 h-3.5" /> Settled
                             </span>
                           ) : (
-                            <span className="text-zinc-500 font-bold">₹{finalAmount.toLocaleString()}</span>
+                            <span className="text-[#6B7280] font-bold font-mono">₹{finalAmount.toLocaleString()}</span>
                           )}
                         </div>
-                        <div className="text-base font-black text-white">₹{finalAmount.toLocaleString()}</div>
+                        <div className="text-base font-black text-[#111317]">₹{finalAmount.toLocaleString()}</div>
                         {order.status === "awaiting_final_payment" && !isFinalPaid && (
                           <Button
                             onClick={() =>
@@ -664,9 +662,8 @@ export default function DashboardOverview() {
                                 title: "Final 50% Milestone & Repository Handover",
                               })
                             }
-                            variant="accent"
                             size="sm"
-                            className="rounded-xl text-xs w-full mt-2 h-8 bg-amber-500 hover:bg-amber-600 text-black font-bold"
+                            className="rounded-xl text-xs w-full mt-2 h-8 bg-[#111317] hover:bg-[#000000] text-white font-semibold cursor-pointer"
                           >
                             Pay Final ₹{finalAmount.toLocaleString()}
                           </Button>
@@ -677,8 +674,8 @@ export default function DashboardOverview() {
 
                   {/* Project Handover Assets (When completed) */}
                   {isCompleted && (
-                    <div className="p-5 rounded-2xl bg-emerald-950/20 border border-emerald-500/30 space-y-3">
-                      <div className="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                    <div className="p-5 rounded-2xl bg-[#169B62]/5 border border-[#169B62]/20 space-y-3">
+                      <div className="flex items-center gap-2 text-[#169B62] font-bold text-sm">
                         <CheckCircle2 className="w-4 h-4" /> Final Handover Assets & Source Code Unlocked!
                       </div>
                       <div className="flex flex-wrap items-center gap-4 text-xs">
@@ -687,9 +684,9 @@ export default function DashboardOverview() {
                             href={order.handoverLinks.liveUrl}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFFFFF] text-[#111317] hover:bg-[#F1F2F4] border border-[rgba(21,24,29,0.10)] shadow-xs transition-colors"
                           >
-                            <Globe className="w-3.5 h-3.5 text-indigo-400" /> Live Production URL
+                            <Globe className="w-3.5 h-3.5 text-[#315EF7]" /> Live Production URL
                           </a>
                         )}
                         {order.handoverLinks?.githubRepo && (
@@ -697,9 +694,9 @@ export default function DashboardOverview() {
                             href={order.handoverLinks.githubRepo}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFFFFF] text-[#111317] hover:bg-[#F1F2F4] border border-[rgba(21,24,29,0.10)] shadow-xs transition-colors"
                           >
-                            <Code className="w-3.5 h-3.5 text-zinc-300" /> GitHub Repository
+                            <Code className="w-3.5 h-3.5 text-[#4B5563]" /> GitHub Repository
                           </a>
                         )}
                         {order.handoverLinks?.driveZip && (
@@ -707,36 +704,36 @@ export default function DashboardOverview() {
                             href={order.handoverLinks.driveZip}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/5 text-white hover:bg-white/10 border border-white/10"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FFFFFF] text-[#111317] hover:bg-[#F1F2F4] border border-[rgba(21,24,29,0.10)] shadow-xs transition-colors"
                           >
-                            <Download className="w-3.5 h-3.5 text-emerald-400" /> Download Build ZIP
+                            <Download className="w-3.5 h-3.5 text-[#169B62]" /> Download Build ZIP
                           </a>
                         )}
                       </div>
                       {order.handoverNotes && (
-                        <p className="text-xs text-zinc-400 pt-1">{order.handoverNotes}</p>
+                        <p className="text-xs text-[#4B5563] pt-1">{order.handoverNotes}</p>
                       )}
                     </div>
                   )}
 
                   {/* ── Ongoing Website Maintenance & Support Section ── */}
                   {isCompleted && (
-                    <div className="p-5 rounded-2xl bg-gradient-to-r from-purple-950/20 via-indigo-950/20 to-black border border-purple-500/30 space-y-4">
+                    <div className="p-5 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] space-y-4">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-2.5">
-                          <div className="w-8 h-8 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
+                          <div className="w-8 h-8 rounded-xl bg-[#315EF7]/10 text-[#315EF7] flex items-center justify-center">
                             <Wrench className="w-4 h-4" />
                           </div>
                           <div>
-                            <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                            <h4 className="text-sm font-bold text-[#111317] flex items-center gap-2">
                               Website Maintenance & Dedicated Support
                               {order.maintenanceActive && (
-                                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono font-bold">
+                                <span className="text-[10px] bg-[#169B62]/10 text-[#169B62] border border-[#169B62]/20 px-2 py-0.5 rounded-full font-mono font-bold">
                                   ACTIVE COVERAGE
                                 </span>
                               )}
                             </h4>
-                            <p className="text-xs text-zinc-400">
+                            <p className="text-xs text-[#4B5563]">
                               {order.maintenanceActive
                                 ? `Covered until ${new Date(order.maintenanceExpiresAt || Date.now()).toLocaleDateString("en-IN", { month: "short", day: "numeric", year: "numeric" })} • Engineer: ${order.maintenanceAssignedDevName || "Assigned Lead"}`
                                 : "Keep your live website fast, bug-free, and updated with dedicated engineer coverage"}
@@ -746,7 +743,7 @@ export default function DashboardOverview() {
 
                         {order.maintenanceActive ? (
                           <Link href={`/dashboard/workspace?orderId=${order.id}`}>
-                            <Button variant="accent" size="sm" className="rounded-xl text-xs flex items-center gap-1.5 shrink-0 bg-purple-600 hover:bg-purple-700">
+                            <Button size="sm" className="rounded-xl text-xs flex items-center gap-1.5 shrink-0 bg-[#315EF7] hover:bg-[#2A50D4] text-white">
                               <Sparkles className="w-3.5 h-3.5" /> Open Maintenance Desk
                             </Button>
                           </Link>
@@ -760,9 +757,8 @@ export default function DashboardOverview() {
                                 title: "30-Day Website Maintenance Retainer",
                               })
                             }
-                            variant="accent"
                             size="sm"
-                            className="rounded-xl text-xs flex items-center gap-1.5 shrink-0 bg-purple-600 hover:bg-purple-700 font-bold"
+                            className="rounded-xl text-xs flex items-center gap-1.5 shrink-0 bg-[#315EF7] hover:bg-[#2A50D4] text-white font-semibold"
                           >
                             <Sparkles className="w-3.5 h-3.5" /> Activate Maintenance (₹1,999/mo)
                           </Button>
@@ -770,26 +766,26 @@ export default function DashboardOverview() {
                       </div>
 
                       {/* Maintenance Feature Perks */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-zinc-300 pt-2 border-t border-white/5">
-                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-2">
-                          <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-[#4B5563] pt-2 border-t border-[rgba(21,24,29,0.08)]">
+                        <div className="p-2.5 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.08)] flex items-start gap-2 shadow-xs">
+                          <ShieldCheck className="w-4 h-4 text-[#315EF7] shrink-0 mt-0.5" />
                           <div>
-                            <span className="font-bold text-white block">Uptime & Security</span>
-                            <span className="text-[11px] text-zinc-500">24/7 monitoring, backups & patches</span>
+                            <span className="font-bold text-[#111317] block">Uptime & Security</span>
+                            <span className="text-[11px] text-[#6B7280]">24/7 monitoring, backups & patches</span>
                           </div>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-2">
-                          <Zap className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                        <div className="p-2.5 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.08)] flex items-start gap-2 shadow-xs">
+                          <Zap className="w-4 h-4 text-[#B77900] shrink-0 mt-0.5" />
                           <div>
-                            <span className="font-bold text-white block">Priority Bug Fixes</span>
-                            <span className="text-[11px] text-zinc-500">Fast resolution for live site issues</span>
+                            <span className="font-bold text-[#111317] block">Fast Turnaround</span>
+                            <span className="text-[11px] text-[#6B7280]">Direct priority queue with your engineer</span>
                           </div>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/5 flex items-start gap-2">
-                          <Code className="w-4 h-4 text-pink-400 shrink-0 mt-0.5" />
+                        <div className="p-2.5 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.08)] flex items-start gap-2 shadow-xs">
+                          <Clock className="w-4 h-4 text-[#169B62] shrink-0 mt-0.5" />
                           <div>
-                            <span className="font-bold text-white block">Content & Feature Tweaks</span>
-                            <span className="text-[11px] text-zinc-500">Deploy copy, asset & layout edits</span>
+                            <span className="font-bold text-[#111317] block">Monthly Retainer</span>
+                            <span className="text-[11px] text-[#6B7280]">Cancel anytime with 1 click</span>
                           </div>
                         </div>
                       </div>
@@ -878,40 +874,40 @@ export default function DashboardOverview() {
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
             >
-              <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-xl p-6 sm:p-8 relative shadow-2xl my-8">
+              <div className="bg-[#FFFFFF] border border-[rgba(21,24,29,0.12)] rounded-xl w-full max-w-xl p-6 sm:p-8 relative shadow-[0_24px_70px_rgba(21,24,29,0.15)] my-8 text-[#111317]">
                 <button
                   onClick={() => setPayingMilestoneOrder(null)}
-                  className="absolute top-5 right-5 p-2 rounded-xl text-zinc-500 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="absolute top-5 right-5 p-2 rounded-xl text-[#6B7280] hover:text-[#111317] hover:bg-[rgba(21,24,29,0.05)] transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
 
                 {/* Modal Header */}
                 <div className="flex items-center gap-3 mb-5">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                  <div className="w-10 h-10 rounded-xl bg-[#315EF7]/10 flex items-center justify-center text-[#315EF7]">
                     <IndianRupee className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">
+                    <h3 className="text-lg font-extrabold text-[#111317]">
                       {payingMilestoneOrder.title}
                     </h3>
-                    <p className="text-xs text-zinc-400">
-                      Project: <span className="text-zinc-200 font-medium">{payingMilestoneOrder.order.planName}</span>
+                    <p className="text-xs text-[#4B5563]">
+                      Project: <span className="text-[#111317] font-semibold">{payingMilestoneOrder.order.planName}</span>
                     </p>
                   </div>
                 </div>
 
                 {/* Amount Due Banner */}
-                <div className="p-4 rounded-2xl bg-black/60 border border-white/10 mb-5 flex items-center justify-between">
+                <div className="p-4 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] mb-5 flex items-center justify-between">
                   <div>
-                    <span className="text-[11px] text-zinc-500 uppercase font-bold tracking-wider block">
+                    <span className="text-[11px] text-[#6B7280] uppercase font-bold tracking-wider block">
                       Amount Due
                     </span>
-                    <span className="text-2xl font-black text-white">
+                    <span className="text-2xl font-black text-[#111317]">
                       ₹{payingMilestoneOrder.amount.toLocaleString()}
                     </span>
                   </div>
-                  <span className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 font-bold">
+                  <span className="text-[10px] font-mono uppercase px-2.5 py-1 rounded-full bg-[#315EF7]/10 text-[#315EF7] border border-[#315EF7]/20 font-bold">
                     {payingMilestoneOrder.milestone === "advance"
                       ? "Milestone 1 (50%)"
                       : payingMilestoneOrder.milestone === "final"
@@ -921,14 +917,14 @@ export default function DashboardOverview() {
                 </div>
 
                 {/* Payment Method Selector Tabs */}
-                <div className="flex items-center gap-2 p-1 bg-white/[0.04] border border-white/10 rounded-xl mb-5 text-xs font-bold">
+                <div className="flex items-center gap-2 p-1 bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl mb-5 text-xs font-bold">
                   <button
                     type="button"
                     onClick={() => setPaymentTab("upi")}
                     className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       paymentTab === "upi"
-                        ? "bg-indigo-600 text-white shadow-lg"
-                        : "text-zinc-400 hover:text-white"
+                        ? "bg-[#111317] text-white shadow-xs"
+                        : "text-[#4B5563] hover:text-[#111317]"
                     }`}
                   >
                     <QrCode className="w-3.5 h-3.5" /> Direct UPI / QR Code
@@ -938,8 +934,8 @@ export default function DashboardOverview() {
                     onClick={() => setPaymentTab("gateway")}
                     className={`flex-1 py-2 rounded-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                       paymentTab === "gateway"
-                        ? "bg-indigo-600 text-white shadow-lg"
-                        : "text-zinc-400 hover:text-white"
+                        ? "bg-[#111317] text-white shadow-xs"
+                        : "text-[#4B5563] hover:text-[#111317]"
                     }`}
                   >
                     <CreditCard className="w-3.5 h-3.5" /> Online Gateway (Paytm)
@@ -949,13 +945,13 @@ export default function DashboardOverview() {
                 {/* TAB 1: Direct UPI QR Code & UTR Submission */}
                 {paymentTab === "upi" && (
                   <div className="space-y-4">
-                    <div className="p-4 rounded-2xl bg-black/40 border border-white/10 text-center space-y-3">
-                      <p className="text-xs text-amber-300 font-medium">
+                    <div className="p-4 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] text-center space-y-3">
+                      <p className="text-xs text-[#B77900] font-semibold">
                         Scan with any UPI App (Google Pay, PhonePe, Paytm, BHIM)
                       </p>
 
                       {/* Dynamic Amount QR Code */}
-                      <div className="w-40 h-40 mx-auto bg-white p-2 rounded-2xl shadow-xl flex items-center justify-center border border-white/20">
+                      <div className="w-40 h-40 mx-auto bg-white p-2 rounded-2xl shadow-sm flex items-center justify-center border border-[rgba(21,24,29,0.10)]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img
                           src={
@@ -973,10 +969,10 @@ export default function DashboardOverview() {
 
                       {/* UPI ID & Number with Copy Buttons */}
                       <div className="space-y-2 pt-1">
-                        <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between text-left">
+                        <div className="p-2.5 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] flex items-center justify-between text-left">
                           <div className="min-w-0">
-                            <span className="text-[10px] text-zinc-500 uppercase block font-bold">UPI ID:</span>
-                            <span className="text-xs font-mono font-bold text-indigo-300 truncate block">
+                            <span className="text-[10px] text-[#6B7280] uppercase block font-bold">UPI ID:</span>
+                            <span className="text-xs font-mono font-bold text-[#315EF7] truncate block">
                               {paymentSettings.upiId}
                             </span>
                           </div>
@@ -987,18 +983,18 @@ export default function DashboardOverview() {
                               setCopiedUpi(true);
                               setTimeout(() => setCopiedUpi(false), 2000);
                             }}
-                            className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors text-xs flex items-center gap-1 cursor-pointer"
+                            className="p-1.5 rounded-lg text-[#4B5563] hover:text-[#111317] hover:bg-[rgba(21,24,29,0.05)] transition-colors text-xs flex items-center gap-1 cursor-pointer"
                           >
-                            {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                            {copiedUpi ? <Check className="w-3.5 h-3.5 text-[#169B62]" /> : <Copy className="w-3.5 h-3.5" />}
                             <span className="text-[10px]">{copiedUpi ? "Copied" : "Copy"}</span>
                           </button>
                         </div>
 
                         {paymentSettings.upiNumber && (
-                          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between text-left">
+                          <div className="p-2.5 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] flex items-center justify-between text-left">
                             <div className="min-w-0">
-                              <span className="text-[10px] text-zinc-500 uppercase block font-bold">Paytm / PhonePe Number:</span>
-                              <span className="text-xs font-mono font-bold text-indigo-300 truncate block">
+                              <span className="text-[10px] text-[#6B7280] uppercase block font-bold">Paytm / PhonePe Number:</span>
+                              <span className="text-xs font-mono font-bold text-[#315EF7] truncate block">
                                 {paymentSettings.upiNumber}
                               </span>
                             </div>
@@ -1009,9 +1005,9 @@ export default function DashboardOverview() {
                                 setCopiedPhone(true);
                                 setTimeout(() => setCopiedPhone(false), 2000);
                               }}
-                              className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition-colors text-xs flex items-center gap-1 cursor-pointer"
+                              className="p-1.5 rounded-lg text-[#4B5563] hover:text-[#111317] hover:bg-[rgba(21,24,29,0.05)] transition-colors text-xs flex items-center gap-1 cursor-pointer"
                             >
-                              {copiedPhone ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                              {copiedPhone ? <Check className="w-3.5 h-3.5 text-[#169B62]" /> : <Copy className="w-3.5 h-3.5" />}
                               <span className="text-[10px]">{copiedPhone ? "Copied" : "Copy"}</span>
                             </button>
                           </div>
@@ -1022,8 +1018,8 @@ export default function DashboardOverview() {
                     {/* UTR Submission Form */}
                     <form onSubmit={handleSubmitUtr} className="space-y-3">
                       <div>
-                        <label className="text-xs font-bold text-zinc-300 block mb-1">
-                          Bank UTR / UPI Transaction Reference ID <span className="text-indigo-400">*</span>
+                        <label className="text-xs font-bold text-[#111317] block mb-1">
+                          Bank UTR / UPI Transaction Reference ID <span className="text-[#315EF7]">*</span>
                         </label>
                         <input
                           type="text"
@@ -1031,9 +1027,9 @@ export default function DashboardOverview() {
                           value={utrInput}
                           onChange={(e) => setUtrInput(e.target.value)}
                           placeholder="e.g. 423189023412 or UPI Ref No"
-                          className="w-full bg-[#18181b] border border-white/15 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 font-mono"
+                          className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-sm text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] font-mono"
                         />
-                        <p className="text-[11px] text-zinc-500 mt-1">
+                        <p className="text-[11px] text-[#6B7280] mt-1">
                           Enter the 12-digit reference number generated after completing your UPI transfer.
                         </p>
                       </div>
@@ -1044,16 +1040,15 @@ export default function DashboardOverview() {
                           variant="ghost"
                           size="sm"
                           onClick={() => setPayingMilestoneOrder(null)}
-                          className="text-xs"
+                          className="text-xs text-[#4B5563] hover:text-[#111317]"
                         >
                           Cancel
                         </Button>
                         <Button
                           type="submit"
-                          variant="accent"
                           size="sm"
                           disabled={submittingUtr || !utrInput.trim()}
-                          className="text-xs flex items-center gap-1.5"
+                          className="text-xs flex items-center gap-1.5 bg-[#315EF7] hover:bg-[#2A50D4] text-white"
                         >
                           {submittingUtr ? (
                             "Verifying..."
@@ -1071,22 +1066,21 @@ export default function DashboardOverview() {
                 {/* TAB 2: Online Payment Gateway (Paytm) */}
                 {paymentTab === "gateway" && (
                   <div className="space-y-4 py-2">
-                    <div className="p-4 rounded-2xl bg-indigo-950/20 border border-indigo-500/30 space-y-2 text-xs text-zinc-300">
-                      <div className="flex items-center gap-2 font-bold text-white">
-                        <ShieldCheck className="w-4 h-4 text-indigo-400" /> Paytm Secure Payment Gateway
+                    <div className="p-4 rounded-2xl bg-[#315EF7]/10 border border-[#315EF7]/20 space-y-2 text-xs text-[#111317]">
+                      <div className="flex items-center gap-2 font-bold text-[#111317]">
+                        <ShieldCheck className="w-4 h-4 text-[#315EF7]" /> Paytm Secure Payment Gateway
                       </div>
-                      <p>
+                      <p className="text-[#4B5563]">
                         Pay securely with Netbanking, Debit Card, Credit Card, or Paytm Wallet.
                       </p>
                     </div>
 
-                    <div className="p-4 rounded-2xl bg-black/40 border border-white/10 space-y-3">
-                      <div className="text-xs text-zinc-400">
+                    <div className="p-4 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] space-y-3">
+                      <div className="text-xs text-[#4B5563]">
                         Click below to launch the gateway checkout session for ₹{payingMilestoneOrder.amount.toLocaleString()}.
                       </div>
                       <Button
                         type="button"
-                        variant="accent"
                         size="sm"
                         disabled={initiatingPaytm}
                         onClick={() =>
@@ -1097,7 +1091,7 @@ export default function DashboardOverview() {
                             true
                           )
                         }
-                        className="w-full h-11 text-xs font-bold rounded-xl flex items-center justify-center gap-2"
+                        className="w-full h-11 text-xs font-semibold rounded-xl flex items-center justify-center gap-2 bg-[#111317] hover:bg-[#000000] text-white"
                       >
                         {initiatingPaytm ? (
                           "Initiating Secure Gateway..."

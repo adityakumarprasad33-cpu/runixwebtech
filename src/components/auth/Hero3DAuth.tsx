@@ -142,17 +142,17 @@ export function Hero3DAuth() {
   };
 
   return (
-    <div className="relative w-full h-full min-h-[460px] sm:min-h-[520px] lg:min-h-screen flex items-center justify-center overflow-visible bg-[#050505]">
+    <div className="relative w-full h-full min-h-[460px] sm:min-h-[520px] lg:min-h-screen flex items-center justify-center overflow-visible bg-[#E5E7EB]">
       {/* Background Ambient Lighting */}
       <motion.div
         variants={{
-          idle: { opacity: 0.4, scale: 1 },
-          authenticating: { opacity: 0.85, scale: 1.3, transition: { duration: 2 } },
-          burst: { opacity: 1, scale: 2, background: "rgba(99, 102, 241, 0.25)" }
+          idle: { opacity: 0.3, scale: 1 },
+          authenticating: { opacity: 0.7, scale: 1.2, transition: { duration: 2 } },
+          burst: { opacity: 0.9, scale: 1.8, background: "rgba(50, 107, 255, 0.20)" }
         }}
         initial="idle"
         animate={animationState}
-        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-[900px] h-[80vh] bg-indigo-600/12 blur-[140px] rounded-full pointer-events-none"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[90vw] max-w-[900px] h-[80vh] bg-[#315EF7]/10 blur-[120px] rounded-full pointer-events-none"
       />
 
       {/* 3D Scene Canvas */}
@@ -167,10 +167,10 @@ export function Hero3DAuth() {
           {/* ─── LAYER 1: BLUEPRINT ─── */}
           <motion.div
             variants={layer1Variants}
-            className="absolute inset-2 sm:inset-0 rounded-3xl bg-zinc-900/25 border border-white/8 backdrop-blur-sm p-6 shadow-[0_30px_60px_rgba(0,0,0,0.8)] overflow-hidden"
+            className="absolute inset-2 sm:inset-0 rounded-xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] backdrop-blur-sm p-6 shadow-[0_20px_50px_rgba(21,24,29,0.06)] overflow-hidden"
             style={{ transformStyle: "preserve-3d" }}
           >
-            <div className="absolute inset-0 bg-grid opacity-20" />
+            <div className="absolute inset-0 bg-grid opacity-25" />
             
             {/* Authenticating Scan Line */}
             <motion.div 
@@ -178,17 +178,17 @@ export function Hero3DAuth() {
                 idle: { opacity: 0, y: "-100%" },
                 authenticating: { opacity: 0.5, y: ["-100%", "200%"], transition: { duration: 2, repeat: Infinity, ease: "linear", delay: 0 } }
               }}
-              className="absolute left-0 right-0 h-32 bg-gradient-to-b from-transparent via-indigo-500/20 to-transparent blur-md"
+              className="absolute left-0 right-0 h-32 bg-gradient-to-b from-transparent via-[#315EF7]/15 to-transparent blur-md"
             />
 
-            <div className="grid grid-cols-4 gap-4 relative z-10 my-auto h-full items-end opacity-40">
+            <div className="grid grid-cols-4 gap-4 relative z-10 my-auto h-full items-end opacity-70">
               {[Database, Lock, Server, Layers].map((Icon, i) => (
-                <div key={i} className="h-16 rounded-xl border border-white/10 bg-white/[0.02] flex flex-col justify-center items-center">
-                  <Icon className="w-4 h-4 text-zinc-500 mb-2" />
+                <div key={i} className="h-16 rounded-xl border border-[rgba(21,24,29,0.10)] bg-[#FFFFFF] flex flex-col justify-center items-center shadow-xs">
+                  <Icon className="w-4 h-4 text-[#4B5563] mb-2" />
                   <motion.div 
                     variants={{
-                      idle: { width: "20%", backgroundColor: "rgba(113, 113, 122, 0.3)" },
-                      authenticating: { width: "80%", backgroundColor: "rgba(99, 102, 241, 0.6)", transition: { delay: i * 0.1 } }
+                      idle: { width: "20%", backgroundColor: "rgba(21, 24, 29, 0.15)" },
+                      authenticating: { width: "80%", backgroundColor: "rgba(50, 107, 255, 0.7)", transition: { delay: i * 0.1 } }
                     }}
                     className="h-1 rounded-full"
                   />
@@ -200,27 +200,27 @@ export function Hero3DAuth() {
           {/* ─── LAYER 2: TERMINAL ─── */}
           <motion.div
             variants={layer2Variants}
-            className="absolute left-1/4 top-1/4 w-64 rounded-xl bg-[#0a0a0c]/95 border border-white/10 backdrop-blur-2xl shadow-[0_20px_40px_rgba(0,0,0,0.9)] overflow-hidden"
+            className="absolute left-1/4 top-1/4 w-64 rounded-xl bg-[#111317] border border-[rgba(21,24,29,0.20)] shadow-[0_20px_40px_rgba(21,24,29,0.14)] overflow-hidden"
             style={{ transformStyle: "preserve-3d" }}
           >
-            <div className="h-6 bg-white/5 border-b border-white/10 px-3 flex items-center justify-between">
+            <div className="h-6 bg-[#0E1013] border-b border-white/10 px-3 flex items-center justify-between">
               <div className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-red-500/50" />
-                <div className="w-1.5 h-1.5 rounded-full bg-yellow-500/50" />
-                <div className="w-1.5 h-1.5 rounded-full bg-green-500/50" />
+                <div className="w-1.5 h-1.5 rounded-full bg-red-500/60" />
+                <div className="w-1.5 h-1.5 rounded-full bg-yellow-500/60" />
+                <div className="w-1.5 h-1.5 rounded-full bg-green-500/60" />
               </div>
-              <Code2 className="w-3 h-3 text-zinc-600" />
+              <Code2 className="w-3 h-3 text-zinc-500" />
             </div>
             <div className="p-4 font-mono text-[10px] leading-relaxed relative min-h-[100px]">
               {/* Idle State Text */}
-              <motion.div variants={{ idle: { opacity: 1 }, authenticating: { opacity: 0 } }} className="absolute inset-0 p-4 text-zinc-400">
-                <p><span className="text-purple-400">import</span> <span className="text-white">{"{ auth }"}</span> <span className="text-purple-400">from</span> <span className="text-emerald-400">'@runix/core'</span>;</p>
-                <p className="mt-2 text-zinc-600">// awaiting connection...</p>
+              <motion.div variants={{ idle: { opacity: 1 }, authenticating: { opacity: 0 } }} className="absolute inset-0 p-4 text-zinc-300">
+                <p><span className="text-[#315EF7]">import</span> <span className="text-white">{"{ auth }"}</span> <span className="text-[#315EF7]">from</span> <span className="text-[#169B62]">'@runix/core'</span>;</p>
+                <p className="mt-2 text-zinc-500">// awaiting connection...</p>
               </motion.div>
               
               {/* Authenticating State Text */}
               <motion.div variants={{ idle: { opacity: 0, display: "none" }, authenticating: { opacity: 1, display: "block" } }} className="absolute inset-0 p-4">
-                <motion.p variants={{ idle: { opacity: 0 }, authenticating: { opacity: 1, transition: { delay: 0.1 } } }} className="text-zinc-300"><span className="text-indigo-400">&gt;</span> Authenticating...</motion.p>
+                <motion.p variants={{ idle: { opacity: 0 }, authenticating: { opacity: 1, transition: { delay: 0.1 } } }} className="text-zinc-200"><span className="text-[#315EF7]">&gt;</span> Authenticating session...</motion.p>
               </motion.div>
             </div>
           </motion.div>
@@ -232,32 +232,32 @@ export function Hero3DAuth() {
             style={{ transformStyle: "preserve-3d" }}
           >
             {/* Metric 1 */}
-            <div className="rounded-xl bg-[#0c0c10]/95 border border-white/10 backdrop-blur-xl p-3 shadow-[0_15px_30px_rgba(0,0,0,0.8)]">
+            <div className="rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] p-3 shadow-[0_15px_30px_rgba(21,24,29,0.06)]">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-[10px] font-bold text-white tracking-wider">AUTH STATUS</span>
+                <span className="text-[10px] font-bold text-[#111317] tracking-wider font-mono">AUTH STATUS</span>
                 <motion.span 
-                  variants={{ idle: { backgroundColor: "#52525b" }, authenticating: { backgroundColor: "#10b981", transition: { delay: 0.2 } } }} 
+                  variants={{ idle: { backgroundColor: "#6B7280" }, authenticating: { backgroundColor: "#169B62", transition: { delay: 0.2 } } }} 
                   className="w-1.5 h-1.5 rounded-full" 
                 />
               </div>
               <motion.div 
                 variants={{ idle: { opacity: 0 }, authenticating: { opacity: 1, transition: { delay: 0.2 } } }}
-                className="text-[10px] text-zinc-400 font-mono flex items-center gap-1"
+                className="text-[10px] text-[#4B5563] font-mono flex items-center gap-1"
               >
                 Processing <span className="animate-pulse">...</span>
               </motion.div>
             </div>
 
             {/* Metric 2 */}
-            <div className="rounded-lg bg-[#0f0f14]/95 border border-white/10 backdrop-blur-md p-3">
+            <div className="rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] p-3 shadow-[0_10px_20px_rgba(21,24,29,0.04)]">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
-                  <span className="text-[10px] font-bold text-white">Security</span>
+                  <ShieldCheck className="w-3.5 h-3.5 text-[#315EF7]" />
+                  <span className="text-[10px] font-bold text-[#111317]">Security</span>
                 </div>
                 <motion.span 
                   variants={{ idle: { opacity: 0 }, authenticating: { opacity: 1, transition: { delay: 0.4 } } }}
-                  className="text-[9px] text-indigo-400 font-mono"
+                  className="text-[9px] text-[#315EF7] font-mono font-bold"
                 >
                   ACTIVE
                 </motion.span>
@@ -266,12 +266,12 @@ export function Hero3DAuth() {
           </motion.div>
 
           {/* ─── LAYER 3b: WAVE GRAPH ─── */}
-          <motion.div variants={graphLayerVariants} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-32 flex items-center justify-center pointer-events-none mix-blend-screen">
-            <svg viewBox="0 0 400 100" className="w-[120%] h-full opacity-50">
+          <motion.div variants={graphLayerVariants} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-32 flex items-center justify-center pointer-events-none opacity-40">
+            <svg viewBox="0 0 400 100" className="w-[120%] h-full">
               <motion.path 
                 d="M0,50 Q40,10 80,50 T160,50 T240,50 T320,50 T400,50" 
                 fill="none" 
-                stroke="url(#graphGradient)" 
+                stroke="#315EF7" 
                 strokeWidth="2"
                 variants={{
                   idle: { d: "M0,50 Q40,40 80,50 T160,50 T240,50 T320,50 T400,50" },
@@ -285,44 +285,35 @@ export function Hero3DAuth() {
                   }
                 }}
               />
-              <defs>
-                <linearGradient id="graphGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#4f46e5" stopOpacity="0" />
-                  <stop offset="50%" stopColor="#8b5cf6" stopOpacity="1" />
-                  <stop offset="100%" stopColor="#4f46e5" stopOpacity="0" />
-                </linearGradient>
-              </defs>
             </svg>
           </motion.div>
 
           {/* ─── SECURITY PATHS ─── */}
           <motion.div variants={securityPathVariants} className="absolute inset-0 pointer-events-none">
-             {/* Subtle glowing lines connecting layers conceptually */}
-             <div className="absolute top-[30%] left-[35%] w-[30%] h-[1px] bg-gradient-to-r from-indigo-500/0 via-indigo-400 to-indigo-500/0 rotate-12 blur-[1px]" />
-             <div className="absolute top-[60%] right-[30%] w-[20%] h-[1px] bg-gradient-to-r from-purple-500/0 via-purple-400 to-purple-500/0 -rotate-12 blur-[1px]" />
+             {/* Subtle lines connecting layers conceptually */}
+             <div className="absolute top-[30%] left-[35%] w-[30%] h-[1px] bg-gradient-to-r from-transparent via-[#315EF7]/40 to-transparent rotate-12 blur-[1px]" />
+             <div className="absolute top-[60%] right-[30%] w-[20%] h-[1px] bg-gradient-to-r from-transparent via-[#315EF7]/30 to-transparent -rotate-12 blur-[1px]" />
           </motion.div>
 
           {/* ─── LAYER 4: BROWSER (Focal Point) ─── */}
           <motion.div
             variants={layer4Variants}
-            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] max-w-[500px] h-64 rounded-2xl bg-[#08080a]/95 border border-white/12 backdrop-blur-3xl shadow-[0_40px_100px_rgba(0,0,0,0.95)] flex flex-col overflow-hidden"
+            className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] max-w-[500px] h-64 rounded-2xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.12)] shadow-[0_30px_70px_rgba(21,24,29,0.08)] flex flex-col overflow-hidden"
             style={{ transformStyle: "preserve-3d" }}
           >
-            <div className="h-9 bg-[#0e0e12] border-b border-white/10 px-4 flex items-center justify-between">
+            <div className="h-9 bg-[#FAFAFA] border-b border-[rgba(21,24,29,0.08)] px-4 flex items-center justify-between">
               <div className="w-8" /> {/* Spacer */}
-              <div className="bg-black/80 border border-white/5 rounded-full px-4 py-1 text-[10px] font-mono text-zinc-400 flex items-center gap-2">
-                <Lock className="w-2.5 h-2.5 text-emerald-400" />
+              <div className="bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] rounded-full px-4 py-1 text-[10px] font-mono text-[#4B5563] flex items-center gap-2 shadow-xs">
+                <Lock className="w-2.5 h-2.5 text-[#169B62]" />
                 auth.runix.tech
               </div>
               <div className="w-8" /> {/* Spacer */}
             </div>
             
-            <div className="flex-1 p-6 bg-gradient-to-br from-[#0e0e12] to-[#050505] relative overflow-hidden flex flex-col justify-center">
-              <div className="absolute top-0 right-0 w-48 h-48 bg-indigo-500/10 rounded-full blur-[80px]" />
-              
+            <div className="flex-1 p-6 bg-[#FFFFFF] relative overflow-hidden flex flex-col justify-center">
               <div className="relative z-10 w-full max-w-[320px] mx-auto">
-                <h3 className="font-jakarta text-lg font-bold text-white mb-4 tracking-wide flex items-center gap-2">
-                  <Activity className="w-4 h-4 text-indigo-400" />
+                <h3 className=" text-lg font-bold text-[#111317] mb-4 tracking-tight flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-[#315EF7]" />
                   Authentication Pipeline
                 </h3>
                 
@@ -359,17 +350,17 @@ export function Hero3DAuth() {
             className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-[85%] max-w-[500px] flex justify-center gap-4 md:gap-6 pointer-events-none"
             style={{ transformStyle: "preserve-3d" }}
           >
-            <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#08080a]/80 border border-white/10 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span className="text-[10px] font-bold text-zinc-300 tracking-wider">SOC2 CERTIFIED</span>
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] shadow-[0_10px_25px_rgba(21,24,29,0.05)]">
+              <ShieldCheck className="w-3.5 h-3.5 text-[#169B62]" />
+              <span className="text-[10px] font-bold text-[#111317] tracking-wider font-mono">SOC2 VERIFIED</span>
             </div>
-            <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#08080a]/80 border border-white/10 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
-              <Lock className="w-4 h-4 text-purple-400" />
-              <span className="text-[10px] font-bold text-zinc-300 tracking-wider">AES-256 ENCRYPTION</span>
+            <div className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] shadow-[0_10px_25px_rgba(21,24,29,0.05)]">
+              <Lock className="w-3.5 h-3.5 text-[#315EF7]" />
+              <span className="text-[10px] font-bold text-[#111317] tracking-wider font-mono">AES-256</span>
             </div>
-            <div className="hidden md:flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#08080a]/80 border border-white/10 backdrop-blur-md shadow-[0_20px_40px_rgba(0,0,0,0.8)]">
-              <Zap className="w-4 h-4 text-indigo-400" />
-              <span className="text-[10px] font-bold text-zinc-300 tracking-wider">99.99% UPTIME</span>
+            <div className="hidden md:flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] shadow-[0_10px_25px_rgba(21,24,29,0.05)]">
+              <Zap className="w-3.5 h-3.5 text-[#B77900]" />
+              <span className="text-[10px] font-bold text-[#111317] tracking-wider font-mono">99.99% UPTIME</span>
             </div>
           </motion.div>
 
@@ -378,11 +369,8 @@ export function Hero3DAuth() {
             variants={sparkVariants}
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 flex items-center justify-center pointer-events-none"
           >
-            {/* Tiny white-hot head */}
-            <div className="w-2 h-2 bg-white rounded-full shadow-[0_0_10px_2px_#fff]" />
-            {/* Cyan/Indigo trailing energy */}
-            <div className="absolute right-full top-1/2 -translate-y-1/2 w-16 h-[2px] bg-gradient-to-r from-cyan-400 via-indigo-500 to-transparent blur-[1px]" />
-            <div className="absolute w-8 h-8 bg-cyan-400/30 rounded-full blur-[10px]" />
+            <div className="w-2 h-2 bg-[#315EF7] rounded-full shadow-[0_0_10px_2px_#315EF7]" />
+            <div className="absolute right-full top-1/2 -translate-y-1/2 w-16 h-[2px] bg-gradient-to-r from-[#315EF7] to-transparent blur-[1px]" />
           </motion.div>
 
           {/* Organic Irregular Plasma Burst */}
@@ -390,15 +378,7 @@ export function Hero3DAuth() {
             variants={burstVariants}
             className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 pointer-events-none flex items-center justify-center"
           >
-            {/* White impact core */}
-            <div className="absolute w-12 h-12 bg-white rounded-full blur-[4px] mix-blend-overlay" />
-            {/* Organic irregular plasma filaments */}
-            <div className="absolute w-32 h-32 bg-cyan-300 rounded-full blur-[15px] mix-blend-color-dodge opacity-80" />
-            <div className="absolute w-48 h-48 bg-indigo-500 rounded-full blur-[25px] opacity-60" />
-            <div className="absolute w-64 h-64 bg-purple-600 rounded-full blur-[40px] opacity-40" />
-            {/* Energy rays (horizontal/vertical stretch) */}
-            <div className="absolute w-[200%] h-2 bg-white/40 blur-[2px] rotate-45 mix-blend-overlay" />
-            <div className="absolute w-[200%] h-2 bg-white/40 blur-[2px] -rotate-45 mix-blend-overlay" />
+            <div className="absolute w-24 h-24 bg-[#315EF7]/30 rounded-full blur-[16px]" />
           </motion.div>
 
         </motion.div>
@@ -410,12 +390,12 @@ export function Hero3DAuth() {
 // ─── HELPER COMPONENT FOR PIPELINE CARDS ───
 function PipelineCard({ icon: Icon, title, subtitle }: { icon: any, title: string, subtitle: string }) {
   return (
-    <div className="bg-white/[0.02] border border-white/5 rounded-lg p-2.5 flex flex-col justify-center relative overflow-hidden">
-      <div className="flex items-center gap-2 mb-1.5 opacity-80">
-        <Icon className="w-3 h-3 text-zinc-400" />
-        <span className="text-[9px] font-bold text-zinc-300 tracking-wider">{title}</span>
+    <div className="bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] rounded-xl p-2.5 flex flex-col justify-center relative overflow-hidden">
+      <div className="flex items-center gap-2 mb-1">
+        <Icon className="w-3 h-3 text-[#315EF7]" />
+        <span className="text-[9px] font-bold text-[#111317] tracking-wider font-mono">{title}</span>
       </div>
-      <div className="text-[9px] text-zinc-500 font-mono">
+      <div className="text-[9px] text-[#6B7280] font-mono">
         {subtitle}
       </div>
     </div>

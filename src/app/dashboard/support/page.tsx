@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/Button";
 import { MessageSquare, Mail, ArrowRight, HelpCircle, Book, ExternalLink } from "lucide-react";
 
 const faqs = [
@@ -20,8 +19,8 @@ export default function SupportPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8">
       <div>
-        <h1 className="text-2xl font-bold text-white font-jakarta tracking-tight">Support</h1>
-        <p className="text-zinc-500 text-sm mt-1">Need help? Reach out to us or find answers below.</p>
+        <h1 className="text-2xl font-bold text-[#111317]  tracking-tight">Support Desk</h1>
+        <p className="text-[#4B5563] text-sm mt-1">Need help with your sprint or deployment? Reach our engineering team or explore FAQs.</p>
       </div>
 
       {/* Contact Cards */}
@@ -29,16 +28,16 @@ export default function SupportPage() {
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-[#111] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-colors group cursor-pointer"
+          className="bg-white border border-[rgba(21,24,29,0.10)] rounded-2xl p-6 hover:border-[rgba(21,24,29,0.16)] transition-all shadow-[0_12px_40px_rgba(21,24,29,0.04)] group cursor-pointer"
           onClick={() => router.push("/contact")}
         >
-          <div className="w-11 h-11 rounded-xl bg-indigo-500/10 flex items-center justify-center mb-4">
-            <MessageSquare className="w-5 h-5 text-indigo-400" />
+          <div className="w-11 h-11 rounded-xl bg-[#315EF7]/10 flex items-center justify-center mb-4">
+            <MessageSquare className="w-5 h-5 text-[#315EF7]" />
           </div>
-          <h3 className="text-base font-bold text-white mb-1">Send an Inquiry</h3>
-          <p className="text-sm text-zinc-500 mb-4">Submit your question or concern and we'll get back to you within 24 hours.</p>
-          <span className="text-xs text-indigo-400 font-semibold flex items-center gap-1 group-hover:gap-2 transition-all">
-            Go to Contact <ArrowRight className="w-3 h-3" />
+          <h3 className="text-base font-bold text-[#111317] mb-1">Send an Engineering Inquiry</h3>
+          <p className="text-sm text-[#4B5563] mb-4">Submit your technical question or sprint adjustment and we'll reply within 24 hours.</p>
+          <span className="text-xs text-[#315EF7] font-semibold flex items-center gap-1 group-hover:gap-2 transition-all">
+            Go to Contact Desk <ArrowRight className="w-3 h-3" />
           </span>
         </motion.div>
 
@@ -46,44 +45,44 @@ export default function SupportPage() {
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.08 }}
-          className="bg-[#111] border border-white/5 rounded-2xl p-6 hover:border-white/10 transition-colors"
+          className="bg-white border border-[rgba(21,24,29,0.10)] rounded-2xl p-6 hover:border-[rgba(21,24,29,0.16)] transition-all shadow-[0_12px_40px_rgba(21,24,29,0.04)]"
         >
-          <div className="w-11 h-11 rounded-xl bg-emerald-500/10 flex items-center justify-center mb-4">
-            <Mail className="w-5 h-5 text-emerald-400" />
+          <div className="w-11 h-11 rounded-xl bg-[#169B62]/10 flex items-center justify-center mb-4">
+            <Mail className="w-5 h-5 text-[#169B62]" />
           </div>
-          <h3 className="text-base font-bold text-white mb-1">Email Us Directly</h3>
-          <p className="text-sm text-zinc-500 mb-4">For urgent matters, email us and we'll prioritize your request.</p>
-          <a href="mailto:support@runixweb.com" className="text-xs text-emerald-400 font-semibold flex items-center gap-1 hover:gap-2 transition-all">
+          <h3 className="text-base font-bold text-[#111317] mb-1">Direct Engineering Mail</h3>
+          <p className="text-sm text-[#4B5563] mb-4">For urgent build incidents or deployment escalations, email directly.</p>
+          <a href="mailto:support@runixweb.com" className="text-xs text-[#169B62] font-semibold flex items-center gap-1 hover:gap-2 transition-all">
             support@runixweb.com <ExternalLink className="w-3 h-3" />
           </a>
         </motion.div>
       </div>
 
       {/* FAQ Section */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }} className="bg-[#111] border border-white/5 rounded-2xl overflow-hidden">
-        <div className="p-6 border-b border-white/5 flex items-center gap-3">
-          <Book className="w-4 h-4 text-zinc-500" />
-          <h2 className="text-base font-bold text-white">Frequently Asked Questions</h2>
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.16 }} className="bg-white border border-[rgba(21,24,29,0.10)] rounded-2xl overflow-hidden shadow-[0_12px_40px_rgba(21,24,29,0.06)]">
+        <div className="p-6 border-b border-[rgba(21,24,29,0.08)] bg-[#FAFAFA] flex items-center gap-3">
+          <Book className="w-4 h-4 text-[#6B7280]" />
+          <h2 className="text-base font-bold text-[#111317]">Frequently Asked Questions</h2>
         </div>
-        <div className="divide-y divide-white/5">
+        <div className="divide-y divide-[rgba(21,24,29,0.06)]">
           {faqs.map((faq, i) => (
             <button
               key={i}
               onClick={() => setOpenFaq(openFaq === i ? null : i)}
-              className="w-full text-left p-5 hover:bg-white/[0.02] transition-colors"
+              className="w-full text-left p-5 hover:bg-[#F1F2F4]/50 transition-colors"
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <HelpCircle className="w-4 h-4 text-zinc-600 shrink-0" />
-                  <span className="text-sm font-semibold text-white">{faq.q}</span>
+                  <HelpCircle className="w-4 h-4 text-[#6B7280] shrink-0" />
+                  <span className="text-sm font-semibold text-[#111317]">{faq.q}</span>
                 </div>
-                <span className={`text-zinc-500 transition-transform duration-200 ${openFaq === i ? "rotate-45" : ""}`}>+</span>
+                <span className={`text-[#6B7280] transition-transform duration-200 ${openFaq === i ? "rotate-45" : ""}`}>+</span>
               </div>
               {openFaq === i && (
                 <motion.p
                   initial={{ opacity: 0, height: 0 }}
                   animate={{ opacity: 1, height: "auto" }}
-                  className="text-sm text-zinc-400 mt-3 ml-7 leading-relaxed"
+                  className="text-sm text-[#4B5563] mt-3 ml-7 leading-relaxed"
                 >
                   {faq.a}
                 </motion.p>

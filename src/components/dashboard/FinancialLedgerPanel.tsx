@@ -955,7 +955,7 @@ export default function FinancialLedgerPanel({
 
           <div className="grid grid-cols-1 gap-4">
             {orders.filter((o) => !!o.assignedDeveloperId).length === 0 ? (
-              <div className="p-12 text-center text-zinc-500 bg-white/[0.01] border border-white/5 rounded-3xl">
+              <div className="p-12 text-center text-zinc-500 bg-white/[0.01] border border-white/5 rounded-xl">
                 No developer-assigned projects found. Assign developers to client projects in the Orders & Payments tab.
               </div>
             ) : (
@@ -971,7 +971,7 @@ export default function FinancialLedgerPanel({
                   return (
                     <div
                       key={o.id}
-                      className="p-5 sm:p-6 rounded-3xl bg-[#0e0e0e] border border-white/10 space-y-4 hover:border-white/20 transition-all shadow-xl"
+                      className="p-5 sm:p-6 rounded-xl bg-[#0e0e0e] border border-white/10 space-y-4 hover:border-white/20 transition-all shadow-xl"
                     >
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
                         {/* Project & Dev Details */}
@@ -1061,10 +1061,10 @@ export default function FinancialLedgerPanel({
 
       {/* ── TAB 3: FORMAL PROFIT & LOSS STATEMENT ── */}
       {activeSubTab === "statement" && (
-        <div className="p-6 sm:p-8 rounded-3xl bg-[#0e0e0e] border border-white/10 space-y-6 shadow-2xl">
+        <div className="p-6 sm:p-8 rounded-xl bg-[#0e0e0e] border border-white/10 space-y-6 shadow-2xl">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-white/10">
             <div>
-              <h3 className="text-lg font-black text-white font-jakarta">RUNIX WEBTECH — FINANCIAL STATEMENT</h3>
+              <h3 className="text-lg font-black text-white ">RUNIX WEBTECH — FINANCIAL STATEMENT</h3>
               <p className="text-xs text-zinc-400 mt-0.5">
                 Profit & Loss Account · Period: {timeframe.replace(/_/g, " ").toUpperCase()} (INR)
               </p>
@@ -1132,7 +1132,7 @@ export default function FinancialLedgerPanel({
             {/* Net Operating Income Result */}
             <div className="pt-4 border-t-2 border-white/20">
               <div className="flex justify-between items-center py-3 px-4 bg-white/5 rounded-xl text-base font-black text-white">
-                <span className="font-jakarta">NET OPERATING INCOME (EBITDA / PROFIT):</span>
+                <span className="">NET OPERATING INCOME (EBITDA / PROFIT):</span>
                 <span className={metrics.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}>
                   ₹{metrics.netProfit.toLocaleString()}
                 </span>
@@ -1242,7 +1242,7 @@ export default function FinancialLedgerPanel({
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 className="fixed inset-0 z-50 flex items-center justify-center p-4"
               >
-                <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-xl p-6 sm:p-8 relative shadow-2xl space-y-6">
+                <div className="bg-[#111] border border-white/15 rounded-xl w-full max-w-xl p-6 sm:p-8 relative shadow-2xl space-y-6">
                   <div className="flex items-center justify-between border-b border-white/10 pb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center font-bold text-sm">
@@ -1410,7 +1410,7 @@ export default function FinancialLedgerPanel({
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-lg p-6 sm:p-8 relative shadow-2xl space-y-5">
+              <div className="bg-[#111] border border-white/15 rounded-xl w-full max-w-lg p-6 sm:p-8 relative shadow-2xl space-y-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-red-500/10 text-red-400 flex items-center justify-center">

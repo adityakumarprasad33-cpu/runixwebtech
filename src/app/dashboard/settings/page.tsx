@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { doc, onSnapshot, updateDoc } from "firebase/firestore";
-import { updateProfile } from "firebase/auth";
 import { db } from "@/lib/firebase";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/Button";
@@ -18,7 +17,6 @@ import {
   Building2,
   QrCode,
   ShieldCheck,
-  Sparkles,
 } from "lucide-react";
 import { safeFetchJson } from "@/lib/safeFetch";
 
@@ -107,14 +105,11 @@ export default function SettingsPage() {
         location: profile.location,
         updatedAt: new Date().toISOString(),
       });
-      if (user) {
-        await updateProfile(user, { displayName: profile.name });
-      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
-    } catch (err) {
-      console.error("Failed to update profile:", err);
-      alert("Failed to update profile details.");
+    } catch (err: any) {
+      console.error("Failed to save profile:", err);
+      alert(err.message || "Failed to update profile");
     } finally {
       setSaving(false);
     }
@@ -123,18 +118,8 @@ export default function SettingsPage() {
   const handleSavePayoutDetails = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-
-    if (payoutType === "upi" && !upiId.trim()) {
-      alert("Please enter a valid UPI VPA ID (e.g. yourname@okhdfcbank)");
-      return;
-    }
-
-    if (payoutType === "bank" && (!accountNumber.trim() || !ifscCode.trim())) {
-      alert("Please enter Bank Account Number and IFSC code.");
-      return;
-    }
-
     setSavingPayout(true);
+
     const payoutPayload = {
       type: payoutType,
       upiId: upiId.trim(),
@@ -168,7 +153,6 @@ export default function SettingsPage() {
       setTimeout(() => setSavedPayout(false), 3000);
     } catch (err: any) {
       console.error("Failed to save payout settings:", err);
-      // Fallback
       try {
         await updateDoc(doc(db, "users", user.uid), {
           payoutDetails: payoutPayload,
@@ -187,7 +171,7 @@ export default function SettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="w-8 h-8 border-[3px] border-white/10 border-t-indigo-500 rounded-full animate-spin" />
+        <div className="w-8 h-8 border-[3px] border-[rgba(21,24,29,0.10)] border-t-[#315EF7] rounded-full animate-spin" />
       </div>
     );
   }
@@ -195,78 +179,78 @@ export default function SettingsPage() {
   return (
     <div className="max-w-4xl mx-auto space-y-8 pb-12">
       <div>
-        <h1 className="text-2xl font-bold text-white font-jakarta tracking-tight">Account & Payout Settings</h1>
-        <p className="text-zinc-400 text-sm mt-1">
+        <h1 className="text-2xl font-bold text-[#111317]  tracking-tight">Account & Payout Settings</h1>
+        <p className="text-[#4B5563] text-sm mt-1">
           Manage your personal details and configure your preferred UPI or Bank disbursement channels.
         </p>
       </div>
 
       {/* Profile Form */}
-      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-[#111] border border-white/5 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
-        <h2 className="text-base font-bold text-white flex items-center gap-2">
-          <User className="w-4 h-4 text-indigo-400" /> Profile Information
+      <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-white border border-[rgba(21,24,29,0.10)] rounded-xl p-6 sm:p-8 space-y-6 shadow-[0_12px_40px_rgba(21,24,29,0.06)]">
+        <h2 className="text-base font-bold text-[#111317] flex items-center gap-2">
+          <User className="w-4 h-4 text-[#315EF7]" /> Profile Information
         </h2>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
           {/* Name */}
           <div>
-            <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-2 block">Full Name</label>
+            <label className="text-xs text-[#4B5563] font-semibold uppercase tracking-wider mb-2 block">Full Name</label>
             <div className="relative">
-              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
               <input
                 type="text"
                 value={profile.name}
                 onChange={(e) => setProfile({ ...profile, name: e.target.value })}
-                className="w-full bg-[#18181b] border border-white/10 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl pl-11 pr-4 py-2.5 text-sm text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white transition-colors"
               />
             </div>
           </div>
 
           {/* Email (readonly) */}
           <div>
-            <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-2 block">Email Address</label>
+            <label className="text-xs text-[#4B5563] font-semibold uppercase tracking-wider mb-2 block">Email Address</label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
               <input
                 type="email"
                 value={profile.email}
                 readOnly
-                className="w-full bg-white/[0.02] border border-white/5 rounded-xl pl-11 pr-4 py-2.5 text-sm text-zinc-500 cursor-not-allowed"
+                className="w-full bg-[#E5E7EB] border border-[rgba(21,24,29,0.10)] rounded-xl pl-11 pr-4 py-2.5 text-sm text-[#6B7280] cursor-not-allowed"
               />
             </div>
           </div>
 
           {/* Phone */}
           <div>
-            <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-2 block">Phone Number</label>
+            <label className="text-xs text-[#4B5563] font-semibold uppercase tracking-wider mb-2 block">Phone Number</label>
             <div className="relative">
-              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
               <input
                 type="tel"
                 value={profile.phone}
                 onChange={(e) => setProfile({ ...profile, phone: e.target.value })}
-                className="w-full bg-[#18181b] border border-white/10 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl pl-11 pr-4 py-2.5 text-sm text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white transition-colors"
               />
             </div>
           </div>
 
           {/* Location */}
           <div>
-            <label className="text-xs text-zinc-400 font-semibold uppercase tracking-wider mb-2 block">Location / City</label>
+            <label className="text-xs text-[#4B5563] font-semibold uppercase tracking-wider mb-2 block">Location / City</label>
             <div className="relative">
-              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
+              <MapPin className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-[#6B7280]" />
               <input
                 type="text"
                 value={profile.location}
                 onChange={(e) => setProfile({ ...profile, location: e.target.value })}
-                className="w-full bg-[#18181b] border border-white/10 rounded-xl pl-11 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl pl-11 pr-4 py-2.5 text-sm text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white transition-colors"
               />
             </div>
           </div>
         </div>
 
         {/* Save Profile Button */}
-        <div className="flex items-center gap-4 pt-4 border-t border-white/5">
+        <div className="flex items-center gap-4 pt-4 border-t border-[rgba(21,24,29,0.08)]">
           <Button onClick={handleSaveProfile} variant="accent" className="rounded-xl h-10 px-6 text-xs" disabled={saving}>
             {saving ? (
               "Saving..."
@@ -277,7 +261,7 @@ export default function SettingsPage() {
             )}
           </Button>
           {saved && (
-            <motion.span initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
+            <motion.span initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-1.5 text-[#169B62] text-xs font-medium">
               <CheckCircle2 className="w-4 h-4" /> Saved successfully
             </motion.span>
           )}
@@ -286,18 +270,18 @@ export default function SettingsPage() {
 
       {/* Payout & Banking Configuration (Visible to Developers, Admins & Staff) */}
       {(isDeveloper || isAdmin || isSuperAdmin) && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-gradient-to-br from-indigo-950/20 via-[#111] to-black border border-indigo-500/20 rounded-3xl p-6 sm:p-8 space-y-6 shadow-xl">
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} className="bg-white border border-[rgba(21,24,29,0.10)] rounded-xl p-6 sm:p-8 space-y-6 shadow-[0_12px_40px_rgba(21,24,29,0.06)]">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <CreditCard className="w-4 h-4 text-emerald-400" /> Payout & Banking Disbursement Channel
+              <h2 className="text-base font-bold text-[#111317] flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-[#169B62]" /> Payout & Banking Disbursement Channel
               </h2>
-              <p className="text-xs text-zinc-400 mt-1">
-                Configure your payment details to receive your <strong className="text-emerald-400">40% Sprint Revenue Shares</strong> and SLA Retainers directly to your UPI or Bank.
+              <p className="text-xs text-[#4B5563] mt-1">
+                Configure your payment details to receive your <strong className="text-[#169B62]">40% Sprint Revenue Shares</strong> and SLA Retainers directly to your UPI or Bank.
               </p>
             </div>
 
-            <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2.5 py-1 rounded-full w-fit">
+            <span className="text-[10px] font-mono font-bold uppercase tracking-wider bg-[#169B62]/10 text-[#169B62] border border-[#169B62]/20 px-2.5 py-1 rounded-full w-fit">
               40% Project Payout Active
             </span>
           </div>
@@ -309,22 +293,22 @@ export default function SettingsPage() {
               onClick={() => setPayoutType("upi")}
               className={`flex-1 py-3 px-4 rounded-2xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-2 ${
                 payoutType === "upi"
-                  ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/50 shadow-md"
-                  : "bg-white/[0.02] text-zinc-400 border-white/10 hover:text-white"
+                  ? "bg-[#315EF7]/10 text-[#315EF7] border-[#315EF7]/30 shadow-xs"
+                  : "bg-[#FAFAFA] text-[#4B5563] border-[rgba(21,24,29,0.10)] hover:text-[#111317]"
               }`}
             >
-              <QrCode className="w-4 h-4 text-indigo-400" /> Direct UPI (GPay / PhonePe / Paytm)
+              <QrCode className="w-4 h-4 text-[#315EF7]" /> Direct UPI (GPay / PhonePe / Paytm)
             </button>
             <button
               type="button"
               onClick={() => setPayoutType("bank")}
               className={`flex-1 py-3 px-4 rounded-2xl text-xs font-bold border transition-all cursor-pointer flex items-center justify-center gap-2 ${
                 payoutType === "bank"
-                  ? "bg-indigo-500/20 text-indigo-300 border-indigo-500/50 shadow-md"
-                  : "bg-white/[0.02] text-zinc-400 border-white/10 hover:text-white"
+                  ? "bg-[#315EF7]/10 text-[#315EF7] border-[#315EF7]/30 shadow-xs"
+                  : "bg-[#FAFAFA] text-[#4B5563] border-[rgba(21,24,29,0.10)] hover:text-[#111317]"
               }`}
             >
-              <Building2 className="w-4 h-4 text-emerald-400" /> Bank Transfer (NEFT / IMPS)
+              <Building2 className="w-4 h-4 text-[#169B62]" /> Bank Transfer (NEFT / IMPS)
             </button>
           </div>
 
@@ -332,8 +316,8 @@ export default function SettingsPage() {
             {payoutType === "upi" ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold mb-1 block">
-                    UPI VPA ID <span className="text-indigo-400">*</span>
+                  <label className="text-xs text-[#4B5563] font-semibold mb-1 block">
+                    UPI VPA ID <span className="text-[#315EF7]">*</span>
                   </label>
                   <input
                     type="text"
@@ -341,13 +325,13 @@ export default function SettingsPage() {
                     value={upiId}
                     onChange={(e) => setUpiId(e.target.value)}
                     placeholder="e.g. aditya@okhdfcbank or 9876543210@paytm"
-                    className="w-full bg-[#18181b] border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-xs text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white font-mono"
                   />
-                  <p className="text-[10px] text-zinc-500 mt-1">Instant disbursements are sent directly to this UPI address.</p>
+                  <p className="text-[10px] text-[#6B7280] mt-1">Instant disbursements are sent directly to this UPI address.</p>
                 </div>
 
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold mb-1 block">
+                  <label className="text-xs text-[#4B5563] font-semibold mb-1 block">
                     Verified Account Holder Name
                   </label>
                   <input
@@ -355,15 +339,15 @@ export default function SettingsPage() {
                     value={upiName}
                     onChange={(e) => setUpiName(e.target.value)}
                     placeholder="Name registered with bank/UPI"
-                    className="w-full bg-[#18181b] border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-xs text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white"
                   />
                 </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold mb-1 block">
-                    Account Holder Full Name <span className="text-indigo-400">*</span>
+                  <label className="text-xs text-[#4B5563] font-semibold mb-1 block">
+                    Account Holder Full Name <span className="text-[#315EF7]">*</span>
                   </label>
                   <input
                     type="text"
@@ -371,13 +355,13 @@ export default function SettingsPage() {
                     value={accountHolderName}
                     onChange={(e) => setAccountHolderName(e.target.value)}
                     placeholder="As listed on bank passbook"
-                    className="w-full bg-[#18181b] border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-xs text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold mb-1 block">
-                    Bank Name <span className="text-indigo-400">*</span>
+                  <label className="text-xs text-[#4B5563] font-semibold mb-1 block">
+                    Bank Name <span className="text-[#315EF7]">*</span>
                   </label>
                   <input
                     type="text"
@@ -385,13 +369,13 @@ export default function SettingsPage() {
                     value={bankName}
                     onChange={(e) => setBankName(e.target.value)}
                     placeholder="e.g. HDFC Bank / State Bank of India"
-                    className="w-full bg-[#18181b] border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-xs text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold mb-1 block">
-                    Bank Account Number <span className="text-indigo-400">*</span>
+                  <label className="text-xs text-[#4B5563] font-semibold mb-1 block">
+                    Bank Account Number <span className="text-[#315EF7]">*</span>
                   </label>
                   <input
                     type="password"
@@ -399,13 +383,13 @@ export default function SettingsPage() {
                     value={accountNumber}
                     onChange={(e) => setAccountNumber(e.target.value)}
                     placeholder="Enter Account Number"
-                    className="w-full bg-[#18181b] border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+                    className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-xs text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="text-xs text-zinc-300 font-semibold mb-1 block">
-                    IFSC Code <span className="text-indigo-400">*</span>
+                  <label className="text-xs text-[#4B5563] font-semibold mb-1 block">
+                    IFSC Code <span className="text-[#315EF7]">*</span>
                   </label>
                   <input
                     type="text"
@@ -413,14 +397,14 @@ export default function SettingsPage() {
                     value={ifscCode}
                     onChange={(e) => setIfscCode(e.target.value.toUpperCase())}
                     placeholder="e.g. HDFC0001234"
-                    className="w-full bg-[#18181b] border border-white/15 rounded-xl px-4 py-2.5 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono uppercase"
+                    className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-xs text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white font-mono uppercase"
                   />
                 </div>
               </div>
             )}
 
             <div className="flex items-center gap-4 pt-3">
-              <Button type="submit" variant="accent" className="rounded-xl h-10 px-6 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold" disabled={savingPayout}>
+              <Button type="submit" variant="accent" className="rounded-xl h-10 px-6 text-xs bg-[#169B62] hover:bg-[#128050] text-white font-bold" disabled={savingPayout}>
                 {savingPayout ? (
                   "Saving..."
                 ) : (
@@ -430,7 +414,7 @@ export default function SettingsPage() {
                 )}
               </Button>
               {savedPayout && (
-                <motion.span initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-1.5 text-emerald-400 text-xs font-medium">
+                <motion.span initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-1.5 text-[#169B62] text-xs font-medium">
                   <CheckCircle2 className="w-4 h-4" /> Payout channel updated!
                 </motion.span>
               )}
@@ -440,10 +424,10 @@ export default function SettingsPage() {
       )}
 
       {/* Danger Zone */}
-      <div className="bg-[#111] border border-red-500/10 rounded-3xl p-6 sm:p-8">
-        <h2 className="text-base font-bold text-red-400 mb-2">Danger Zone</h2>
-        <p className="text-xs text-zinc-500 mb-4">Once you delete your account, there is no going back. Please be certain.</p>
-        <Button variant="outline" className="rounded-xl border-red-500/20 text-red-400 hover:bg-red-500/10 hover:border-red-500/30 h-9 px-5 text-xs">
+      <div className="bg-white border border-[#D83A3A]/20 rounded-xl p-6 sm:p-8 shadow-[0_12px_40px_rgba(21,24,29,0.04)]">
+        <h2 className="text-base font-bold text-[#D83A3A] mb-2">Danger Zone</h2>
+        <p className="text-xs text-[#4B5563] mb-4">Once you delete your account, there is no going back. Please be certain.</p>
+        <Button variant="outline" className="rounded-xl border-[#D83A3A]/30 text-[#D83A3A] hover:bg-[#D83A3A]/10 h-9 px-5 text-xs">
           Delete Account
         </Button>
       </div>

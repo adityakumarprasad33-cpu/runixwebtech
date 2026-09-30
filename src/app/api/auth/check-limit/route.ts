@@ -121,6 +121,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
+      allowed: true,
       attemptsRemaining: Math.max(0, 3 - result.count),
     });
   } catch (error: any) {

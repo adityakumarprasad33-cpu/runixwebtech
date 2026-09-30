@@ -23,11 +23,7 @@ import {
   CheckCircle2,
   Clock,
   Sparkles,
-  Send,
   X,
-  UserCheck,
-  Check,
-  AlertCircle,
   FileText,
   Wrench,
   ShieldCheck,
@@ -100,12 +96,12 @@ interface Order {
 }
 
 const STATUS_COLORS: Record<string, string> = {
-  completed: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
-  in_progress: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  awaiting_final_payment: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  awaiting_verification: "bg-amber-500/10 text-amber-400 border-amber-500/20",
-  pending_payment: "bg-red-500/10 text-red-400 border-red-500/20",
-  rejected: "bg-red-500/10 text-red-400 border-red-500/20",
+  completed: "bg-[#169B62]/10 text-[#169B62] border-[#169B62]/20",
+  in_progress: "bg-[#315EF7]/10 text-[#315EF7] border-[#315EF7]/20",
+  awaiting_final_payment: "bg-[#B77900]/10 text-[#B77900] border-[#B77900]/20",
+  awaiting_verification: "bg-[#B77900]/10 text-[#B77900] border-[#B77900]/20",
+  pending_payment: "bg-[#D83A3A]/10 text-[#D83A3A] border-[#D83A3A]/20",
+  rejected: "bg-[#D83A3A]/10 text-[#D83A3A] border-[#D83A3A]/20",
 };
 
 const LOCKED_STATUSES = ["pending_payment", "awaiting_verification", "cancelled", "rejected"];
@@ -349,7 +345,7 @@ export default function WorkspacePage() {
   if (loading || fetchingOrders) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+        <div className="w-8 h-8 border-[3px] border-[rgba(21,24,29,0.10)] border-t-[#315EF7] rounded-full animate-spin" />
       </div>
     );
   }
@@ -358,14 +354,14 @@ export default function WorkspacePage() {
     <div className="w-full max-w-4xl mx-auto space-y-6">
       {/* Header */}
       <motion.div {...fadeUp} className="flex items-center gap-4">
-        <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
+        <div className="p-3 bg-[#315EF7]/10 rounded-2xl text-[#315EF7]">
           <MessageSquare className="w-6 h-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-jakarta font-bold text-white">
+          <h1 className="text-2xl  font-bold text-[#111317]">
             {isDeveloper ? "Developer Workspace" : "Project Workspace"}
           </h1>
-          <p className="text-sm text-zinc-400 mt-0.5">
+          <p className="text-sm text-[#4B5563] mt-0.5">
             {isDeveloper
               ? "Live communication room with your assigned clients — share live previews, code repositories, and work updates."
               : "Direct communication with your assigned development team — share files, links, feedback, and project updates."}
@@ -375,17 +371,17 @@ export default function WorkspacePage() {
 
       {/* Top-Level Section Navigation for Developers */}
       {isDeveloper && (
-        <div className="flex items-center gap-3 border-b border-white/10 pb-4">
+        <div className="flex items-center gap-3 border-b border-[rgba(21,24,29,0.08)] pb-4">
           <button
             onClick={() => setWorkspaceSection("sprints")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${workspaceSection === "sprints"
-                ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-lg shadow-cyan-500/10"
-                : "bg-white/[0.02] text-zinc-400 border border-white/5 hover:text-white hover:border-white/10"
+                ? "bg-white text-[#111317] border border-[rgba(21,24,29,0.14)] shadow-xs"
+                : "bg-[#FAFAFA] text-[#4B5563] border border-[rgba(21,24,29,0.08)] hover:text-[#111317]"
               }`}
           >
-            <Code2 className="w-4 h-4 text-cyan-400" />
+            <Code2 className="w-4 h-4 text-[#315EF7]" />
             <span>Active Sprints</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${workspaceSection === "sprints" ? "bg-cyan-500/30 text-cyan-200" : "bg-white/5 text-zinc-500"
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${workspaceSection === "sprints" ? "bg-[#315EF7]/10 text-[#315EF7]" : "bg-[#E5E7EB] text-[#6B7280]"
               }`}>
               {orders.filter((o) => o.status !== "completed").length}
             </span>
@@ -394,13 +390,13 @@ export default function WorkspacePage() {
           <button
             onClick={() => setWorkspaceSection("maintenance")}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all cursor-pointer ${workspaceSection === "maintenance"
-                ? "bg-purple-500/20 text-purple-300 border border-purple-500/40 shadow-lg shadow-purple-500/10"
-                : "bg-white/[0.02] text-zinc-400 border border-white/5 hover:text-white hover:border-white/10"
+                ? "bg-white text-[#111317] border border-[rgba(21,24,29,0.14)] shadow-xs"
+                : "bg-[#FAFAFA] text-[#4B5563] border border-[rgba(21,24,29,0.08)] hover:text-[#111317]"
               }`}
           >
-            <Wrench className="w-4 h-4 text-purple-400" />
+            <Wrench className="w-4 h-4 text-[#169B62]" />
             <span>Maintenance Requests</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${workspaceSection === "maintenance" ? "bg-purple-500/30 text-purple-200" : "bg-white/5 text-zinc-500"
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${workspaceSection === "maintenance" ? "bg-[#169B62]/10 text-[#169B62]" : "bg-[#E5E7EB] text-[#6B7280]"
               }`}>
               {orders.filter((o) => o.maintenanceActive).length}
             </span>
@@ -420,23 +416,23 @@ export default function WorkspacePage() {
           return (
             <motion.div
               {...fadeUp}
-              className="text-center py-24 px-6 text-zinc-500 border border-white/5 rounded-2xl bg-white/[0.02] flex flex-col items-center justify-center min-h-[300px]"
+              className="text-center py-24 px-6 text-[#4B5563] border border-[rgba(21,24,29,0.10)] rounded-xl bg-white flex flex-col items-center justify-center min-h-[300px] shadow-[0_12px_40px_rgba(21,24,29,0.04)]"
             >
-              <div className="w-16 h-16 rounded-2xl bg-white/[0.02] border border-white/5 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] flex items-center justify-center mb-4 text-[#111317]">
                 {isDeveloper && workspaceSection === "maintenance" ? (
-                  <Wrench className="w-8 h-8 text-purple-400" />
+                  <Wrench className="w-8 h-8 text-[#169B62]" />
                 ) : (
-                  <FolderKanban className="w-8 h-8 text-zinc-600" />
+                  <FolderKanban className="w-8 h-8 text-[#315EF7]" />
                 )}
               </div>
-              <p className="text-base font-semibold text-white mb-1">
+              <p className="text-base font-semibold text-[#111317] mb-1">
                 {isDeveloper
                   ? workspaceSection === "maintenance"
                     ? "No Maintenance Requests Assigned"
                     : "No Active Sprints Assigned"
                   : "No Active Workspaces"}
               </p>
-              <p className="text-sm max-w-md mx-auto">
+              <p className="text-sm max-w-md mx-auto text-[#6B7280]">
                 {isDeveloper
                   ? workspaceSection === "maintenance"
                     ? "When a client subscribes to post-delivery maintenance and you are assigned as the maintenance engineer, all client task tickets will appear here."
@@ -452,18 +448,18 @@ export default function WorkspacePage() {
             {/* Legend */}
             <motion.div
               {...fadeUp}
-              className="flex flex-wrap items-center justify-between gap-3 text-[11px] px-4 py-3 rounded-xl bg-white/[0.02] border border-white/5"
+              className="flex flex-wrap items-center justify-between gap-3 text-[11px] px-4 py-3 rounded-2xl bg-white border border-[rgba(21,24,29,0.10)] shadow-xs"
             >
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-zinc-500 font-medium">Room Status:</span>
-                <span className="flex items-center gap-1.5 text-emerald-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" /> Unlocked & Interactive
+                <span className="text-[#6B7280] font-medium">Room Status:</span>
+                <span className="flex items-center gap-1.5 text-[#169B62] font-semibold">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#169B62]" /> Unlocked & Interactive
                 </span>
-                <span className="flex items-center gap-1.5 text-amber-400">
+                <span className="flex items-center gap-1.5 text-[#B77900] font-semibold">
                   <Lock className="w-3 h-3" /> Locked (Pending Advance)
                 </span>
               </div>
-              <span className="text-zinc-500">
+              <span className="text-[#6B7280]">
                 Total: {displayedOrders.length} {displayedOrders.length === 1 ? "project" : "projects"}
               </span>
             </motion.div>
@@ -480,13 +476,13 @@ export default function WorkspacePage() {
                     initial={{ opacity: 0, y: 12 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.3, delay: i * 0.05 }}
-                    className={`rounded-2xl border transition-all duration-200 ${isOpen
-                        ? "border-indigo-500/30 bg-[#0e0e0e]"
-                        : "border-white/5 bg-white/[0.02] hover:border-white/10 hover:bg-white/[0.04]"
+                    className={`rounded-xl border transition-all duration-200 bg-white ${isOpen
+                        ? "border-[rgba(21,24,29,0.18)] shadow-[0_16px_48px_rgba(21,24,29,0.08)]"
+                        : "border-[rgba(21,24,29,0.10)] hover:border-[rgba(21,24,29,0.16)] shadow-[0_12px_40px_rgba(21,24,29,0.04)]"
                       }`}
                   >
                     {/* Order Header — click to expand/collapse */}
-                    <div className="p-5">
+                    <div className="p-5 sm:p-6">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                         <button
                           onClick={() => setOpenOrderId(isOpen ? null : order.id)}
@@ -494,10 +490,10 @@ export default function WorkspacePage() {
                         >
                           <div
                             className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isLocked
-                                ? "bg-zinc-800 text-zinc-500"
+                                ? "bg-[#E5E7EB] text-[#6B7280]"
                                 : isDeveloper && workspaceSection === "maintenance"
-                                  ? "bg-purple-500/20 text-purple-400"
-                                  : "bg-indigo-500/10 text-indigo-400"
+                                  ? "bg-[#169B62]/10 text-[#169B62]"
+                                  : "bg-[#315EF7]/10 text-[#315EF7]"
                               }`}
                           >
                             {isLocked ? (
@@ -510,10 +506,10 @@ export default function WorkspacePage() {
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-base font-bold text-white truncate">{order.planName}</p>
+                              <p className="text-base font-bold text-[#111317] truncate">{order.planName}</p>
                               {order.userEmail && (
-                                <span className="text-[11px] text-zinc-500">
-                                  · Client: <span className="text-zinc-300 font-medium">{order.userEmail}</span>
+                                <span className="text-[11px] text-[#6B7280]">
+                                  · Client: <span className="text-[#4B5563] font-medium">{order.userEmail}</span>
                                 </span>
                               )}
                             </div>
@@ -525,37 +521,37 @@ export default function WorkspacePage() {
                                 {order.status?.replace(/_/g, " ")}
                               </span>
                               {!isDeveloper && (
-                                <span className="text-xs text-zinc-400 font-mono">
+                                <span className="text-xs text-[#4B5563] font-mono">
                                   ₹{(order.totalPrice || order.price || 0).toLocaleString()}
                                 </span>
                               )}
                               {(order.stagingUrl || order.demoUrl) && (
                                 <Link
                                   href={`/preview?url=${encodeURIComponent(normalizeUrl(order.stagingUrl || order.demoUrl || ""))}&title=${encodeURIComponent(order.planName || "Staging Demo")}&ref=/dashboard/workspace`}
-                                  className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-purple-500/20 text-purple-300 hover:bg-purple-500/30 hover:text-white border border-purple-500/30 flex items-center gap-1 transition-all"
+                                  className="text-[10px] font-mono px-2.5 py-0.5 rounded-full bg-[#315EF7]/10 text-[#315EF7] hover:bg-[#315EF7]/20 border border-[#315EF7]/20 flex items-center gap-1 transition-all"
                                   title="Open Live Web Viewer"
                                 >
-                                  <Globe className="w-3 h-3 text-purple-400" /> Staging Live ↗
+                                  <Globe className="w-3 h-3 text-[#315EF7]" /> Staging Live ↗
                                 </Link>
                               )}
                               {order.maintenanceActive && (
-                                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30 font-bold flex items-center gap-1">
-                                  <ShieldCheck className="w-3 h-3 text-emerald-400" /> Maintenance Active
+                                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-[#169B62]/10 text-[#169B62] border border-[#169B62]/20 font-bold flex items-center gap-1">
+                                <ShieldCheck className="w-3 h-3 text-[#169B62]" /> Maintenance Active
                                 </span>
                               )}
                             </div>
 
                             {order.statusCaption && (
-                              <p className="text-xs text-zinc-400 mt-1 italic">
-                                Status Update: <span className="text-zinc-200">{order.statusCaption}</span>
+                              <p className="text-xs text-[#4B5563] mt-1 italic">
+                                Status Update: <span className="text-[#111317] font-medium">{order.statusCaption}</span>
                               </p>
                             )}
 
                             {order.status === "awaiting_verification" && (
-                              <div className="mt-2.5 p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs text-amber-200">
-                                <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                              <div className="mt-2.5 p-3 rounded-xl bg-[#B77900]/10 border border-[#B77900]/25 flex items-start gap-2.5 text-xs text-[#B77900]">
+                                <Clock className="w-4 h-4 text-[#B77900] shrink-0 mt-0.5" />
                                 <div>
-                                  <span className="font-bold block text-white">Deposit Verification in Progress</span>
+                                  <span className="font-bold block text-[#111317]">Deposit Verification in Progress</span>
                                   <span>
                                     {order.utrNumber
                                       ? `We received your UTR reference (${order.utrNumber}). Our team is verifying your payment with the bank. Your sprint will unlock upon approval.`
@@ -570,13 +566,13 @@ export default function WorkspacePage() {
                         <div className="flex items-center gap-3 self-end sm:self-center">
                           {/* Developer Stage Controls */}
                           {isDeveloper && order.status !== "completed" && !isLocked && (
-                            <div className="flex items-center gap-1.5 bg-black/40 border border-white/10 rounded-lg p-1">
+                            <div className="flex items-center gap-1.5 bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl p-1">
                               <button
                                 disabled={updatingStageId === order.id}
                                 onClick={() => handleUpdateDevStage(order.id, "in_progress")}
-                                className={`px-2.5 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${order.devStage === "in_progress" || (!order.devStage && order.status === "in_progress")
-                                    ? "bg-blue-500/20 text-blue-300"
-                                    : "text-zinc-500 hover:text-zinc-300"
+                                className={`px-2.5 py-1 text-[10px] font-medium rounded-lg transition-colors cursor-pointer ${order.devStage === "in_progress" || (!order.devStage && order.status === "in_progress")
+                                    ? "bg-[#315EF7]/10 text-[#315EF7] font-bold"
+                                    : "text-[#6B7280] hover:text-[#111317]"
                                   }`}
                               >
                                 Building
@@ -584,9 +580,9 @@ export default function WorkspacePage() {
                               <button
                                 disabled={updatingStageId === order.id}
                                 onClick={() => handleUpdateDevStage(order.id, "testing")}
-                                className={`px-2.5 py-1 text-[10px] font-medium rounded transition-colors cursor-pointer ${order.devStage === "testing"
-                                    ? "bg-amber-500/20 text-amber-300"
-                                    : "text-zinc-500 hover:text-zinc-300"
+                                className={`px-2.5 py-1 text-[10px] font-medium rounded-lg transition-colors cursor-pointer ${order.devStage === "testing"
+                                    ? "bg-[#B77900]/10 text-[#B77900] font-bold"
+                                    : "text-[#6B7280] hover:text-[#111317]"
                                   }`}
                               >
                                 Testing
@@ -596,7 +592,7 @@ export default function WorkspacePage() {
                                   setSubmittingWorkOrder(order);
                                   setStagingUrlInput(order.stagingUrl || "");
                                 }}
-                                className="px-2.5 py-1 text-[10px] font-bold rounded bg-purple-600 hover:bg-purple-500 text-white transition-colors cursor-pointer shadow-sm"
+                                className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-[#315EF7] hover:bg-[#2A50D4] text-white transition-colors cursor-pointer shadow-xs"
                               >
                                 Submit Staging
                               </button>
@@ -605,10 +601,10 @@ export default function WorkspacePage() {
 
                           <button
                             onClick={() => setOpenOrderId(isOpen ? null : order.id)}
-                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-400 hover:text-white text-xs transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FAFAFA] hover:bg-[#F1F2F4] border border-[rgba(21,24,29,0.10)] text-[#4B5563] hover:text-[#111317] text-xs transition-colors cursor-pointer"
                           >
                             {!isLocked && (
-                              <span className="text-[11px] font-medium text-indigo-300">
+                              <span className="text-[11px] font-medium text-[#315EF7]">
                                 {isOpen ? "Hide Drawer" : "Open Drawer"}
                               </span>
                             )}
@@ -620,7 +616,7 @@ export default function WorkspacePage() {
 
                     {/* ── Open Workspace Drawer ── */}
                     {isOpen && (
-                      <div className="px-5 pb-5 space-y-4 border-t border-white/5 pt-4">
+                      <div className="px-5 pb-5 sm:px-6 sm:pb-6 space-y-4 border-t border-[rgba(21,24,29,0.08)] pt-4">
                         {/* If viewing Maintenance Requests section as Developer */}
                         {isDeveloper && workspaceSection === "maintenance" ? (
                           <MaintenanceDesk
@@ -633,33 +629,33 @@ export default function WorkspacePage() {
                           <>
                             {/* Sub-Tab Switcher for Clients on Completed Projects */}
                             {!isDeveloper && order.status === "completed" && (
-                              <div className="flex items-center gap-2 p-1 bg-black/40 border border-white/10 rounded-xl w-fit">
+                              <div className="flex items-center gap-2 p-1 bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl w-fit">
                                 <button
                                   onClick={() => setWorkspaceTabs((prev) => ({ ...prev, [order.id]: "sprint" }))}
                                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${(workspaceTabs[order.id] || "sprint") === "sprint"
-                                      ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-sm"
-                                      : "text-zinc-400 hover:text-white"
+                                      ? "bg-white text-[#111317] border border-[rgba(21,24,29,0.12)] shadow-xs"
+                                      : "text-[#4B5563] hover:text-[#111317]"
                                     }`}
                                 >
-                                  <MessageSquare className="w-3.5 h-3.5" />
+                                  <MessageSquare className="w-3.5 h-3.5 text-[#315EF7]" />
                                   <span>Sprint Room & Chat</span>
                                 </button>
 
                                 <button
                                   onClick={() => setWorkspaceTabs((prev) => ({ ...prev, [order.id]: "maintenance" }))}
                                   className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer ${workspaceTabs[order.id] === "maintenance"
-                                      ? "bg-purple-500/20 text-purple-300 border border-purple-500/30 shadow-sm"
-                                      : "text-zinc-400 hover:text-white"
+                                      ? "bg-white text-[#111317] border border-[rgba(21,24,29,0.12)] shadow-xs"
+                                      : "text-[#4B5563] hover:text-[#111317]"
                                     }`}
                                 >
-                                  <Wrench className="w-3.5 h-3.5 text-purple-400" />
+                                  <Wrench className="w-3.5 h-3.5 text-[#169B62]" />
                                   <span>Maintenance Desk</span>
                                   {order.maintenanceActive ? (
-                                    <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded-full font-bold font-mono">
+                                    <span className="text-[9px] bg-[#169B62]/10 text-[#169B62] px-1.5 py-0.2 rounded-full font-bold font-mono">
                                       ACTIVE
                                     </span>
                                   ) : (
-                                    <span className="text-[9px] bg-purple-500/20 text-purple-300 px-1.5 py-0.2 rounded-full font-semibold">
+                                    <span className="text-[9px] bg-[#E5E7EB] text-[#6B7280] px-1.5 py-0.2 rounded-full font-semibold">
                                       AVAILABLE
                                     </span>
                                   )}
@@ -680,9 +676,9 @@ export default function WorkspacePage() {
                               <div className="space-y-4">
                                 {/* Handover Assets & Deployment Package */}
                                 {order.status === "completed" || order.finalPaid ? (
-                                  <div className="p-4 rounded-xl bg-emerald-950/20 border border-emerald-500/30 space-y-3">
-                                    <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs sm:text-sm">
-                                      <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                                  <div className="p-4 rounded-2xl bg-[#169B62]/5 border border-[#169B62]/20 space-y-3">
+                                    <div className="flex items-center gap-2 text-[#169B62] font-bold text-xs sm:text-sm">
+                                      <CheckCircle2 className="w-4 h-4 text-[#169B62] shrink-0" />
                                       <span>Final Handover Assets & Code Repository Unlocked!</span>
                                     </div>
                                     <div className="flex flex-wrap items-center gap-3 text-xs">
@@ -691,9 +687,9 @@ export default function WorkspacePage() {
                                           href={order.handoverLinks.liveUrl}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white hover:bg-white/10 border border-white/10 transition-colors"
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-[#111317] hover:bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] transition-colors font-medium shadow-xs"
                                         >
-                                          <Globe className="w-3.5 h-3.5 text-indigo-400" /> Live Production URL ↗
+                                          <Globe className="w-3.5 h-3.5 text-[#315EF7]" /> Live Production URL ↗
                                         </a>
                                       )}
                                       {order.handoverLinks?.githubRepo && (
@@ -701,9 +697,9 @@ export default function WorkspacePage() {
                                           href={order.handoverLinks.githubRepo}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white hover:bg-white/10 border border-white/10 transition-colors"
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-[#111317] hover:bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] transition-colors font-medium shadow-xs"
                                         >
-                                          <Code2 className="w-3.5 h-3.5 text-cyan-400" /> GitHub Repository ↗
+                                          <Code2 className="w-3.5 h-3.5 text-[#111317]" /> GitHub Repository ↗
                                         </a>
                                       )}
                                       {order.handoverLinks?.driveZip && (
@@ -711,38 +707,38 @@ export default function WorkspacePage() {
                                           href={order.handoverLinks.driveZip}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 text-white hover:bg-white/10 border border-white/10 transition-colors"
+                                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-[#111317] hover:bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] transition-colors font-medium shadow-xs"
                                         >
-                                          <Download className="w-3.5 h-3.5 text-purple-400" /> Source Code Zip ↗
+                                          <Download className="w-3.5 h-3.5 text-[#111317]" /> Source Code Zip ↗
                                         </a>
                                       )}
                                     </div>
                                     {order.handoverNotes && (
-                                      <div className="p-3 bg-black/40 rounded-lg border border-white/5 text-xs text-zinc-300 space-y-1">
-                                        <span className="text-[10px] text-zinc-500 uppercase font-bold tracking-wider block">
+                                      <div className="p-3 bg-white rounded-xl border border-[rgba(21,24,29,0.08)] text-xs text-[#4B5563] space-y-1">
+                                        <span className="text-[10px] text-[#6B7280] uppercase font-bold tracking-wider block">
                                           Handover Notes & Credentials:
                                         </span>
-                                        <p className="whitespace-pre-wrap leading-relaxed">{order.handoverNotes}</p>
+                                        <p className="whitespace-pre-wrap leading-relaxed text-[#111317]">{order.handoverNotes}</p>
                                       </div>
                                     )}
                                   </div>
                                 ) : (
-                                  <div className="p-4 rounded-xl bg-purple-950/10 border border-purple-500/20 space-y-2.5">
+                                  <div className="p-4 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] space-y-2.5">
                                     <div className="flex items-center justify-between flex-wrap gap-2">
-                                      <div className="flex items-center gap-2 text-xs font-bold text-purple-300">
-                                        <Lock className="w-3.5 h-3.5 text-purple-400" />
+                                      <div className="flex items-center gap-2 text-xs font-bold text-[#111317]">
+                                        <Lock className="w-3.5 h-3.5 text-[#6B7280]" />
                                         <span>Code Repository & Handover Package (Locked)</span>
                                       </div>
                                       {(order.stagingUrl || order.demoUrl) && (
                                         <Link
                                           href={`/preview?url=${encodeURIComponent(normalizeUrl(order.stagingUrl || order.demoUrl || ""))}&title=${encodeURIComponent(order.planName || "Staging Preview")}&ref=/dashboard/workspace`}
-                                          className="text-xs font-bold px-3 py-1 rounded-lg bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white border border-purple-500/40 flex items-center gap-1.5 transition-all shadow-sm"
+                                          className="text-xs font-bold px-3 py-1 rounded-xl bg-[#315EF7] hover:bg-[#2A50D4] text-white flex items-center gap-1.5 transition-all shadow-xs"
                                         >
                                           <Globe className="w-3.5 h-3.5" /> Preview Staging Demo ↗
                                         </Link>
                                       )}
                                     </div>
-                                    <p className="text-[11px] text-zinc-400 leading-relaxed">
+                                    <p className="text-[11px] text-[#4B5563] leading-relaxed">
                                       GitHub repository ownership, source code zip, and production deployment keys are encrypted and protected. Complete the final 50% milestone settlement to release all assets instantly.
                                     </p>
                                   </div>
@@ -750,16 +746,16 @@ export default function WorkspacePage() {
 
                                 {/* Expandable Client Requirements */}
                                 {(order.formData || order.details) && (
-                                  <div className="p-3.5 bg-white/[0.02] border border-white/5 rounded-xl text-xs space-y-1.5 text-zinc-300">
-                                    <p className="font-bold text-white uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
-                                      <FileText className="w-3.5 h-3.5 text-indigo-400" />
+                                  <div className="p-3.5 bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] rounded-2xl text-xs space-y-1.5 text-[#4B5563]">
+                                    <p className="font-bold text-[#111317] uppercase text-[10px] tracking-wider mb-1 flex items-center gap-1.5">
+                                      <FileText className="w-3.5 h-3.5 text-[#315EF7]" />
                                       Client Project Requirements
                                     </p>
-                                    {order.formData?.company && <p><span className="text-zinc-500">Company:</span> {order.formData.company}</p>}
-                                    {order.formData?.projectType && <p><span className="text-zinc-500">Project Type:</span> {order.formData.projectType}</p>}
-                                    {order.formData?.timeline && <p><span className="text-zinc-500">Timeline:</span> {order.formData.timeline}</p>}
+                                    {order.formData?.company && <p><span className="text-[#6B7280]">Company:</span> {order.formData.company}</p>}
+                                    {order.formData?.projectType && <p><span className="text-[#6B7280]">Project Type:</span> {order.formData.projectType}</p>}
+                                    {order.formData?.timeline && <p><span className="text-[#6B7280]">Timeline:</span> {order.formData.timeline}</p>}
                                     {(order.formData?.details || order.details) && (
-                                      <p className="mt-1 p-2 bg-black/40 rounded border border-white/5 text-zinc-200 whitespace-pre-wrap leading-relaxed">
+                                      <p className="mt-1 p-2.5 bg-white rounded-xl border border-[rgba(21,24,29,0.08)] text-[#111317] whitespace-pre-wrap leading-relaxed">
                                         {order.formData?.details || order.details}
                                       </p>
                                     )}
@@ -803,7 +799,7 @@ export default function WorkspacePage() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm"
+              className="fixed inset-0 z-50 bg-[#111317]/60 backdrop-blur-sm"
               onClick={() => setSubmittingWorkOrder(null)}
             />
             <motion.div
@@ -812,21 +808,21 @@ export default function WorkspacePage() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="bg-[#111] border border-white/10 rounded-2xl w-full max-w-lg p-6 sm:p-8 relative shadow-2xl space-y-5">
+              <div className="bg-white border border-[rgba(21,24,29,0.12)] rounded-xl w-full max-w-lg p-6 sm:p-8 relative shadow-2xl space-y-5">
                 <button
                   onClick={() => setSubmittingWorkOrder(null)}
-                  className="absolute top-4 right-4 p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/10 transition-colors"
+                  className="absolute top-4 right-4 p-1.5 rounded-lg text-[#6B7280] hover:text-[#111317] hover:bg-[#FAFAFA] transition-colors"
                 >
                   <X className="w-5 h-5" />
                 </button>
 
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-500/10 flex items-center justify-center text-purple-400">
+                  <div className="w-10 h-10 rounded-2xl bg-[#315EF7]/10 flex items-center justify-center text-[#315EF7]">
                     <Sparkles className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">Submit Completed Project Work</h3>
-                    <p className="text-xs text-zinc-500">
+                    <h3 className="text-lg font-bold text-[#111317]">Submit Completed Project Work</h3>
+                    <p className="text-xs text-[#4B5563]">
                       Order: {submittingWorkOrder.planName} ({submittingWorkOrder.userEmail})
                     </p>
                   </div>
@@ -834,23 +830,23 @@ export default function WorkspacePage() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
-                      Live Staging Demo URL <span className="text-purple-400">*</span>
+                    <label className="block text-xs font-semibold text-[#4B5563] uppercase tracking-wider mb-1.5">
+                      Live Staging Demo URL <span className="text-[#315EF7]">*</span>
                     </label>
                     <input
                       type="url"
                       value={stagingUrlInput}
                       onChange={(e) => setStagingUrlInput(e.target.value)}
                       placeholder="https://your-preview-demo.vercel.app"
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500 transition-colors"
+                      className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-sm text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] focus:bg-white transition-colors"
                     />
-                    <p className="text-[11px] text-zinc-500 mt-1">
+                    <p className="text-[11px] text-[#6B7280] mt-1">
                       The client will preview this demo link to verify the finished sprint.
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-semibold text-[#4B5563] uppercase tracking-wider mb-1.5">
                       GitHub Repository Link (Optional)
                     </label>
                     <input
@@ -858,12 +854,12 @@ export default function WorkspacePage() {
                       value={githubRepoInput}
                       onChange={(e) => setGithubRepoInput(e.target.value)}
                       placeholder="https://github.com/runix/client-repo"
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500 font-mono"
+                      className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-xs text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] focus:bg-white font-mono"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-semibold text-[#4B5563] uppercase tracking-wider mb-1.5">
                       Source Code Download / Drive Zip Link (Optional)
                     </label>
                     <input
@@ -871,12 +867,12 @@ export default function WorkspacePage() {
                       value={driveZipInput}
                       onChange={(e) => setDriveZipInput(e.target.value)}
                       placeholder="https://drive.google.com/file/d/..."
-                      className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-2.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500 font-mono"
+                      className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2.5 text-xs text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] focus:bg-white font-mono"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-zinc-300 uppercase tracking-wider mb-1.5">
+                    <label className="block text-xs font-semibold text-[#4B5563] uppercase tracking-wider mb-1.5">
                       Developer Handover Notes / Summary (Optional)
                     </label>
                     <textarea
@@ -884,16 +880,16 @@ export default function WorkspacePage() {
                       onChange={(e) => setWorkNotesInput(e.target.value)}
                       rows={2}
                       placeholder="e.g. All requested pages, responsive layouts, forms, and API integrations have been implemented and tested..."
-                      className="w-full bg-black/60 border border-white/10 rounded-xl p-3 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-purple-500 transition-colors resize-none"
+                      className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] rounded-xl p-3 text-xs text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] focus:bg-white transition-colors resize-none"
                     />
                   </div>
 
-                  <div className="p-3 rounded-xl bg-purple-500/10 border border-purple-500/20 text-xs text-purple-200 space-y-1">
-                    <p className="font-bold flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-purple-400" />
+                  <div className="p-3.5 rounded-2xl bg-[#315EF7]/5 border border-[#315EF7]/20 text-xs text-[#111317] space-y-1">
+                    <p className="font-bold flex items-center gap-1.5 text-[#315EF7]">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#315EF7]" />
                       Client Notification & 50% Settlement
                     </p>
-                    <p className="text-[11px] text-purple-300/80 leading-relaxed">
+                    <p className="text-[11px] text-[#4B5563] leading-relaxed">
                       Submitting will update the project status to <strong>Awaiting Final Payment</strong> and automatically send a priority notification to the client with the demo URL and a prompt to settle the remaining 50% balance before full code handover.
                     </p>
                   </div>
@@ -904,7 +900,7 @@ export default function WorkspacePage() {
                     onClick={() => setSubmittingWorkOrder(null)}
                     variant="outline"
                     size="sm"
-                    className="rounded-xl"
+                    className="rounded-xl text-xs"
                   >
                     Cancel
                   </Button>
@@ -913,7 +909,7 @@ export default function WorkspacePage() {
                     disabled={isSubmittingWork}
                     variant="accent"
                     size="sm"
-                    className="rounded-xl flex items-center gap-2 bg-purple-600 hover:bg-purple-500 text-white"
+                    className="rounded-xl flex items-center gap-2 bg-[#315EF7] hover:bg-[#2A50D4] text-white text-xs"
                   >
                     {isSubmittingWork ? "Submitting…" : "Submit & Notify Client"}
                   </Button>

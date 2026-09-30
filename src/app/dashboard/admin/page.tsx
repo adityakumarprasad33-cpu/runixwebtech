@@ -1494,7 +1494,7 @@ export default function AdminPanel() {
           <ShieldAlert className="w-6 h-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-jakarta font-bold text-white">
+          <h1 className="text-2xl  font-bold text-white">
             System Administration
           </h1>
           <p className="text-sm text-zinc-400">
@@ -5288,7 +5288,7 @@ export default function AdminPanel() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-lg p-6 sm:p-8 relative shadow-2xl space-y-5">
+              <div className="bg-[#111] border border-white/15 rounded-xl w-full max-w-lg p-6 sm:p-8 relative shadow-2xl space-y-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
@@ -5363,7 +5363,7 @@ export default function AdminPanel() {
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-lg p-6 sm:p-8 relative shadow-2xl space-y-5">
+              <div className="bg-[#111] border border-white/15 rounded-xl w-full max-w-lg p-6 sm:p-8 relative shadow-2xl space-y-5">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">

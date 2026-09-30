@@ -419,7 +419,7 @@ export default function PaySalaryPanel({ currentUser, isSuperAdmin }: PaySalaryP
           {/* Roster Cards */}
           <div className="grid grid-cols-1 gap-4">
             {filteredRoster.length === 0 ? (
-              <div className="p-12 text-center text-zinc-500 bg-white/[0.01] border border-white/5 rounded-3xl">
+              <div className="p-12 text-center text-zinc-500 bg-white/[0.01] border border-white/5 rounded-xl">
                 No staff members matching the criteria.
               </div>
             ) : (
@@ -430,7 +430,7 @@ export default function PaySalaryPanel({ currentUser, isSuperAdmin }: PaySalaryP
                 return (
                   <div
                     key={staff.id}
-                    className={`p-5 sm:p-6 rounded-3xl border transition-all shadow-xl space-y-4 ${
+                    className={`p-5 sm:p-6 rounded-xl border transition-all shadow-xl space-y-4 ${
                       hasDue
                         ? "bg-gradient-to-r from-[#121214] via-[#0d0d0f] to-black border-cyan-500/25 hover:border-cyan-500/40"
                         : "bg-[#0e0e0e] border-white/5 opacity-90"
@@ -656,7 +656,7 @@ export default function PaySalaryPanel({ currentUser, isSuperAdmin }: PaySalaryP
                 exit={{ opacity: 0, scale: 0.95, y: 20 }}
                 className="fixed inset-0 z-50 flex items-center justify-center p-4"
               >
-                <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-xl p-6 sm:p-8 relative shadow-2xl space-y-6">
+                <div className="bg-[#111] border border-white/15 rounded-xl w-full max-w-xl p-6 sm:p-8 relative shadow-2xl space-y-6">
                   <div className="flex items-center justify-between border-b border-white/10 pb-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center font-bold text-sm">
@@ -845,7 +845,7 @@ export default function PaySalaryPanel({ currentUser, isSuperAdmin }: PaySalaryP
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
             >
-              <div className="bg-[#0e0e0e] border border-white/20 rounded-3xl w-full max-w-2xl p-6 sm:p-10 relative shadow-2xl space-y-6 text-zinc-300 font-sans print:border-none print:shadow-none print:p-0">
+              <div className="bg-[#0e0e0e] border border-white/20 rounded-xl w-full max-w-2xl p-6 sm:p-10 relative shadow-2xl space-y-6 text-zinc-300 font-sans print:border-none print:shadow-none print:p-0">
                 {/* Print & Close Controls */}
                 <div className="flex items-center justify-between border-b border-white/10 pb-4 print:hidden">
                   <div className="flex items-center gap-2">
@@ -875,7 +875,7 @@ export default function PaySalaryPanel({ currentUser, isSuperAdmin }: PaySalaryP
                 {/* ── FORMAL CORPORATE SALARY SLIP HEADER ── */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b-2 border-white/10 pb-6">
                   <div>
-                    <h1 className="text-xl font-black text-white tracking-tight font-jakarta">RUNIX WEBTECH</h1>
+                    <h1 className="text-xl font-black text-white tracking-tight ">RUNIX WEBTECH</h1>
                     <p className="text-[11px] text-zinc-400 mt-0.5">Software Engineering & Digital Solutions</p>
                     <p className="text-[10px] text-zinc-500 font-mono">Web: runix.in · contact@runix.in</p>
                   </div>
@@ -963,7 +963,7 @@ export default function PaySalaryPanel({ currentUser, isSuperAdmin }: PaySalaryP
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4"
             >
-              <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-md p-6 sm:p-8 relative shadow-2xl space-y-5">
+              <div className="bg-[#111] border border-white/15 rounded-xl w-full max-w-md p-6 sm:p-8 relative shadow-2xl space-y-5">
                 <div className="flex items-center justify-between border-b border-white/10 pb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-9 h-9 rounded-xl bg-cyan-500/20 text-cyan-300 flex items-center justify-center">

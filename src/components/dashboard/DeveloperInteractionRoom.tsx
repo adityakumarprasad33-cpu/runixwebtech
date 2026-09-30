@@ -52,12 +52,12 @@ interface DeveloperInteractionRoomProps {
 
 const LOCKED_STATUSES = ["pending_payment", "awaiting_verification", "pending", "rejected"];
 
-const LINK_TYPE_META: Record<string, { icon: React.ElementType; label: string; color: string }> = {
-  preview: { icon: Eye, label: "Live Preview", color: "text-emerald-400" },
-  figma: { icon: Link2, label: "Figma Design", color: "text-purple-400" },
-  github: { icon: GitBranch, label: "GitHub Repo", color: "text-zinc-300" },
-  file: { icon: Package, label: "Files / Assets", color: "text-amber-400" },
-  general: { icon: Link2, label: "Link", color: "text-indigo-400" },
+const LINK_TYPE_META: Record<string, { icon: React.ComponentType<{ className?: string }>; label: string; color: string }> = {
+  preview: { icon: Eye, label: "Live Preview", color: "text-[#169B62]" },
+  figma: { icon: Link2, label: "Figma Design", color: "text-[#315EF7]" },
+  github: { icon: GitBranch, label: "GitHub Repo", color: "text-[#111317]" },
+  file: { icon: Package, label: "Files / Assets", color: "text-[#B77900]" },
+  general: { icon: Link2, label: "Link", color: "text-[#315EF7]" },
 };
 
 function formatRelativeTime(iso: string): string {
@@ -99,50 +99,59 @@ export default function DeveloperInteractionRoom({
   const messagesCollectionName = channel === "maintenance" ? "maintenance_messages" : "messages";
 
   useEffect(() => {
-    if (isLocked) return;
+    if (isLocked || !orderId) return;
+
     const q = query(
       collection(db, "orders", orderId, messagesCollectionName),
       orderBy("createdAt", "asc")
     );
+
     const unsub = onSnapshot(
       q,
       (snap) => {
         setMessages(
           snap.docs.map((d) => ({ id: d.id, ...d.data() } as Message))
         );
-        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50);
       },
-      (err) => console.warn("Messages listener notice:", err?.message || err)
+      (err) => {
+        console.error("Realtime chat error:", err);
+      }
     );
+
     return () => unsub();
   }, [orderId, isLocked, messagesCollectionName]);
 
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
   const handleSend = async () => {
-    if (isSprintCompletedReadOnly) return;
-    const msg = text.trim();
-    const rawUrl = linkUrl.trim();
-    const targetUrl = rawUrl ? normalizeUrl(rawUrl) : null;
-    if (!msg && !targetUrl) return;
+    if ((!text.trim() && !linkUrl.trim()) || sending || isLocked || isSprintCompletedReadOnly) return;
     setSending(true);
+
     try {
-      await addDoc(collection(db, "orders", orderId, messagesCollectionName), {
+      const payload: Omit<Message, "id"> = {
         senderId: currentUserId,
         senderRole: currentUserRole,
         senderName: currentUserName,
-        senderDesignation: currentUserDesignation || (channel === "maintenance" && currentUserRole === "admin" ? "Maintenance Engineer" : null),
+        senderDesignation: currentUserDesignation || null,
         senderDepartment: currentUserDepartment || null,
-        text: msg || null,
-        linkUrl: targetUrl,
-        linkType: targetUrl ? linkType : null,
-        channel,
+        text: text.trim() || undefined,
+        linkUrl: linkUrl.trim() || undefined,
+        linkType: linkUrl.trim() ? linkType : undefined,
         createdAt: new Date().toISOString(),
-      });
+      };
+
+      await addDoc(
+        collection(db, "orders", orderId, messagesCollectionName),
+        payload
+      );
+
       setText("");
       setLinkUrl("");
       setShowLinkInput(false);
-    } catch (e) {
-      console.error("Failed to send message:", e);
-      alert("Failed to send message");
+    } catch (err: any) {
+      console.error("Failed to send message:", err);
     } finally {
       setSending(false);
     }
@@ -157,19 +166,19 @@ export default function DeveloperInteractionRoom({
   // ── Locked State ──
   if (isLocked) {
     return (
-      <div className="mt-4 p-5 rounded-2xl border border-amber-500/20 bg-amber-500/[0.03] flex items-start gap-4">
-        <div className="p-2.5 rounded-xl bg-amber-500/10 shrink-0">
-          <Lock className="w-4 h-4 text-amber-400" />
+      <div className="mt-4 p-5 rounded-2xl border border-[#B77900]/20 bg-[#B77900]/5 flex items-start gap-4">
+        <div className="p-2.5 rounded-xl bg-[#B77900]/10 shrink-0">
+          <Lock className="w-4 h-4 text-[#B77900]" />
         </div>
         <div>
-          <p className="text-sm font-semibold text-amber-300">
+          <p className="text-sm font-semibold text-[#111317]">
             Developer Interaction Room — Locked
           </p>
-          <p className="text-xs text-zinc-500 mt-1 leading-relaxed">
+          <p className="text-xs text-[#4B5563] mt-1 leading-relaxed">
             This workspace unlocks automatically once your payment is{" "}
-            <span className="text-amber-400 font-medium">confirmed by our team</span>. You will receive a notification when it's ready.
+            <span className="text-[#B77900] font-medium">confirmed by our team</span>. You will receive a notification when it's ready.
           </p>
-          <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+          <span className="inline-block mt-2 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-[#B77900]/10 text-[#B77900] border border-[#B77900]/20">
             Status: {orderStatus.replace(/_/g, " ")}
           </span>
         </div>
@@ -181,21 +190,17 @@ export default function DeveloperInteractionRoom({
   const isMaintenanceChannel = channel === "maintenance";
 
   return (
-    <div className={`mt-4 rounded-2xl border overflow-hidden ${
-      isMaintenanceChannel ? "border-purple-500/20 bg-purple-950/[0.02]" : "border-indigo-500/20 bg-white/[0.01]"
-    }`}>
+    <div className="mt-4 rounded-2xl border border-[rgba(21,24,29,0.10)] bg-[#FAFAFA] overflow-hidden shadow-xs">
       {/* Header */}
-      <div className={`flex items-center justify-between px-4 py-3 border-b ${
-        isMaintenanceChannel ? "border-purple-500/10 bg-purple-500/[0.05]" : "border-white/5 bg-indigo-500/[0.03]"
-      }`}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(21,24,29,0.08)] bg-white">
         <div className="flex items-center gap-2.5">
-          <div className={`w-2 h-2 rounded-full ${isSprintCompletedReadOnly ? "bg-zinc-500" : isMaintenanceChannel ? "bg-purple-400 animate-pulse" : "bg-emerald-400 animate-pulse"}`} />
-          <p className="text-xs font-bold text-white">
+          <div className={`w-2 h-2 rounded-full ${isSprintCompletedReadOnly ? "bg-[#6B7280]" : isMaintenanceChannel ? "bg-[#315EF7] animate-pulse" : "bg-[#169B62] animate-pulse"}`} />
+          <p className="text-xs font-bold text-[#111317]">
             {customTitle || (isMaintenanceChannel ? "🛠️ Maintenance & SLA Support Channel" : isSprintCompletedReadOnly ? "Project Sprint Room (Completed Archive)" : "Developer Workspace")}
           </p>
-          <span className="text-[10px] text-zinc-500 font-medium">— {planName}</span>
+          <span className="text-[10px] text-[#6B7280] font-medium">— {planName}</span>
           {isSprintCompletedReadOnly && (
-            <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+            <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5 rounded bg-[#E5E7EB] text-[#4B5563] border border-[rgba(21,24,29,0.10)]">
               Read Only
             </span>
           )}
@@ -214,7 +219,7 @@ export default function DeveloperInteractionRoom({
                     setShowLinkInput(true);
                   }}
                   title={`Share ${meta.label}`}
-                  className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg border border-white/10 hover:border-white/20 transition-colors ${meta.color} bg-white/[0.03] hover:bg-white/[0.06]`}
+                  className={`text-[10px] flex items-center gap-1 px-2 py-1 rounded-lg border border-[rgba(21,24,29,0.10)] hover:border-[rgba(21,24,29,0.20)] transition-colors ${meta.color} bg-white hover:bg-[#FAFAFA]`}
                 >
                   <Icon className="w-3 h-3" />
                   {meta.label}
@@ -228,7 +233,7 @@ export default function DeveloperInteractionRoom({
       {/* Messages */}
       <div className="h-64 overflow-y-auto px-4 py-3 space-y-3">
         {messages.length === 0 && (
-          <div className="h-full flex items-center justify-center text-xs text-zinc-600">
+          <div className="h-full flex items-center justify-center text-xs text-[#6B7280]">
             {isMaintenanceChannel
               ? "No maintenance messages yet. Discuss tasks, fixes, and support updates here!"
               : isSprintCompletedReadOnly
@@ -249,15 +254,13 @@ export default function DeveloperInteractionRoom({
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm ${
                     m.senderRole === "admin"
-                      ? isMaintenanceChannel
-                        ? "bg-purple-600/20 border border-purple-500/30 text-purple-100"
-                        : "bg-indigo-600/20 border border-indigo-500/30 text-indigo-100"
-                      : "bg-white/[0.05] border border-white/10 text-zinc-200"
+                      ? "bg-white border border-[#315EF7]/30 text-[#111317] shadow-xs"
+                      : "bg-[#E5E7EB] border border-[rgba(21,24,29,0.08)] text-[#111317]"
                   }`}
                 >
                   {m.text && <p className="leading-relaxed">{m.text}</p>}
                   {m.linkUrl && (
-                    <div className="mt-1.5 flex items-center gap-2 p-2 bg-black/40 rounded-xl border border-white/10 flex-wrap sm:flex-nowrap">
+                    <div className="mt-1.5 flex items-center gap-2 p-2 bg-white rounded-xl border border-[rgba(21,24,29,0.10)] flex-wrap sm:flex-nowrap">
                       {(() => {
                         const meta = LINK_TYPE_META[m.linkType || "general"];
                         const Icon = meta.icon;
@@ -273,25 +276,25 @@ export default function DeveloperInteractionRoom({
                               href={validUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-indigo-300 hover:text-indigo-200 underline underline-offset-2 flex-1 truncate"
+                              className="text-xs text-[#315EF7] hover:underline underline-offset-2 flex-1 truncate"
                             >
                               {m.linkUrl}
                             </a>
                             {isStagingOrPreview && (
                               <a
                                 href={`/preview?url=${encodeURIComponent(validUrl)}&title=${encodeURIComponent(m.text || "Live Preview")}&ref=/dashboard/workspace`}
-                                className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 hover:bg-indigo-500/30 transition-colors shrink-0"
+                                className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#315EF7]/10 text-[#315EF7] border border-[#315EF7]/20 hover:bg-[#315EF7]/20 transition-colors shrink-0"
                               >
                                 Preview Demo
                               </a>
                             )}
                             <button
                               onClick={() => copyToClipboard(validUrl)}
-                              className="text-zinc-500 hover:text-white transition-colors shrink-0 cursor-pointer p-0.5"
+                              className="text-[#6B7280] hover:text-[#111317] transition-colors shrink-0 cursor-pointer p-0.5"
                               title="Copy Link"
                             >
                               {copied === validUrl ? (
-                                <CheckCheck className="w-3.5 h-3.5 text-emerald-400" />
+                                <CheckCheck className="w-3.5 h-3.5 text-[#169B62]" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />
                               )}
@@ -300,7 +303,7 @@ export default function DeveloperInteractionRoom({
                               href={validUrl}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-zinc-500 hover:text-white transition-colors shrink-0 p-0.5"
+                              className="text-[#6B7280] hover:text-[#111317] transition-colors shrink-0 p-0.5"
                               title="Open in new tab"
                             >
                               <ExternalLink className="w-3.5 h-3.5" />
@@ -316,18 +319,16 @@ export default function DeveloperInteractionRoom({
                   <span
                     className={`text-[10px] font-bold ${
                       m.senderRole === "admin"
-                        ? isMaintenanceChannel
-                          ? "text-purple-400"
-                          : "text-indigo-400"
-                        : "text-emerald-400"
+                        ? "text-[#315EF7]"
+                        : "text-[#4B5563]"
                     }`}
                   >
                     {m.senderRole === "admin" 
                       ? (m.senderDesignation ? `${m.senderName} • ${m.senderDesignation}` : (isMaintenanceChannel ? "Maintenance Engineer" : "Dev Team"))
                       : m.senderName}
                   </span>
-                  <span className="text-[10px] text-zinc-600">•</span>
-                  <span className="text-[10px] text-zinc-600">
+                  <span className="text-[10px] text-[#6B7280]">•</span>
+                  <span className="text-[10px] text-[#6B7280]">
                     {formatRelativeTime(m.createdAt)}
                   </span>
                 </div>
@@ -347,7 +348,7 @@ export default function DeveloperInteractionRoom({
             exit={{ opacity: 0, height: 0 }}
             className="px-4 pb-3"
           >
-            <div className="flex items-center gap-2 p-2 bg-[#0e0e0e] rounded-xl border border-white/10">
+            <div className="flex items-center gap-2 p-2 bg-white rounded-xl border border-[rgba(21,24,29,0.10)]">
               <span className={`text-[11px] font-bold shrink-0 ${LINK_TYPE_META[linkType!].color}`}>
                 {LINK_TYPE_META[linkType!].label}:
               </span>
@@ -356,11 +357,11 @@ export default function DeveloperInteractionRoom({
                 value={linkUrl}
                 onChange={(e) => setLinkUrl(e.target.value)}
                 placeholder="Paste URL..."
-                className="flex-1 bg-transparent text-xs text-white placeholder:text-zinc-600 outline-none"
+                className="flex-1 bg-transparent text-xs text-[#111317] placeholder:text-[#6B7280] outline-none"
               />
               <button
                 onClick={() => { setShowLinkInput(false); setLinkUrl(""); }}
-                className="text-zinc-500 hover:text-white text-xs px-2 cursor-pointer"
+                className="text-[#6B7280] hover:text-[#111317] text-xs px-2 cursor-pointer"
               >
                 Cancel
               </button>
@@ -371,22 +372,22 @@ export default function DeveloperInteractionRoom({
 
       {/* Message Input or Read-Only Notice */}
       {isSprintCompletedReadOnly ? (
-        <div className="px-4 py-3 bg-white/[0.02] border-t border-white/5 flex items-center justify-between gap-3 text-xs text-zinc-400">
+        <div className="px-4 py-3 bg-[#FAFAFA] border-t border-[rgba(21,24,29,0.08)] flex items-center justify-between gap-3 text-xs text-[#4B5563]">
           <div className="flex items-center gap-2">
-            <Lock className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+            <Lock className="w-3.5 h-3.5 text-[#6B7280] shrink-0" />
             <span>Sprint build is completed & delivered. This project chat is now in <strong>read-only archive mode</strong>.</span>
           </div>
-          <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 shrink-0">
+          <span className="text-[10px] uppercase font-mono font-bold tracking-wider px-2 py-0.5 rounded bg-[#E5E7EB] text-[#4B5563] border border-[rgba(21,24,29,0.10)] shrink-0">
             Archived
           </span>
         </div>
       ) : (
         <div className="px-4 pb-4">
-          <div className="flex items-center gap-2 bg-[#0e0e0e] border border-white/10 rounded-xl p-2">
+          <div className="flex items-center gap-2 bg-white border border-[rgba(21,24,29,0.12)] rounded-xl p-2 shadow-xs">
             <button
               onClick={() => setShowLinkInput(!showLinkInput)}
               title="Share a link"
-              className="p-1.5 rounded-lg text-zinc-500 hover:text-indigo-400 hover:bg-indigo-500/10 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-[#6B7280] hover:text-[#315EF7] hover:bg-[#315EF7]/10 transition-colors cursor-pointer"
             >
               <Link2 className="w-4 h-4" />
             </button>
@@ -396,19 +397,17 @@ export default function DeveloperInteractionRoom({
               onChange={(e) => setText(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && handleSend()}
               placeholder={isMaintenanceChannel ? "Message maintenance team regarding tasks or fixes..." : "Type a message..."}
-              className="flex-1 bg-transparent text-sm text-white placeholder:text-zinc-600 outline-none"
+              className="flex-1 bg-transparent text-sm text-[#111317] placeholder:text-[#6B7280] outline-none"
             />
             <button
               onClick={handleSend}
               disabled={sending || (!text.trim() && !linkUrl.trim())}
-              className={`p-2 rounded-lg text-white transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer ${
-                isMaintenanceChannel ? "bg-purple-600 hover:bg-purple-500" : "bg-indigo-500 hover:bg-indigo-600"
-              }`}
+              className="p-2 rounded-lg text-white bg-[#315EF7] hover:bg-[#2A50D4] transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
             </button>
           </div>
-          <p className="text-[10px] text-zinc-700 mt-1.5 px-1">
+          <p className="text-[10px] text-[#6B7280] mt-1.5 px-1">
             Press Enter to send · Use the link icon to share files, previews & designs
           </p>
         </div>

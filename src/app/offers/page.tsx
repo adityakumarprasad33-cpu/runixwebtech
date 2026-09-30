@@ -76,10 +76,7 @@ export default function PublicOffersPage() {
   };
 
   return (
-    <div className="flex flex-col w-full items-center relative bg-[#050505] overflow-hidden min-h-screen">
-      <div className="fixed inset-0 z-0 pointer-events-none bg-grid opacity-10" />
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-[60vh] bg-indigo-500/10 blur-[160px] pointer-events-none rounded-full" />
-
+    <div className="flex flex-col w-full items-center relative bg-[#F1F2F4] text-[#111317] overflow-hidden min-h-screen">
       {/* ── Hero Section ── */}
       <section className="relative w-full pt-32 md:pt-36 pb-12 px-4 z-10 text-center max-w-5xl mx-auto">
         <motion.div
@@ -88,19 +85,19 @@ export default function PublicOffersPage() {
           transition={{ duration: 0.8 }}
           className="space-y-6"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold uppercase tracking-widest">
-            <Tag className="w-3.5 h-3.5 text-indigo-400" /> Exclusive Platform Deals
+          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] text-[#4B5563] text-xs font-mono font-bold uppercase tracking-wider shadow-sm">
+            <Tag className="w-3.5 h-3.5 text-[#315EF7]" /> Active Promotional Vouchers
           </div>
 
-          <h1 className="font-jakarta text-5xl md:text-7xl lg:text-8xl font-black text-white tracking-tighter uppercase leading-[0.9]">
-            Promotional <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-              Offers & Deals
+          <h1 className=" text-4xl sm:text-6xl lg:text-7xl font-extrabold text-[#111317] tracking-tight leading-[0.95]">
+            Engineering Sprint <br />
+            <span className="text-[#315EF7]">
+              Offers & Vouchers
             </span>
           </h1>
 
-          <p className="text-lg md:text-2xl text-zinc-400 max-w-2xl mx-auto font-medium leading-relaxed tracking-tight">
-            Discover active seasonal vouchers, bundle discounts, and promo codes for your next web development sprint.
+          <p className="text-base sm:text-xl text-[#4B5563] max-w-2xl mx-auto font-normal leading-relaxed">
+            Discover verified seasonal vouchers, package discounts, and promo codes for your next web development sprint.
           </p>
         </motion.div>
       </section>
@@ -108,23 +105,23 @@ export default function PublicOffersPage() {
       {/* ── Active Offers Grid ── */}
       <section className="py-8 w-full max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10 pb-28">
         {loading ? (
-          <div className="text-center py-20 text-xs text-zinc-500">
+          <div className="text-center py-20 text-xs text-[#6B7280] font-mono">
             Loading active promotional campaigns...
           </div>
         ) : offers.length === 0 && coupons.length === 0 ? (
-          <div className="p-12 rounded-3xl bg-white/[0.02] border border-white/10 text-center max-w-xl mx-auto space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-white/5 text-zinc-400 flex items-center justify-center mx-auto">
-              <Tag className="w-6 h-6" />
+          <div className="p-12 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] text-center max-w-xl mx-auto space-y-4 shadow-[0_12px_40px_rgba(21,24,29,0.06)]">
+            <div className="w-12 h-12 rounded-2xl bg-[#F1F2F4] text-[#4B5563] flex items-center justify-center mx-auto">
+              <Tag className="w-6 h-6 text-[#315EF7]" />
             </div>
-            <h3 className="text-lg font-bold text-white">No Active Campaigns at the Moment</h3>
-            <p className="text-xs text-zinc-400 leading-relaxed">
+            <h3 className="text-lg font-bold  text-[#111317]">No Active Campaigns at the Moment</h3>
+            <p className="text-xs text-[#4B5563] leading-relaxed">
               Check back soon for upcoming seasonal promotions or browse our standard milestone packages.
             </p>
-            <Button variant="accent" size="sm" asChild className="rounded-xl">
-              <Link href="/pricing" className="flex items-center gap-1.5">
-                View Pricing Packages <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </Button>
+            <Link href="/pricing">
+              <Button size="sm" className="rounded-[13px] bg-[#111317] text-white hover:bg-[#000000] text-xs font-semibold">
+                View Pricing Packages <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+              </Button>
+            </Link>
           </div>
         ) : (
           <div className="space-y-12">
@@ -132,8 +129,8 @@ export default function PublicOffersPage() {
             {offers.length > 0 && (
               <div className="space-y-6">
                 <div className="flex items-center gap-2 px-1">
-                  <Sparkles className="w-4 h-4 text-indigo-400" />
-                  <h2 className="text-lg font-bold text-white uppercase tracking-wider text-xs">
+                  <Sparkles className="w-4 h-4 text-[#315EF7]" />
+                  <h2 className="text-xs font-mono font-bold text-[#111317] uppercase tracking-wider">
                     Featured Campaigns & Deals
                   </h2>
                 </div>
@@ -145,11 +142,11 @@ export default function PublicOffersPage() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.05 }}
-                      className="rounded-3xl bg-zinc-900/40 border border-white/10 overflow-hidden flex flex-col justify-between backdrop-blur-xl hover:border-indigo-500/30 transition-all group"
+                      className="rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] overflow-hidden flex flex-col justify-between shadow-[0_12px_40px_rgba(21,24,29,0.06)] hover:border-[rgba(21,24,29,0.20)] transition-all group"
                     >
                       <div>
                         {offer.imageUrl && (
-                          <div className="w-full h-44 relative bg-black overflow-hidden">
+                          <div className="w-full h-44 relative bg-[#E5E7EB] overflow-hidden">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={offer.imageUrl}
@@ -157,7 +154,7 @@ export default function PublicOffersPage() {
                               className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                             />
                             {offer.discountBadge && (
-                              <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-black/80 backdrop-blur-md border border-white/15 text-white font-mono font-bold text-xs shadow-lg">
+                              <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-[#111317] text-white font-mono font-bold text-xs shadow-sm">
                                 {offer.discountBadge}
                               </div>
                             )}
@@ -166,21 +163,21 @@ export default function PublicOffersPage() {
 
                         <div className="p-6 space-y-3">
                           {!offer.imageUrl && offer.discountBadge && (
-                            <span className="inline-block px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-mono font-bold text-xs">
+                            <span className="inline-block px-3 py-1 rounded-full bg-[#169B62]/10 border border-[#169B62]/20 text-[#169B62] font-mono font-bold text-xs">
                               {offer.discountBadge}
                             </span>
                           )}
 
-                          <h3 className="text-lg font-bold text-white leading-snug">{offer.title}</h3>
-                          <p className="text-xs text-zinc-400 leading-relaxed line-clamp-3">
+                          <h3 className="text-lg font-bold  text-[#111317] leading-snug">{offer.title}</h3>
+                          <p className="text-xs text-[#4B5563] leading-relaxed line-clamp-3">
                             {offer.description}
                           </p>
 
-                          <div className="pt-2 flex items-center justify-between text-[11px] text-zinc-500 border-t border-white/5">
+                          <div className="pt-2 flex items-center justify-between text-[11px] text-[#6B7280] border-t border-[rgba(21,24,29,0.06)] font-mono">
                             <span className="flex items-center gap-1">
                               <Clock className="w-3.5 h-3.5" /> Valid Until:
                             </span>
-                            <span className="text-zinc-300 font-medium font-mono">
+                            <span className="text-[#111317] font-medium">
                               {new Date(offer.endDate).toLocaleDateString("en-US", {
                                 month: "short",
                                 day: "numeric",
@@ -193,17 +190,17 @@ export default function PublicOffersPage() {
 
                       <div className="p-6 pt-0 space-y-3">
                         {offer.promoCode && (
-                          <div className="p-2.5 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between">
-                            <span className="text-xs font-mono font-bold text-indigo-300">
+                          <div className="p-2.5 rounded-xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] flex items-center justify-between">
+                            <span className="text-xs font-mono font-bold text-[#111317]">
                               {offer.promoCode}
                             </span>
                             <button
                               onClick={() => handleCopyCode(offer.promoCode)}
-                              className="p-1 rounded-md text-zinc-400 hover:text-white transition-colors cursor-pointer"
+                              className="p-1 rounded-md text-[#6B7280] hover:text-[#111317] transition-colors cursor-pointer"
                               title="Copy code"
                             >
                               {copiedCode === offer.promoCode ? (
-                                <Check className="w-3.5 h-3.5 text-emerald-400" />
+                                <Check className="w-3.5 h-3.5 text-[#169B62]" />
                               ) : (
                                 <Copy className="w-3.5 h-3.5" />
                               )}
@@ -211,19 +208,19 @@ export default function PublicOffersPage() {
                           </div>
                         )}
 
-                        <Button variant="accent" size="sm" asChild className="w-full rounded-xl">
-                          <Link
-                            href={
-                              offer.promoCode
-                                ? `/pricing?coupon=${encodeURIComponent(offer.promoCode)}`
-                                : offer.actionLink || "/pricing"
-                            }
-                            className="flex items-center justify-center gap-1.5 font-bold"
-                          >
+                        <Link
+                          href={
+                            offer.promoCode
+                              ? `/pricing?coupon=${encodeURIComponent(offer.promoCode)}`
+                              : offer.actionLink || "/pricing"
+                          }
+                          className="block"
+                        >
+                          <Button size="sm" className="w-full rounded-[13px] bg-[#315EF7] hover:bg-[#2A50D4] text-white text-xs font-semibold flex items-center justify-center gap-1.5 shadow-sm">
                             <span>{offer.buttonText || "Claim Deal"}</span>
                             <ArrowRight className="w-3.5 h-3.5" />
-                          </Link>
-                        </Button>
+                          </Button>
+                        </Link>
                       </div>
                     </motion.div>
                   ))}
@@ -235,8 +232,8 @@ export default function PublicOffersPage() {
             {coupons.length > 0 && (
               <div className="space-y-6">
                 <div className="flex items-center gap-2 px-1">
-                  <Percent className="w-4 h-4 text-emerald-400" />
-                  <h2 className="text-lg font-bold text-white uppercase tracking-wider text-xs">
+                  <Percent className="w-4 h-4 text-[#169B62]" />
+                  <h2 className="text-xs font-mono font-bold text-[#111317] uppercase tracking-wider">
                     Active Promo Codes & Vouchers
                   </h2>
                 </div>
@@ -248,24 +245,24 @@ export default function PublicOffersPage() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.05 }}
-                      className="p-6 rounded-3xl bg-zinc-900/40 border border-white/10 flex flex-col justify-between space-y-4 backdrop-blur-xl hover:border-emerald-500/30 transition-all"
+                      className="p-6 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] flex flex-col justify-between space-y-4 shadow-[0_12px_40px_rgba(21,24,29,0.06)] hover:border-[rgba(21,24,29,0.20)] transition-all"
                     >
                       <div className="space-y-3">
                         <div className="flex items-start justify-between gap-2">
-                          <span className="px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-300 font-mono font-extrabold text-sm tracking-wider border border-emerald-500/30">
+                          <span className="px-3 py-1.5 rounded-xl bg-[#169B62]/10 text-[#169B62] font-mono font-extrabold text-sm tracking-wider border border-[#169B62]/20">
                             {coupon.code}
                           </span>
-                          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-white/5 text-zinc-400 border border-white/10">
+                          <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-[#F1F2F4] text-[#4B5563] border border-[rgba(21,24,29,0.08)]">
                             {coupon.scope || "universal"}
                           </span>
                         </div>
 
-                        <h3 className="text-base font-bold text-white">
+                        <h3 className="text-base font-bold text-[#111317] ">
                           {coupon.type === "percentage" ? (
                             <>
                               {coupon.value}% OFF
                               {coupon.maxDiscount > 0 && (
-                                <span className="text-xs text-zinc-400 font-normal ml-1">
+                                <span className="text-xs text-[#4B5563] font-normal ml-1">
                                   (up to ₹{coupon.maxDiscount.toLocaleString()})
                                 </span>
                               )}
@@ -276,13 +273,13 @@ export default function PublicOffersPage() {
                         </h3>
 
                         {coupon.bannerText && (
-                          <p className="text-xs text-zinc-400 leading-relaxed">{coupon.bannerText}</p>
+                          <p className="text-xs text-[#4B5563] leading-relaxed">{coupon.bannerText}</p>
                         )}
 
                         <div className="grid grid-cols-2 gap-2 text-[11px] pt-1">
-                          <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                            <span className="text-zinc-500 block text-[10px]">Applies To:</span>
-                            <span className="text-zinc-300 font-medium truncate block">
+                          <div className="p-2 rounded-xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.06)]">
+                            <span className="text-[#6B7280] block text-[10px] font-mono">Applies To:</span>
+                            <span className="text-[#111317] font-medium truncate block">
                               {coupon.scope === "maintenance"
                                 ? "Maintenance SLA"
                                 : coupon.scope === "addons"
@@ -292,9 +289,9 @@ export default function PublicOffersPage() {
                                 : "All Services"}
                             </span>
                           </div>
-                          <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5">
-                            <span className="text-zinc-500 block text-[10px]">Valid Until:</span>
-                            <span className="text-zinc-300 font-medium">
+                          <div className="p-2 rounded-xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.06)]">
+                            <span className="text-[#6B7280] block text-[10px] font-mono">Valid Until:</span>
+                            <span className="text-[#111317] font-medium font-mono">
                               {new Date(coupon.endDate).toLocaleDateString("en-US", {
                                 month: "short",
                                 day: "numeric",
@@ -310,11 +307,11 @@ export default function PublicOffersPage() {
                           onClick={() => handleCopyCode(coupon.code)}
                           variant="outline"
                           size="sm"
-                          className="flex-1 rounded-xl text-xs font-semibold flex items-center justify-center gap-1.5"
+                          className="flex-1 rounded-[13px] text-xs font-semibold flex items-center justify-center gap-1.5 border-[rgba(21,24,29,0.12)] text-[#111317]"
                         >
                           {copiedCode === coupon.code ? (
                             <>
-                              <Check className="w-3.5 h-3.5 text-emerald-400" /> Copied
+                              <Check className="w-3.5 h-3.5 text-[#169B62]" /> Copied
                             </>
                           ) : (
                             <>
@@ -322,11 +319,11 @@ export default function PublicOffersPage() {
                             </>
                           )}
                         </Button>
-                        <Button variant="accent" size="sm" asChild className="flex-1 rounded-xl text-xs font-bold">
-                          <Link href={`/pricing?coupon=${encodeURIComponent(coupon.code)}`}>
+                        <Link href={`/pricing?coupon=${encodeURIComponent(coupon.code)}`} className="flex-1">
+                          <Button size="sm" className="w-full rounded-[13px] text-xs font-semibold bg-[#111317] text-white hover:bg-[#000000]">
                             Apply Code
-                          </Link>
-                        </Button>
+                          </Button>
+                        </Link>
                       </div>
                     </motion.div>
                   ))}

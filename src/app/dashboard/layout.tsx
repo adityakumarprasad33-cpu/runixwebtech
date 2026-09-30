@@ -212,29 +212,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[#0a0a0a]">
+    <div className="flex h-screen overflow-hidden bg-[#F1F2F4] text-[#111317]">
       {/* ── Sidebar ── */}
       <aside
         className={`
           hidden lg:flex flex-col fixed top-0 left-0 h-full z-40
-          bg-[#0e0e0e] border-r border-white/5 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
+          bg-[#FFFFFF] border-r border-[rgba(21,24,29,0.10)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]
           ${collapsed ? "w-[72px]" : "w-[260px]"}
         `}
       >
         {/* Logo area */}
-        <div className={`flex items-center h-16 px-4 border-b border-white/5 ${collapsed ? "justify-center" : "gap-3"}`}>
+        <div className={`flex items-center h-16 px-4 border-b border-[rgba(21,24,29,0.08)] ${collapsed ? "justify-center" : "gap-3"}`}>
           <Link href="/" className="flex items-center gap-2.5 shrink-0">
             <div className="relative w-8 h-8">
               <Image src="/logo-v2.png" alt="Runix" fill sizes="32px" className="object-contain" />
             </div>
             {!collapsed && (
-              <span className="font-jakarta font-bold text-lg text-white tracking-tight">Runix</span>
+              <span className=" font-bold text-lg text-[#111317] tracking-tight">Runix</span>
             )}
           </Link>
           {!collapsed && (
             <button
               onClick={() => setCollapsed(true)}
-              className="ml-auto p-1.5 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
+              className="ml-auto p-1.5 rounded-lg text-[#6B7280] hover:text-[#111317] hover:bg-[rgba(21,24,29,0.05)] transition-colors cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
@@ -255,52 +255,52 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   relative flex items-center gap-3 rounded-xl transition-all duration-200
                   ${collapsed ? "justify-center px-0 py-3" : "px-4 py-3"}
                   ${isActive
-                    ? "text-white bg-white/[0.08]"
-                    : "text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]"
+                    ? "text-[#111317] bg-[rgba(21,24,29,0.06)] font-semibold shadow-xs"
+                    : "text-[#4B5563] hover:text-[#111317] hover:bg-[rgba(21,24,29,0.04)]"
                   }
                 `}
               >
                 {isActive && (
                   <motion.div
                     layoutId="dashboardActiveTab"
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-indigo-500 rounded-r-full"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#315EF7] rounded-r-full"
                     transition={{ type: "spring", stiffness: 400, damping: 30 }}
                   />
                 )}
-                <Icon className="w-[18px] h-[18px] shrink-0" />
-                {!collapsed && <span className="text-sm font-medium">{link.name}</span>}
+                <Icon className={`w-[18px] h-[18px] shrink-0 ${isActive ? "text-[#315EF7]" : ""}`} />
+                {!collapsed && <span className="text-sm">{link.name}</span>}
               </Link>
             );
           })}
         </nav>
 
         {/* User section at bottom */}
-        <div className={`border-t border-white/5 p-3 ${collapsed ? "flex flex-col items-center gap-2" : ""}`}>
+        <div className={`border-t border-[rgba(21,24,29,0.08)] p-3 ${collapsed ? "flex flex-col items-center gap-2" : ""}`}>
           {collapsed ? (
             <>
               <button
                 onClick={() => setCollapsed(false)}
-                className="p-2 rounded-lg text-zinc-500 hover:text-white hover:bg-white/5 transition-colors"
+                className="p-2 rounded-lg text-[#6B7280] hover:text-[#111317] hover:bg-[rgba(21,24,29,0.05)] transition-colors cursor-pointer"
               >
                 <Menu className="w-4 h-4" />
               </button>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+              <div className="w-9 h-9 rounded-full bg-[#111317] flex items-center justify-center text-white text-xs font-bold">
                 {initials}
               </div>
             </>
           ) : (
             <div className="flex items-center gap-3 px-3 py-2">
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold shrink-0">
+              <div className="w-9 h-9 rounded-full bg-[#111317] flex items-center justify-center text-white text-xs font-bold shrink-0">
                 {initials}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{user.displayName || "User"}</p>
-                <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                <p className="text-sm font-semibold text-[#111317] truncate">{user.displayName || "User"}</p>
+                <p className="text-xs text-[#6B7280] truncate">{user.email}</p>
               </div>
               <button
                 onClick={handleSignOut}
                 title="Sign out"
-                className="p-1.5 rounded-lg text-zinc-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                className="p-1.5 rounded-lg text-[#6B7280] hover:text-[#D83A3A] hover:bg-[#D83A3A]/10 transition-colors cursor-pointer"
               >
                 <LogOut className="w-4 h-4" />
               </button>
@@ -317,7 +317,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+              className="fixed inset-0 z-40 bg-[rgba(21,24,29,0.40)] backdrop-blur-sm lg:hidden"
               onClick={() => setMobileOpen(false)}
             />
             <motion.aside
@@ -325,13 +325,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               animate={{ x: 0 }}
               exit={{ x: "-100%" }}
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
-              className="fixed top-0 left-0 h-full w-[280px] z-50 bg-[#0e0e0e] border-r border-white/5 flex flex-col lg:hidden"
+              className="fixed top-0 left-0 h-full w-[280px] z-50 bg-[#FFFFFF] border-r border-[rgba(21,24,29,0.10)] flex flex-col lg:hidden"
             >
-              <div className="flex items-center h-16 px-5 border-b border-white/5 gap-3">
+              <div className="flex items-center h-16 px-5 border-b border-[rgba(21,24,29,0.08)] gap-3">
                 <div className="relative w-8 h-8">
                   <Image src="/logo-v2.png" alt="Runix" fill sizes="32px" className="object-contain" />
                 </div>
-                <span className="font-jakarta font-bold text-lg text-white tracking-tight">Runix</span>
+                <span className=" font-bold text-lg text-[#111317] tracking-tight">Runix</span>
               </div>
               <nav className="flex-1 flex flex-col gap-1 px-3 py-6">
                 {links.map((link) => {
@@ -343,25 +343,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       href={link.path}
                       onClick={() => setMobileOpen(false)}
                       className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-colors ${
-                        isActive ? "text-white bg-white/[0.08]" : "text-zinc-500 hover:text-zinc-200 hover:bg-white/[0.04]"
+                        isActive ? "text-[#111317] bg-[rgba(21,24,29,0.06)] font-semibold" : "text-[#4B5563] hover:text-[#111317] hover:bg-[rgba(21,24,29,0.04)]"
                       }`}
                     >
-                      <Icon className="w-[18px] h-[18px]" />
+                      <Icon className={`w-[18px] h-[18px] ${isActive ? "text-[#315EF7]" : ""}`} />
                       {link.name}
                     </Link>
                   );
                 })}
               </nav>
-              <div className="border-t border-white/5 p-4">
+              <div className="border-t border-[rgba(21,24,29,0.08)] p-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xs font-bold">
+                  <div className="w-9 h-9 rounded-full bg-[#111317] flex items-center justify-center text-white text-xs font-bold">
                     {initials}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-white truncate">{user.displayName || "User"}</p>
-                    <p className="text-xs text-zinc-500 truncate">{user.email}</p>
+                    <p className="text-sm font-semibold text-[#111317] truncate">{user.displayName || "User"}</p>
+                    <p className="text-xs text-[#6B7280] truncate">{user.email}</p>
                   </div>
-                  <button onClick={handleSignOut} className="p-1.5 text-zinc-500 hover:text-red-400 transition-colors">
+                  <button onClick={handleSignOut} className="p-1.5 text-[#6B7280] hover:text-[#D83A3A] transition-colors cursor-pointer">
                     <LogOut className="w-4 h-4" />
                   </button>
                 </div>
@@ -374,32 +374,32 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* ── Main Content ── */}
       <div className={`flex-1 flex flex-col overflow-hidden transition-all duration-300 ${collapsed ? "lg:ml-[72px]" : "lg:ml-[260px]"}`}>
         {/* Top bar */}
-        <header className="relative z-40 h-16 flex items-center justify-between px-4 sm:px-8 border-b border-white/5 bg-[#0a0a0a]/80 backdrop-blur-xl shrink-0">
+        <header className="relative z-40 h-16 flex items-center justify-between px-4 sm:px-8 border-b border-[rgba(21,24,29,0.10)] bg-[#FFFFFF]/90 backdrop-blur-xl shrink-0">
           <div className="flex items-center gap-4">
             <button
               onClick={() => setMobileOpen(true)}
-              className="lg:hidden p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+              className="lg:hidden p-2 text-[#4B5563] hover:text-[#111317] hover:bg-[rgba(21,24,29,0.05)] rounded-lg transition-colors cursor-pointer"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="hidden sm:flex items-center gap-2 bg-white/[0.04] border border-white/5 rounded-lg px-3 py-2 w-72">
-              <Search className="w-4 h-4 text-zinc-500" />
+            <div className="hidden sm:flex items-center gap-2 bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl px-3 py-2 w-72">
+              <Search className="w-4 h-4 text-[#6B7280]" />
               <input
                 type="text"
-                placeholder="Search..."
-                className="bg-transparent text-sm text-white placeholder:text-zinc-600 outline-none w-full"
+                placeholder="Search projects..."
+                className="bg-transparent text-sm text-[#111317] placeholder:text-[#6B7280] outline-none w-full"
               />
             </div>
           </div>
           <div className="flex items-center gap-3 relative">
             <button 
               onClick={() => setShowNotifications(!showNotifications)}
-              className="relative p-2 text-zinc-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors cursor-pointer"
+              className="relative p-2 text-[#4B5563] hover:text-[#111317] hover:bg-[rgba(21,24,29,0.05)] rounded-xl transition-colors cursor-pointer"
               title="Notifications"
             >
               <Bell className="w-5 h-5" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-indigo-500 rounded-full animate-pulse" />
+                <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#315EF7] rounded-full animate-pulse" />
               )}
             </button>
 
@@ -416,12 +416,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     animate={{ opacity: 1, y: 0, scale: 1 }}
                     exit={{ opacity: 0, y: 10, scale: 0.95 }}
                     transition={{ duration: 0.2 }}
-                    className="absolute right-0 top-12 z-50 w-80 sm:w-96 bg-[#111113] border border-white/15 rounded-2xl shadow-[0_25px_60px_rgba(0,0,0,0.9)] p-4 overflow-hidden"
+                    className="absolute right-0 top-12 z-50 w-80 sm:w-96 bg-[#FFFFFF] border border-[rgba(21,24,29,0.12)] rounded-2xl shadow-[0_20px_50px_rgba(21,24,29,0.10)] p-4 overflow-hidden"
                   >
-                    <div className="flex items-center justify-between pb-3 border-b border-white/5 mb-3">
+                    <div className="flex items-center justify-between pb-3 border-b border-[rgba(21,24,29,0.08)] mb-3">
                       <div className="flex items-center gap-2">
-                        <h4 className="text-sm font-bold text-white">Notifications</h4>
-                        <span className="text-[10px] font-bold px-2 py-0.5 bg-indigo-500/20 text-indigo-400 rounded-full">
+                        <h4 className="text-sm font-bold text-[#111317]">Notifications</h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 bg-[#315EF7]/10 text-[#315EF7] rounded-full">
                           {notifications.length} New
                         </span>
                       </div>
@@ -429,7 +429,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         onClick={() => {
                           setUnreadCount(0);
                         }}
-                        className="text-xs text-zinc-500 hover:text-white transition-colors cursor-pointer"
+                        className="text-xs text-[#6B7280] hover:text-[#111317] transition-colors cursor-pointer"
                       >
                         Mark all as read
                       </button>
@@ -437,8 +437,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                     <div className="space-y-2 max-h-72 overflow-y-auto pr-1 custom-scrollbar">
                       {notifications.length === 0 ? (
-                        <div className="py-8 text-center text-zinc-500 text-xs">
-                          <Bell className="w-5 h-5 mx-auto mb-2 text-zinc-600 opacity-60" />
+                        <div className="py-8 text-center text-[#6B7280] text-xs">
+                          <Bell className="w-5 h-5 mx-auto mb-2 text-[#6B7280] opacity-60" />
                           No new notifications
                         </div>
                       ) : (
@@ -464,10 +464,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             : "Admin";
 
                           return (
-                            <div key={n.id} className="rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors overflow-hidden group">
+                            <div key={n.id} className="rounded-xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] hover:border-[rgba(21,24,29,0.14)] transition-colors overflow-hidden group">
                               {/* Image Banner if attached */}
                               {n.imageUrl && (
-                                <div className="w-full h-24 overflow-hidden bg-black/40 border-b border-white/5 relative">
+                                <div className="w-full h-24 overflow-hidden bg-[#E5E7EB] border-b border-[rgba(21,24,29,0.08)] relative">
                                   {/* eslint-disable-next-line @next/next/no-img-element */}
                                   <img
                                     src={n.imageUrl}
@@ -479,8 +479,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
                               <div className="px-3 pt-3 pb-2 flex items-start justify-between gap-2">
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-xs font-semibold text-white mb-1">{n.title}</p>
-                                  <p className="text-xs text-zinc-400 leading-relaxed whitespace-pre-wrap">{n.message}</p>
+                                  <p className="text-xs font-semibold text-[#111317] mb-1">{n.title}</p>
+                                  <p className="text-xs text-[#4B5563] leading-relaxed whitespace-pre-wrap">{n.message}</p>
                                   
                                   {/* Action CTA link if provided */}
                                   {n.actionLink && (
@@ -488,7 +488,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                       <Link
                                         href={n.actionLink}
                                         onClick={() => setShowNotifications(false)}
-                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30 text-[11px] font-bold border border-indigo-500/30 transition-colors"
+                                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#315EF7]/10 text-[#315EF7] hover:bg-[#315EF7]/20 text-[11px] font-bold border border-[#315EF7]/20 transition-colors"
                                       >
                                         <span>{n.actionText || "View Offer"}</span>
                                         <ArrowRight className="w-3 h-3" />
@@ -500,17 +500,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                 <button
                                   onClick={() => handleClearNotification(n.id)}
                                   title="Dismiss"
-                                  className="shrink-0 p-0.5 rounded text-zinc-600 hover:text-white hover:bg-white/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                                  className="shrink-0 p-0.5 rounded text-[#6B7280] hover:text-[#D83A3A] hover:bg-[#D83A3A]/10 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                                 >
                                   <X className="w-3 h-3" />
                                 </button>
                               </div>
                               {/* Footer: [Name] • [Role] + timestamp */}
-                              <div className="flex items-center justify-between px-3 py-1.5 border-t border-white/5 bg-white/[0.02]">
-                                <span className="text-[10px] font-medium text-indigo-400 truncate">
+                              <div className="flex items-center justify-between px-3 py-1.5 border-t border-[rgba(21,24,29,0.06)] bg-[#FFFFFF]">
+                                <span className="text-[10px] font-medium text-[#315EF7] truncate">
                                   {senderLabel}
                                 </span>
-                                <span className="text-[10px] text-zinc-600 shrink-0 ml-2">{timeStr}</span>
+                                <span className="text-[10px] text-[#6B7280] shrink-0 ml-2">{timeStr}</span>
                               </div>
                             </div>
                           );
@@ -522,14 +522,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
             </AnimatePresence>
 
-            <Link href="/" className="text-xs text-zinc-500 hover:text-zinc-300 font-medium px-3 py-1.5 rounded-lg hover:bg-white/5 transition-colors hidden sm:block">
+            <Link href="/" className="text-xs text-[#4B5563] hover:text-[#111317] font-medium px-3 py-1.5 rounded-lg hover:bg-[rgba(21,24,29,0.05)] transition-colors hidden sm:block">
               ← Back to Site
             </Link>
           </div>
         </header>
 
         {/* Page content */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-8">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-8 bg-[#F1F2F4]">
           {children}
         </main>
       </div>

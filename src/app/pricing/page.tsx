@@ -34,7 +34,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import { collection, doc, getDoc, getDocs, query, where } from "firebase/firestore";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { safeFetchJson } from "@/lib/safeFetch";
+import RunixRealisticDeveloperHero from "@/components/hero/RunixRealisticDeveloperHero";
+import { PageReadinessGate } from "@/components/readiness/PageReadinessGate";
+import { HeroSkeleton } from "@/components/ui/skeleton/HeroSkeleton";
 
 interface PlanTier {
   id: string;
@@ -697,33 +701,12 @@ function PricingContent() {
   const displayedPlans = packageCategory === "all" ? PLANS : PLANS.filter((p) => p.id === packageCategory);
 
   return (
-    <div className="flex flex-col w-full items-center relative bg-[#050505] overflow-hidden min-h-screen">
-      <div className="fixed inset-0 z-0 pointer-events-none bg-grid opacity-10" />
-      <div className="fixed top-0 left-1/2 -translate-x-1/2 w-full max-w-5xl h-[60vh] bg-indigo-500/10 blur-[160px] pointer-events-none rounded-full" />
+    <div className="flex flex-col w-full items-center relative bg-[#F1F2F4] text-[#111317] overflow-hidden min-h-screen">
+      {/* ── Realistic Developer Hero — Pricing ── */}
+      <RunixRealisticDeveloperHero page="pricing" />
 
-      {/* ── Hero Section ── */}
-      <section className="relative w-full pt-32 md:pt-36 pb-10 px-4 z-10 text-center max-w-5xl mx-auto">
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="space-y-6"
-        >
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-bold uppercase tracking-widest">
-            <Sparkles className="w-3.5 h-3.5 text-indigo-400" /> Milestone-Driven Pricing
-          </div>
-
-          <h1 className="font-jakarta text-5xl md:text-7xl lg:text-8xl font-black text-white tracking-tighter uppercase leading-[0.9]">
-            Transparent <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-              50 / 50 Payments
-            </span>
-          </h1>
-
-          <p className="text-lg md:text-2xl text-zinc-400 max-w-2xl mx-auto font-medium leading-relaxed tracking-tight">
-            Pay <span className="text-white font-bold">50% advance</span> to kickstart development. Pay the remaining{" "}
-            <span className="text-white font-bold">50% balance</span> only after you review and approve your live staging demo.
-          </p>
+      <section className="relative w-full pb-8 px-4 z-10 text-center max-w-5xl mx-auto">
+        <div className="space-y-6">
 
           {/* ── Auto-Promotional Coupon Banner for Eligible Clients ── */}
           {bannerCoupons.length > 0 && (() => {
@@ -741,19 +724,19 @@ function PricingContent() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="max-w-3xl mx-auto mt-4 p-4 sm:p-5 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-indigo-950/30 to-purple-950/40 border border-emerald-500/30 backdrop-blur-xl shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left"
+                className="max-w-3xl mx-auto mt-4 p-4 sm:p-5 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.12)] shadow-[0_12px_40px_rgba(21,24,29,0.06)] flex flex-col sm:flex-row items-center justify-between gap-4 text-left"
               >
                 <div className="flex items-center gap-3.5 min-w-0">
-                  <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/30 shadow-inner">
+                  <div className="w-12 h-12 rounded-2xl bg-[#169B62]/10 text-[#169B62] flex items-center justify-center shrink-0 border border-[#169B62]/20">
                     <Tag className="w-6 h-6" />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold uppercase tracking-wider bg-[#169B62]/10 text-[#169B62]">
                         {badgeLabel}
                       </span>
                       {currentBanner.usageLimit > 0 && (
-                        <span className="text-[10px] text-zinc-400">
+                        <span className="text-[10px] text-[#6B7280] font-mono">
                           Only {Math.max(0, currentBanner.usageLimit - (currentBanner.usedCount || 0))} spots left!
                         </span>
                       )}
@@ -765,8 +748,8 @@ function PricingContent() {
                               onClick={() => setActiveBannerIndex(idx)}
                               className={`w-2 h-2 rounded-full transition-all cursor-pointer ${
                                 (activeBannerIndex % bannerCoupons.length) === idx
-                                  ? "bg-emerald-400 w-4"
-                                  : "bg-white/20 hover:bg-white/40"
+                                  ? "bg-[#169B62] w-4"
+                                  : "bg-[#E5E7EB] hover:bg-[#6B7280]"
                               }`}
                               title={`View offer ${idx + 1}`}
                             />
@@ -774,7 +757,7 @@ function PricingContent() {
                         </div>
                       )}
                     </div>
-                    <h4 className="text-sm sm:text-base font-bold text-white mt-1 line-clamp-2">
+                    <h4 className="text-sm sm:text-base font-bold text-[#111317]  mt-1 line-clamp-2">
                       {currentBanner.bannerText ||
                         `Save ${currentBanner.type === "percentage" ? `${currentBanner.value}%` : `₹${currentBanner.value.toLocaleString()}`} on your development sprint!`}
                     </h4>
@@ -782,7 +765,7 @@ function PricingContent() {
                 </div>
 
                 <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end flex-wrap sm:flex-nowrap">
-                  <div className="px-3.5 py-2 rounded-xl bg-black/60 border border-emerald-500/40 font-mono font-black text-emerald-300 text-xs sm:text-sm tracking-wider flex items-center gap-2">
+                  <div className="px-3.5 py-2 rounded-xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.12)] font-mono font-bold text-[#111317] text-xs sm:text-sm tracking-wider flex items-center gap-2">
                     <span>{currentBanner.code}</span>
                     <button
                       onClick={() => {
@@ -790,11 +773,11 @@ function PricingContent() {
                         setCopiedBannerCode(currentBanner.code);
                         setTimeout(() => setCopiedBannerCode(null), 2500);
                       }}
-                      className="text-zinc-400 hover:text-white cursor-pointer"
+                      className="text-[#6B7280] hover:text-[#111317] cursor-pointer"
                       title="Copy promo code"
                     >
                       {copiedBannerCode === currentBanner.code ? (
-                        <Check className="w-3.5 h-3.5 text-emerald-400" />
+                        <Check className="w-3.5 h-3.5 text-[#169B62]" />
                       ) : (
                         <Copy className="w-3.5 h-3.5" />
                       )}
@@ -806,9 +789,8 @@ function PricingContent() {
                       const el = document.getElementById("pricing-tiers");
                       if (el) el.scrollIntoView({ behavior: "smooth" });
                     }}
-                    variant="accent"
                     size="sm"
-                    className="rounded-xl text-xs font-bold px-4 py-2 shrink-0 flex items-center gap-1.5 cursor-pointer"
+                    className="rounded-[13px] bg-[#315EF7] hover:bg-[#2A50D4] text-white text-xs font-semibold px-4 py-2 shrink-0 flex items-center gap-1.5 cursor-pointer shadow-sm"
                   >
                     {appliedCoupon?.code === currentBanner.code ? "Applied ✓" : "Apply Code"}
                   </Button>
@@ -827,21 +809,22 @@ function PricingContent() {
             ].map((m, idx) => (
               <div
                 key={idx}
-                className="p-4 rounded-2xl bg-white/[0.02] border border-white/10 hover:border-indigo-500/30 transition-all flex flex-col justify-between"
+                className="p-4 rounded-2xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] shadow-[0_4px_16px_rgba(21,24,29,0.03)] flex flex-col justify-between"
               >
-                <span className="text-indigo-400 text-xs font-mono font-bold">{m.step}</span>
+                <span className="text-[#315EF7] text-xs font-mono font-bold">{m.step}</span>
                 <div className="mt-3">
-                  <h4 className="text-xs font-bold text-white leading-tight">{m.title}</h4>
-                  <p className="text-[11px] text-zinc-500 mt-1 leading-snug">{m.desc}</p>
+                  <h4 className="text-xs font-bold text-[#111317] leading-tight ">{m.title}</h4>
+                  <p className="text-[11px] text-[#4B5563] mt-1 leading-snug">{m.desc}</p>
                 </div>
               </div>
             ))}
           </div>
-        </motion.div>
+        </div>
       </section>
 
       {/* ── Pricing Tiers Section ── */}
-      <section id="pricing-tiers" className="py-10 w-full max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
+      <section id="pricing-matrix" className="scroll-mt-24 py-10 w-full max-w-7xl px-4 sm:px-6 lg:px-8 relative z-10">
+        <div id="pricing-tiers" />
         
         {/* Package Classification / Filtration Switcher */}
         <div className="flex flex-wrap items-center justify-center gap-2 mb-12">
@@ -854,16 +837,16 @@ function PricingContent() {
             <button
               key={cat.id}
               onClick={() => setPackageCategory(cat.id as any)}
-              className={`flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm font-bold transition-all cursor-pointer border ${
+              className={`flex items-center gap-2 px-4 sm:px-5 py-2.5 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer border ${
                 packageCategory === cat.id
-                  ? "bg-white text-black border-white shadow-[0_0_20px_rgba(255,255,255,0.2)] scale-105"
-                  : "bg-white/[0.03] text-zinc-400 border-white/10 hover:text-white hover:bg-white/[0.08]"
+                  ? "bg-[#111317] text-white border-[#111317] shadow-sm"
+                  : "bg-[#FFFFFF] text-[#4B5563] border-[rgba(21,24,29,0.10)] hover:text-[#111317] hover:bg-[#FAFAFA]"
               }`}
             >
               <span>{cat.label}</span>
               <span
-                className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-bold ${
-                  packageCategory === cat.id ? "bg-black/15 text-black" : "bg-white/10 text-zinc-300"
+                className={`text-[10px] px-2 py-0.5 rounded-full font-mono font-semibold ${
+                  packageCategory === cat.id ? "bg-white/20 text-white" : "bg-[#F1F2F4] text-[#4B5563]"
                 }`}
               >
                 {cat.badge}
@@ -890,14 +873,14 @@ function PricingContent() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4, delay: index * 0.05 }}
-                className={`relative rounded-[2.5rem] p-8 md:p-10 flex flex-col justify-between transition-all backdrop-blur-xl group ${
+                className={`relative rounded-xl p-8 md:p-10 flex flex-col justify-between transition-all bg-[#FFFFFF] ${
                   isPop
-                    ? "bg-gradient-to-b from-indigo-950/40 via-zinc-900/90 to-black border-2 border-indigo-500/40 shadow-2xl shadow-indigo-500/10"
-                    : "bg-zinc-900/40 border border-white/10 hover:border-white/20"
+                    ? "border-2 border-[#315EF7] shadow-[0_16px_50px_rgba(50,107,255,0.10)]"
+                    : "border border-[rgba(21,24,29,0.10)] shadow-[0_12px_40px_rgba(21,24,29,0.06)] hover:border-[rgba(21,24,29,0.20)]"
                 }`}
               >
                 {isPop && (
-                  <div className="absolute -top-4 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full bg-gradient-to-r from-indigo-500 to-purple-500 text-white text-xs font-extrabold uppercase tracking-widest shadow-lg">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 z-20 px-4 py-1 rounded-full bg-[#315EF7] text-white text-[11px] font-mono font-bold uppercase tracking-wider shadow-sm">
                     {plan.badge}
                   </div>
                 )}
@@ -906,40 +889,40 @@ function PricingContent() {
                   {/* Header: Title + Delivery Badge */}
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-widest block">
+                      <span className="text-[11px] font-mono font-bold text-[#6B7280] uppercase tracking-widest block">
                         {plan.name} Package
                       </span>
-                      <h3 className="text-2xl sm:text-3xl font-black text-white font-jakarta tracking-tight mt-1">
+                      <h3 className="text-2xl sm:text-3xl font-extrabold text-[#111317]  tracking-tight mt-1">
                         {plan.name}
                       </h3>
                     </div>
-                    <div className="px-3 py-1 rounded-full bg-white/5 border border-white/10 text-[11px] font-mono text-zinc-300 shrink-0 whitespace-nowrap">
+                    <div className="px-3 py-1 rounded-full bg-[#F1F2F4] border border-[rgba(21,24,29,0.08)] text-[11px] font-mono text-[#4B5563] shrink-0 whitespace-nowrap">
                       {plan.delivery}
                     </div>
                   </div>
 
-                  <p className="text-sm text-zinc-400 leading-relaxed font-medium">
+                  <p className="text-sm text-[#4B5563] leading-relaxed font-normal">
                     {plan.description}
                   </p>
 
                   {/* Price Box with Discount & 50/50 Split */}
-                  <div className="p-5 rounded-2xl bg-black/60 border border-white/10 space-y-3">
+                  <div className="p-5 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] space-y-3">
                     <div className="flex items-baseline justify-between">
-                      <span className="text-xs text-zinc-400">Total Project Cost</span>
+                      <span className="text-xs text-[#4B5563]">Total Project Cost</span>
                       <div className="text-right">
                         {hasDiscount && (
-                          <span className="text-sm line-through text-zinc-500 mr-2 font-mono">
+                          <span className="text-sm line-through text-[#6B7280] mr-2 font-mono">
                             ₹{plan.totalPrice.toLocaleString()}
                           </span>
                         )}
-                        <span className={`text-3xl font-black tracking-tight ${hasDiscount ? "text-emerald-400" : "text-white"}`}>
+                        <span className={`text-3xl font-black  tracking-tight ${hasDiscount ? "text-[#169B62]" : "text-[#111317]"}`}>
                           ₹{discountedTotal.toLocaleString()}
                         </span>
                       </div>
                     </div>
 
                     {hasDiscount && (
-                      <div className="px-3 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 text-[11px] font-semibold flex items-center justify-between">
+                      <div className="px-3 py-1.5 rounded-xl bg-[#169B62]/10 border border-[#169B62]/20 text-[#169B62] text-[11px] font-semibold flex items-center justify-between">
                         <span className="flex items-center gap-1.5">
                           <Tag className="w-3.5 h-3.5" /> {appliedCoupon?.code} applied
                         </span>
@@ -947,20 +930,20 @@ function PricingContent() {
                       </div>
                     )}
 
-                    <div className="pt-3 border-t border-white/10 grid grid-cols-2 gap-2 text-xs">
-                      <div className="p-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300">
-                        <span className="text-[10px] text-indigo-400 font-bold block uppercase tracking-wider">
+                    <div className="pt-3 border-t border-[rgba(21,24,29,0.08)] grid grid-cols-2 gap-2 text-xs">
+                      <div className="p-2.5 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.08)] text-[#111317]">
+                        <span className="text-[10px] text-[#4B5563] font-mono font-bold block uppercase tracking-wider">
                           50% Advance:
                         </span>
-                        <span className="text-sm font-extrabold text-white">
+                        <span className="text-sm font-extrabold text-[#111317]">
                           ₹{advance.toLocaleString()}
                         </span>
                       </div>
-                      <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-300">
-                        <span className="text-[10px] text-purple-400 font-bold block uppercase tracking-wider">
-                          50% at Handover:
+                      <div className="p-2.5 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.08)] text-[#111317]">
+                        <span className="text-[10px] text-[#4B5563] font-mono font-bold block uppercase tracking-wider">
+                          50% on Handover:
                         </span>
-                        <span className="text-sm font-extrabold text-white">
+                        <span className="text-sm font-extrabold text-[#111317]">
                           ₹{final.toLocaleString()}
                         </span>
                       </div>
@@ -969,14 +952,14 @@ function PricingContent() {
 
                   {/* Features list */}
                   <div className="space-y-3 pt-2">
-                    <span className="text-xs font-bold text-zinc-500 uppercase tracking-wider block">
+                    <span className="text-xs font-mono font-bold text-[#6B7280] uppercase tracking-wider block">
                       Everything Included:
                     </span>
                     <ul className="space-y-2.5">
                       {plan.features.map((feat, i) => (
-                        <li key={i} className="flex items-start gap-3 text-xs text-zinc-300">
-                          <Check className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
-                          <span>{feat}</span>
+                        <li key={i} className="flex items-start gap-3 text-xs text-[#111317]">
+                          <Check className="w-4 h-4 text-[#169B62] shrink-0 mt-0.5" />
+                          <span className="leading-relaxed">{feat}</span>
                         </li>
                       ))}
                     </ul>
@@ -986,8 +969,11 @@ function PricingContent() {
                 <div className="pt-8">
                   <Button
                     onClick={() => handleSelectPlan(plan)}
-                    variant={isPop ? "accent" : "outline"}
-                    className="w-full h-14 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 group-hover:scale-[1.02] transition-all cursor-pointer"
+                    className={`w-full h-13 rounded-[13px] text-sm font-semibold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                      isPop
+                        ? "bg-[#315EF7] hover:bg-[#2A50D4] text-white shadow-[0_4px_16px_rgba(50,107,255,0.25)]"
+                        : "bg-[#111317] hover:bg-[#000000] text-white"
+                    }`}
                   >
                     Select {plan.name} Plan <ArrowRight className="w-4 h-4" />
                   </Button>
@@ -1000,13 +986,13 @@ function PricingContent() {
 
       {/* ── Addons & Custom Requirements Section ── */}
       <section className="py-16 w-full max-w-5xl px-4 sm:px-6 relative z-10">
-        <div className="rounded-[2.5rem] p-8 md:p-12 bg-zinc-900/40 border border-white/10 backdrop-blur-xl space-y-8">
+        <div className="rounded-xl p-8 md:p-12 bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] shadow-[0_12px_40px_rgba(21,24,29,0.06)] space-y-8">
           <div className="text-center max-w-2xl mx-auto space-y-3">
-            <h2 className="text-2xl md:text-4xl font-bold font-jakarta text-white tracking-tight">
+            <h2 className="text-2xl md:text-3xl font-extrabold  text-[#111317] tracking-tight">
               Optional Add-ons & Boosters
             </h2>
-            <p className="text-sm text-zinc-400">
-              Customize your package with specialized services. All add-ons also follow the 50% advance / 50% handover split.
+            <p className="text-sm text-[#4B5563]">
+              Customize your package with specialized services. All add-ons follow the 50% advance / 50% handover split.
             </p>
           </div>
 
@@ -1019,28 +1005,28 @@ function PricingContent() {
                   onClick={() => toggleAddon(addon.id)}
                   className={`p-5 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between space-y-3 ${
                     isSelected
-                      ? "bg-indigo-500/10 border-indigo-500/50"
-                      : "bg-black/40 border-white/5 hover:border-white/10"
+                      ? "bg-[#315EF7]/5 border-[#315EF7] shadow-xs"
+                      : "bg-[#FAFAFA] border-[rgba(21,24,29,0.08)] hover:border-[rgba(21,24,29,0.16)]"
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h4 className="text-sm font-bold text-white">{addon.title}</h4>
-                      <p className="text-xs text-zinc-400 mt-1">{addon.description}</p>
+                      <h4 className="text-sm font-bold text-[#111317] ">{addon.title}</h4>
+                      <p className="text-xs text-[#4B5563] mt-1">{addon.description}</p>
                     </div>
                     <div
                       className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 border ${
                         isSelected
-                          ? "bg-indigo-500 border-indigo-400 text-white"
-                          : "border-white/20 bg-white/5"
+                          ? "bg-[#315EF7] border-[#315EF7] text-white"
+                          : "border-[rgba(21,24,29,0.15)] bg-white"
                       }`}
                     >
                       {isSelected && <Check className="w-3.5 h-3.5" />}
                     </div>
                   </div>
-                  <div className="flex items-center justify-between text-xs font-mono pt-2 border-t border-white/5">
-                    <span className="text-zinc-500">Add-on Price</span>
-                    <span className="text-white font-bold">+₹{addon.price.toLocaleString()}</span>
+                  <div className="flex items-center justify-between text-xs font-mono pt-2 border-t border-[rgba(21,24,29,0.06)]">
+                    <span className="text-[#6B7280]">Add-on Price</span>
+                    <span className="text-[#111317] font-bold">+₹{addon.price.toLocaleString()}</span>
                   </div>
                 </div>
               );
@@ -1054,45 +1040,45 @@ function PricingContent() {
         <section className="py-12 w-full max-w-6xl px-4 sm:px-6 relative z-10">
           <div className="flex items-center justify-between mb-8">
             <div>
-              <span className="text-xs font-bold text-indigo-400 uppercase tracking-widest block flex items-center gap-1.5">
-                <Sparkles className="w-3.5 h-3.5" /> Limited-Time Deals
+              <span className="text-xs font-mono font-bold text-[#315EF7] uppercase tracking-widest block flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5" /> Platform Deals
               </span>
-              <h2 className="text-2xl md:text-3xl font-bold text-white mt-1">Active Platform Deals & Specials</h2>
+              <h2 className="text-2xl md:text-3xl font-extrabold text-[#111317]  mt-1">Active Platform Deals & Specials</h2>
             </div>
-            <Button variant="outline" size="sm" asChild className="rounded-xl text-xs">
-              <Link href="/offers" className="flex items-center gap-1.5">
-                View All Deals <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </Button>
+            <Link href="/offers">
+              <Button variant="outline" size="sm" className="rounded-[13px] text-xs font-semibold bg-white border-[rgba(21,24,29,0.12)] text-[#111317]">
+                View All Deals <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
+              </Button>
+            </Link>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {publicOffers.slice(0, 3).map((offer, idx) => (
               <div
                 key={offer.id || idx}
-                className="p-6 rounded-3xl bg-zinc-900/40 border border-white/10 flex flex-col justify-between space-y-4 backdrop-blur-xl hover:border-indigo-500/30 transition-all"
+                className="p-6 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] flex flex-col justify-between space-y-4 shadow-[0_12px_40px_rgba(21,24,29,0.06)] hover:border-[rgba(21,24,29,0.20)] transition-all"
               >
                 <div className="space-y-2.5">
                   {offer.discountBadge && (
-                    <span className="inline-block px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 font-mono font-bold text-xs">
+                    <span className="inline-block px-3 py-1 rounded-full bg-[#169B62]/10 border border-[#169B62]/20 text-[#169B62] font-mono font-bold text-xs">
                       {offer.discountBadge}
                     </span>
                   )}
-                  <h3 className="text-base font-bold text-white">{offer.title}</h3>
-                  <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">{offer.description}</p>
+                  <h3 className="text-base font-bold text-[#111317] ">{offer.title}</h3>
+                  <p className="text-xs text-[#4B5563] line-clamp-2 leading-relaxed">{offer.description}</p>
                 </div>
 
                 <div className="space-y-3 pt-2">
                   {offer.promoCode && (
-                    <div className="p-2.5 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between">
-                      <span className="text-xs font-mono font-bold text-indigo-300">{offer.promoCode}</span>
+                    <div className="p-2.5 rounded-xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] flex items-center justify-between">
+                      <span className="text-xs font-mono font-bold text-[#111317]">{offer.promoCode}</span>
                       <button
                         onClick={() => {
                           handleApplyCoupon(offer.promoCode);
                           const el = document.getElementById("pricing-tiers");
                           if (el) el.scrollIntoView({ behavior: "smooth" });
                         }}
-                        className="text-xs text-indigo-400 hover:text-indigo-300 font-semibold cursor-pointer"
+                        className="text-xs text-[#315EF7] hover:text-[#2A50D4] font-semibold cursor-pointer"
                       >
                         {appliedCoupon?.code === offer.promoCode ? "Applied ✓" : "Apply to Cart"}
                       </button>
@@ -1107,7 +1093,7 @@ function PricingContent() {
 
       {/* ── FAQ Section ── */}
       <section className="py-16 w-full max-w-4xl px-4 relative z-10 mb-24">
-        <h2 className="text-2xl md:text-3xl font-bold font-jakarta text-white tracking-tight text-center mb-10">
+        <h2 className="text-2xl md:text-3xl font-extrabold  text-[#111317] tracking-tight text-center mb-10">
           Frequently Asked Questions
         </h2>
         <div className="space-y-4">
@@ -1133,9 +1119,9 @@ function PricingContent() {
               a: "We support Paytm for Business gateway, all UPI apps (Google Pay, PhonePe, Paytm, BHIM), QR code scan, Debit/Credit Cards, and NetBanking.",
             },
           ].map((faq, i) => (
-            <div key={i} className="p-6 rounded-2xl bg-zinc-900/40 border border-white/10 space-y-2">
-              <h4 className="text-base font-bold text-white">{faq.q}</h4>
-              <p className="text-sm text-zinc-400 leading-relaxed">{faq.a}</p>
+            <div key={i} className="p-6 rounded-2xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] shadow-sm space-y-2">
+              <h4 className="text-base font-bold text-[#111317] ">{faq.q}</h4>
+              <p className="text-sm text-[#4B5563] leading-relaxed font-normal">{faq.a}</p>
             </div>
           ))}
         </div>
@@ -1149,7 +1135,7 @@ function PricingContent() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md"
+              className="fixed inset-0 z-50 bg-[#111317]/60 backdrop-blur-sm"
               onClick={() => setShowCheckoutModal(false)}
             />
             <motion.div
@@ -1159,28 +1145,28 @@ function PricingContent() {
               transition={{ type: "spring", stiffness: 300, damping: 30 }}
               className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto"
             >
-              <div className="bg-[#111] border border-white/15 rounded-3xl w-full max-w-2xl p-6 sm:p-8 relative shadow-2xl my-8">
+              <div className="bg-[#FFFFFF] border border-[rgba(21,24,29,0.12)] rounded-xl w-full max-w-2xl p-6 sm:p-8 relative shadow-[0_24px_70px_rgba(21,24,29,0.18)] my-8 text-[#111317]">
                 <button
                   onClick={() => setShowCheckoutModal(false)}
-                  className="absolute top-5 right-5 p-2 rounded-xl text-zinc-500 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="absolute top-5 right-5 p-2 rounded-xl text-[#6B7280] hover:text-[#111317] hover:bg-[#F1F2F4] transition-colors cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
 
                 {/* Modal Header */}
                 <div className="flex items-center gap-3 mb-6">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400">
+                  <div className="w-10 h-10 rounded-xl bg-[#315EF7]/10 flex items-center justify-center text-[#315EF7]">
                     <FileText className="w-5 h-5" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-bold text-white">
+                    <h3 className="text-lg font-bold text-[#111317] ">
                       {checkoutStep === "form"
                         ? `Configure: ${selectedPlan.name} Plan`
                         : checkoutStep === "payment"
                         ? "Confirm 50% Advance Payment"
                         : "Project Initialized!"}
                     </h3>
-                    <p className="text-xs text-zinc-500">
+                    <p className="text-xs text-[#4B5563]">
                       {checkoutStep === "form"
                         ? "Enter your project specifications, promo code, and contact info"
                         : "Pay 50% advance to start development sprint"}
@@ -1189,35 +1175,35 @@ function PricingContent() {
                 </div>
 
                 {/* Price Breakdown Banner with Discount */}
-                <div className="p-4 rounded-2xl bg-black/60 border border-white/10 mb-5 space-y-3">
+                <div className="p-4 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] mb-5 space-y-3">
                   <div className="flex flex-wrap items-center justify-between gap-3 text-xs">
                     <div>
-                      <span className="text-zinc-500 block">Total Project Cost:</span>
+                      <span className="text-[#4B5563] block">Total Project Cost:</span>
                       <div className="flex items-baseline gap-2">
                         {getDiscountForPlan(selectedPlan) > 0 && (
-                          <span className="text-sm line-through text-zinc-500 font-mono">
+                          <span className="text-sm line-through text-[#6B7280] font-mono">
                             ₹{getRawTotal(selectedPlan).toLocaleString()}
                           </span>
                         )}
-                        <span className={`text-xl font-black ${getDiscountForPlan(selectedPlan) > 0 ? "text-emerald-400" : "text-white"}`}>
+                        <span className={`text-xl font-black  ${getDiscountForPlan(selectedPlan) > 0 ? "text-[#169B62]" : "text-[#111317]"}`}>
                           ₹{calculateTotal(selectedPlan).toLocaleString()}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <div className="px-3 py-1.5 rounded-xl bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                        <span className="text-[10px] text-indigo-400 font-bold block uppercase">
+                      <div className="px-3 py-1.5 rounded-xl bg-[#FFFFFF] text-[#111317] border border-[rgba(21,24,29,0.10)]">
+                        <span className="text-[10px] text-[#4B5563] font-mono font-bold block uppercase">
                           50% Advance Due Now:
                         </span>
-                        <span className="text-sm font-extrabold text-white">
+                        <span className="text-sm font-extrabold text-[#111317]">
                           ₹{calculateAdvance(selectedPlan).toLocaleString()}
                         </span>
                       </div>
-                      <div className="px-3 py-1.5 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
-                        <span className="text-[10px] text-purple-400 font-bold block uppercase">
+                      <div className="px-3 py-1.5 rounded-xl bg-[#FFFFFF] text-[#111317] border border-[rgba(21,24,29,0.10)]">
+                        <span className="text-[10px] text-[#4B5563] font-mono font-bold block uppercase">
                           50% on Handover:
                         </span>
-                        <span className="text-sm font-extrabold text-white">
+                        <span className="text-sm font-extrabold text-[#111317]">
                           ₹{calculateFinal(selectedPlan).toLocaleString()}
                         </span>
                       </div>
@@ -1225,7 +1211,7 @@ function PricingContent() {
                   </div>
 
                   {getDiscountForPlan(selectedPlan) > 0 && (
-                    <div className="pt-2 border-t border-white/5 flex items-center justify-between text-xs text-emerald-300">
+                    <div className="pt-2 border-t border-[rgba(21,24,29,0.08)] flex items-center justify-between text-xs text-[#169B62]">
                       <span className="flex items-center gap-1.5 font-semibold">
                         <Tag className="w-3.5 h-3.5" /> Coupon Savings ({appliedCoupon?.code}):
                       </span>
@@ -1236,16 +1222,16 @@ function PricingContent() {
 
                 {/* Coupon / Promo Code Input Section */}
                 {checkoutStep === "form" && (
-                  <div className="mb-5 p-3.5 rounded-2xl bg-white/[0.02] border border-white/10 space-y-2">
+                  <div className="mb-5 p-3.5 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] space-y-2">
                     <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold text-zinc-300 flex items-center gap-1.5">
-                        <Tag className="w-3.5 h-3.5 text-emerald-400" /> Have a Promo / Coupon Code?
+                      <label className="text-xs font-semibold text-[#111317] flex items-center gap-1.5">
+                        <Tag className="w-3.5 h-3.5 text-[#169B62]" /> Have a Promo / Coupon Code?
                       </label>
                       {appliedCoupon && (
                         <button
                           type="button"
                           onClick={handleRemoveCoupon}
-                          className="text-[11px] text-zinc-400 hover:text-red-400 transition-colors cursor-pointer"
+                          className="text-[11px] text-[#6B7280] hover:text-[#D83A3A] transition-colors cursor-pointer"
                         >
                           Remove Coupon ✕
                         </button>
@@ -1266,41 +1252,40 @@ function PricingContent() {
                               }
                             }}
                             placeholder="Enter code (e.g. LAUNCH50)"
-                            className="w-full bg-[#18181b] border border-white/10 rounded-xl px-4 py-2 text-xs font-mono font-bold uppercase text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500"
+                            className="w-full bg-[#FFFFFF] border border-[rgba(21,24,29,0.12)] rounded-xl px-4 py-2 text-xs font-mono font-bold uppercase text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7]"
                           />
                         </div>
                         <Button
                           type="button"
                           onClick={() => handleApplyCoupon()}
                           disabled={couponLoading || !couponInput.trim()}
-                          variant="accent"
                           size="sm"
-                          className="rounded-xl px-4 text-xs font-bold h-9 shrink-0"
+                          className="rounded-xl px-4 text-xs font-bold h-9 shrink-0 bg-[#111317] text-white hover:bg-[#000000]"
                         >
                           {couponLoading ? "Checking..." : "Apply"}
                         </Button>
                       </div>
                     ) : (
-                      <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between">
+                      <div className="p-2.5 rounded-xl bg-[#169B62]/10 border border-[#169B62]/30 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                          <div className="w-6 h-6 rounded-full bg-[#169B62]/20 text-[#169B62] flex items-center justify-center">
                             <Check className="w-3.5 h-3.5" />
                           </div>
                           <div>
-                            <span className="text-xs font-bold text-white font-mono">{appliedCoupon.code}</span>
-                            <span className="text-[11px] text-emerald-300 ml-2">
+                            <span className="text-xs font-bold text-[#111317] font-mono">{appliedCoupon.code}</span>
+                            <span className="text-[11px] text-[#169B62] ml-2 font-medium">
                               ({appliedCoupon.type === "percentage" ? `${appliedCoupon.value}% OFF` : `₹${appliedCoupon.value.toLocaleString()} OFF`} applied!)
                             </span>
                           </div>
                         </div>
-                        <span className="text-xs font-mono font-extrabold text-emerald-300">
+                        <span className="text-xs font-mono font-extrabold text-[#169B62]">
                           −₹{getDiscountForPlan(selectedPlan).toLocaleString()}
                         </span>
                       </div>
                     )}
 
                     {couponError && (
-                      <div className="text-[11px] text-red-400 flex items-center gap-1.5 pt-1">
+                      <div className="text-[11px] text-[#D83A3A] flex items-center gap-1.5 pt-1">
                         <AlertCircle className="w-3.5 h-3.5 shrink-0" />
                         <span>{couponError}</span>
                       </div>
@@ -1313,8 +1298,8 @@ function PricingContent() {
                   <form onSubmit={handleProceedToPayment} className="space-y-4 max-h-[50vh] overflow-y-auto pr-1">
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs font-semibold text-zinc-400 mb-1.5 block">
-                          Your Full Name <span className="text-indigo-400">*</span>
+                        <label className="text-xs font-semibold text-[#4B5563] mb-1.5 block">
+                          Your Full Name <span className="text-[#315EF7]">*</span>
                         </label>
                         <input
                           type="text"
@@ -1322,12 +1307,12 @@ function PricingContent() {
                           value={name}
                           onChange={(e) => setName(e.target.value)}
                           placeholder="e.g. John Doe"
-                          className="w-full bg-[#18181b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
+                          className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl px-4 py-2.5 text-sm text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] focus:bg-white"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-zinc-400 mb-1.5 block">
-                          Email Address <span className="text-indigo-400">*</span>
+                        <label className="text-xs font-semibold text-[#4B5563] mb-1.5 block">
+                          Email Address <span className="text-[#315EF7]">*</span>
                         </label>
                         <input
                           type="email"
@@ -1335,32 +1320,32 @@ function PricingContent() {
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
                           placeholder="you@company.com"
-                          className="w-full bg-[#18181b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
+                          className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl px-4 py-2.5 text-sm text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] focus:bg-white"
                         />
                       </div>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs font-semibold text-zinc-400 mb-1.5 block">
-                          Company / Brand Name <span className="text-zinc-600">(Optional)</span>
+                        <label className="text-xs font-semibold text-[#4B5563] mb-1.5 block">
+                          Company / Brand Name <span className="text-[#6B7280]">(Optional)</span>
                         </label>
                         <input
                           type="text"
                           value={company}
                           onChange={(e) => setCompany(e.target.value)}
                           placeholder="Acme Studio"
-                          className="w-full bg-[#18181b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500"
+                          className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl px-4 py-2.5 text-sm text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] focus:bg-white"
                         />
                       </div>
                       <div>
-                        <label className="text-xs font-semibold text-zinc-400 mb-1.5 block">
+                        <label className="text-xs font-semibold text-[#4B5563] mb-1.5 block">
                           Target Timeline
                         </label>
                         <select
                           value={timeline}
                           onChange={(e) => setTimeline(e.target.value)}
-                          className="w-full bg-[#18181b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 cursor-pointer"
+                          className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl px-4 py-2.5 text-sm text-[#111317] focus:outline-none focus:border-[#315EF7] focus:bg-white cursor-pointer"
                         >
                           <option value="As soon as possible">As soon as possible (Sprint)</option>
                           <option value="Within 1 week">Within 1 week</option>
@@ -1371,8 +1356,8 @@ function PricingContent() {
                     </div>
 
                     <div>
-                      <label className="text-xs font-semibold text-zinc-400 mb-1.5 block">
-                        Project Brief & References <span className="text-indigo-400">*</span>
+                      <label className="text-xs font-semibold text-[#4B5563] mb-1.5 block">
+                        Project Brief & References <span className="text-[#315EF7]">*</span>
                       </label>
                       <textarea
                         required
@@ -1380,25 +1365,24 @@ function PricingContent() {
                         value={details}
                         onChange={(e) => setDetails(e.target.value)}
                         placeholder="Describe your website goals, required pages/features, reference websites you like, or existing brand colors..."
-                        className="w-full bg-[#18181b] border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-indigo-500 resize-none"
+                        className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl px-4 py-2.5 text-sm text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] focus:bg-white resize-none"
                       />
                     </div>
 
-                    <div className="pt-4 border-t border-white/10 flex items-center justify-end gap-3">
+                    <div className="pt-4 border-t border-[rgba(21,24,29,0.08)] flex items-center justify-end gap-3">
                       <Button
                         type="button"
                         onClick={() => setShowCheckoutModal(false)}
                         variant="ghost"
                         size="sm"
-                        className="rounded-xl"
+                        className="rounded-xl text-xs font-semibold text-[#4B5563] hover:text-[#111317]"
                       >
                         Cancel
                       </Button>
                       <Button
                         type="submit"
-                        variant="accent"
                         size="sm"
-                        className="rounded-xl flex items-center gap-2"
+                        className="rounded-[13px] bg-[#315EF7] hover:bg-[#2A50D4] text-white text-xs font-semibold flex items-center gap-2 px-5 py-2.5 shadow-sm"
                         disabled={isSubmitting}
                       >
                         {isSubmitting ? (
@@ -1406,7 +1390,7 @@ function PricingContent() {
                         ) : (
                           <>
                             Proceed to 50% Advance (₹{calculateAdvance(selectedPlan).toLocaleString()}){" "}
-                            <ArrowRight className="w-4 h-4" />
+                            <ArrowRight className="w-4 h-4 ml-1" />
                           </>
                         )}
                       </Button>
@@ -1418,15 +1402,15 @@ function PricingContent() {
                 {checkoutStep === "payment" && (
                   <div className="space-y-6">
                     {paymentSettings.paymentMode === "manual" ? (
-                      /* ── Manual UPI / QR Code & UTR Verification Mode (Zero API Keys Needed) ── */
+                      /* ── Manual UPI / QR Code & UTR Verification Mode ── */
                       <div className="space-y-5">
-                        <div className="p-5 rounded-2xl bg-black/60 border border-white/10 text-center space-y-4">
-                          <div className="flex items-center justify-center gap-2 text-xs font-bold text-amber-400 uppercase tracking-wider">
+                        <div className="p-5 rounded-2xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] text-center space-y-4">
+                          <div className="flex items-center justify-center gap-2 text-xs font-bold font-mono text-[#B77900] uppercase tracking-wider">
                             <IndianRupee className="w-4 h-4" /> Scan & Pay 50% Advance via UPI
                           </div>
 
                           {/* Dynamic / Custom QR Code */}
-                          <div className="w-44 h-44 mx-auto bg-white p-2.5 rounded-2xl shadow-xl flex items-center justify-center border border-white/20">
+                          <div className="w-44 h-44 mx-auto bg-white p-2.5 rounded-2xl shadow-sm flex items-center justify-center border border-[rgba(21,24,29,0.12)]">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
                               src={
@@ -1443,24 +1427,24 @@ function PricingContent() {
                           </div>
 
                           <div className="space-y-1 text-center">
-                            <p className="text-xs text-zinc-400">
+                            <p className="text-xs text-[#4B5563]">
                               Scan using any UPI App (Google Pay, PhonePe, Paytm, BHIM)
                             </p>
-                            <div className="text-2xl font-black text-white pt-1">
+                            <div className="text-2xl font-black  text-[#111317] pt-1">
                               ₹{calculateAdvance(selectedPlan).toLocaleString()}
                             </div>
                             {getDiscountForPlan(selectedPlan) > 0 && (
-                              <span className="inline-block text-[11px] font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-0.5 rounded-full border border-emerald-500/20">
+                              <span className="inline-block text-[11px] font-semibold text-[#169B62] bg-[#169B62]/10 px-3 py-0.5 rounded-full border border-[#169B62]/20">
                                 {appliedCoupon?.code} applied (−₹{getDiscountForPlan(selectedPlan).toLocaleString()} Discount)
                               </span>
                             )}
                           </div>
 
                           {/* UPI ID with Copy Button */}
-                          <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3 text-left">
+                          <div className="p-3 rounded-xl bg-[#FFFFFF] border border-[rgba(21,24,29,0.10)] flex items-center justify-between gap-3 text-left shadow-xs">
                             <div className="min-w-0">
-                              <span className="text-[10px] text-zinc-500 uppercase block font-bold">Pay to UPI ID:</span>
-                              <span className="text-xs font-mono font-bold text-indigo-300 truncate block">
+                              <span className="text-[10px] text-[#6B7280] uppercase block font-bold font-mono">Pay to UPI ID:</span>
+                              <span className="text-xs font-mono font-bold text-[#315EF7] truncate block">
                                 {paymentSettings.upiId}
                               </span>
                             </div>
@@ -1473,9 +1457,9 @@ function PricingContent() {
                                 setCopiedUpi(true);
                                 setTimeout(() => setCopiedUpi(false), 2500);
                               }}
-                              className="rounded-lg text-[11px] h-8 shrink-0 flex items-center gap-1.5"
+                              className="rounded-lg text-[11px] h-8 shrink-0 flex items-center gap-1.5 border-[rgba(21,24,29,0.12)] text-[#111317]"
                             >
-                              {copiedUpi ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                              {copiedUpi ? <Check className="w-3.5 h-3.5 text-[#169B62]" /> : <Copy className="w-3.5 h-3.5" />}
                               {copiedUpi ? "Copied" : "Copy UPI"}
                             </Button>
                           </div>
@@ -1515,8 +1499,8 @@ function PricingContent() {
                           className="space-y-4"
                         >
                           <div>
-                            <label className="block text-xs font-semibold text-zinc-300 mb-1.5">
-                              Enter 12-Digit UTR / Transaction Reference ID <span className="text-indigo-400">*</span>
+                            <label className="block text-xs font-semibold text-[#111317] mb-1.5">
+                              Enter 12-Digit UTR / Transaction Reference ID <span className="text-[#315EF7]">*</span>
                             </label>
                             <input
                               type="text"
@@ -1524,9 +1508,9 @@ function PricingContent() {
                               value={utrInput}
                               onChange={(e) => setUtrInput(e.target.value)}
                               placeholder="e.g. 329104829104"
-                              className="w-full bg-[#18181b] border border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono font-bold text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500"
+                              className="w-full bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl px-4 py-2.5 text-sm font-mono font-bold text-[#111317] placeholder:text-[#6B7280] focus:outline-none focus:border-[#315EF7] focus:bg-white"
                             />
-                            <p className="text-[11px] text-zinc-500 mt-1">
+                            <p className="text-[11px] text-[#6B7280] mt-1 font-mono">
                               Found on your payment app receipt under "UTR", "UPI Ref No", or "Transaction ID".
                             </p>
                           </div>
@@ -1537,16 +1521,15 @@ function PricingContent() {
                               onClick={() => setCheckoutStep("form")}
                               variant="ghost"
                               size="sm"
-                              className="rounded-xl"
+                              className="rounded-xl text-xs font-semibold text-[#4B5563]"
                             >
                               Back
                             </Button>
                             <Button
                               type="submit"
-                              variant="accent"
                               size="sm"
                               disabled={submittingUtr || !utrInput.trim()}
-                              className="rounded-xl flex items-center gap-2 h-11 px-6 font-bold"
+                              className="rounded-[13px] bg-[#169B62] hover:bg-[#138554] text-white flex items-center gap-2 h-11 px-6 font-semibold text-xs shadow-sm"
                             >
                               {submittingUtr ? (
                                 "Submitting..."
@@ -1562,28 +1545,28 @@ function PricingContent() {
                     ) : (
                       /* ── Automated Paytm Gateway API Mode ── */
                       <div className="space-y-6">
-                        <div className="p-6 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-center space-y-3">
-                          <div className="w-12 h-12 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+                        <div className="p-6 rounded-2xl bg-[#315EF7]/10 border border-[#315EF7]/20 text-center space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-[#315EF7]/20 text-[#315EF7] flex items-center justify-center mx-auto">
                             <CreditCard className="w-6 h-6" />
                           </div>
                           <div>
-                            <h4 className="text-base font-bold text-white">Pay Advance via Paytm for Business</h4>
-                            <p className="text-xs text-zinc-400 max-w-md mx-auto mt-1">
+                            <h4 className="text-base font-bold text-[#111317] ">Pay Advance via Paytm for Business</h4>
+                            <p className="text-xs text-[#4B5563] max-w-md mx-auto mt-1">
                               Pay securely using any UPI app (GPay, PhonePe, Paytm, BHIM), QR code scan, or Cards.
                             </p>
                           </div>
-                          <div className="text-2xl font-black text-white pt-2">
+                          <div className="text-2xl font-black  text-[#111317] pt-2">
                             ₹{calculateAdvance(selectedPlan).toLocaleString()}
                           </div>
                           {getDiscountForPlan(selectedPlan) > 0 && (
-                            <span className="inline-block text-xs font-semibold text-emerald-400 bg-emerald-500/10 px-3 py-1 rounded-full border border-emerald-500/20">
+                            <span className="inline-block text-xs font-semibold text-[#169B62] bg-[#169B62]/10 px-3 py-1 rounded-full border border-[#169B62]/20">
                               {appliedCoupon?.code} applied (−₹{getDiscountForPlan(selectedPlan).toLocaleString()} Total Discount)
                             </span>
                           )}
                         </div>
 
-                        <div className="p-4 rounded-xl bg-white/[0.02] border border-white/10 space-y-2 text-xs text-zinc-400">
-                          <div className="flex items-center gap-2 text-emerald-400 font-bold">
+                        <div className="p-4 rounded-xl bg-[#FAFAFA] border border-[rgba(21,24,29,0.08)] space-y-2 text-xs text-[#4B5563]">
+                          <div className="flex items-center gap-2 text-[#169B62] font-bold">
                             <ShieldCheck className="w-4 h-4" /> Zero-Risk 50/50 Guarantee
                           </div>
                           <p>
@@ -1592,20 +1575,19 @@ function PricingContent() {
                           </p>
                         </div>
 
-                        <div className="flex items-center justify-end gap-3 pt-4 border-t border-white/10">
+                        <div className="flex items-center justify-end gap-3 pt-4 border-t border-[rgba(21,24,29,0.08)]">
                           <Button
                             onClick={() => setCheckoutStep("form")}
                             variant="ghost"
                             size="sm"
-                            className="rounded-xl"
+                            className="rounded-xl text-xs font-semibold text-[#4B5563]"
                           >
                             Back
                           </Button>
                           <Button
                             onClick={handlePayAdvanceWithPaytm}
-                            variant="accent"
                             size="sm"
-                            className="rounded-xl flex items-center gap-2 h-11 px-6"
+                            className="rounded-[13px] bg-[#315EF7] hover:bg-[#2A50D4] text-white flex items-center gap-2 h-11 px-6 font-semibold text-xs shadow-sm"
                             disabled={isSubmitting}
                           >
                             {isSubmitting ? (
@@ -1625,23 +1607,25 @@ function PricingContent() {
                 {/* Step 3: Success */}
                 {checkoutStep === "success" && (
                   <div className="text-center py-10 space-y-4">
-                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                    <div className="w-16 h-16 rounded-full bg-[#169B62]/15 text-[#169B62] flex items-center justify-center mx-auto">
                       <CheckCircle2 className="w-8 h-8" />
                     </div>
-                    <h3 className="text-2xl font-black text-white">
+                    <h3 className="text-2xl font-extrabold text-[#111317] ">
                       {paymentSettings.paymentMode === "manual"
                         ? "Deposit Reference Submitted!"
                         : "Payment Received & Project Activated!"}
                     </h3>
-                    <p className="text-sm text-zinc-400 max-w-md mx-auto">
+                    <p className="text-sm text-[#4B5563] max-w-md mx-auto leading-relaxed">
                       {paymentSettings.paymentMode === "manual"
                         ? "Your 12-digit UTR reference has been recorded. Our team is verifying your payment and setting up your developer workspace."
                         : "Your 50% advance has been confirmed. Redirecting you to your dedicated project workspace..."}
                     </p>
                     <div className="pt-3">
-                      <Button variant="accent" size="sm" asChild className="rounded-xl font-bold">
-                        <Link href="/dashboard/workspace">Open Project Workspace →</Link>
-                      </Button>
+                      <Link href="/dashboard/workspace">
+                        <Button size="sm" className="rounded-[13px] bg-[#111317] hover:bg-[#000000] text-white font-semibold text-xs px-6 py-2.5">
+                          Open Project Workspace →
+                        </Button>
+                      </Link>
                     </div>
                   </div>
                 )}
@@ -1656,8 +1640,10 @@ function PricingContent() {
 
 export default function PricingPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#050505] flex items-center justify-center text-xs text-zinc-500">Loading pricing plans...</div>}>
-      <PricingContent />
+    <Suspense fallback={<HeroSkeleton />}>
+      <PageReadinessGate pagePath="/pricing" fallbackSkeleton={<HeroSkeleton />}>
+        <PricingContent />
+      </PageReadinessGate>
     </Suspense>
   );
 }

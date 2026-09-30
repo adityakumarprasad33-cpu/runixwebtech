@@ -1,38 +1,38 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { AuthProvider } from "@/contexts/AuthContext";
-import Preloader from "@/components/preloader/Preloader";
+import FloatingChatBot from "@/components/chat/FloatingChatBot";
 
-const inter = Inter({
-  variable: "--font-inter",
+const geistSans = Geist({
+  variable: "--font-geist",
   subsets: ["latin"],
   display: "swap",
-  preload: true,
   fallback: ["system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
 });
 
-const plusJakartaSans = Plus_Jakarta_Sans({
-  variable: "--font-jakarta",
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
   subsets: ["latin"],
   display: "swap",
-  preload: true,
-  fallback: ["system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "sans-serif"],
+  fallback: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "monospace"],
 });
 
 export const viewport: Viewport = {
-  themeColor: "#050505",
+  themeColor: "#F1F2F4",
   width: "device-width",
   initialScale: 1,
   maximumScale: 5,
 };
 
 export const metadata: Metadata = {
-  title: "Runix Web Technologies — Premium Websites, Dashboards & Web Products",
-  description: "Runix Web Technologies builds premium websites, landing pages, dashboards, and web products for startups, businesses, creators, and institutions.",
+  title: "Runix — We build digital products that people actually use",
+  description: "Runix is a software engineering studio that designs and builds premium web applications, platforms, and digital products for startups, businesses, and institutions.",
 };
+
+import CookieConsent from "@/components/common/CookieConsent";
 
 export default function RootLayout({
   children,
@@ -40,22 +40,19 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark" data-scroll-behavior="smooth" suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      </head>
+    <html lang="en" className="light" data-scroll-behavior="smooth" suppressHydrationWarning>
       <body
         suppressHydrationWarning
-        className={`${inter.variable} ${plusJakartaSans.variable} font-sans bg-[#050505] text-white antialiased min-h-screen flex flex-col selection:bg-white selection:text-black`}
+        className={`${geistSans.variable} ${geistMono.variable} font-sans bg-[#F1F2F4] text-[#111317] antialiased min-h-screen flex flex-col selection:bg-[#315EF7]/20 selection:text-[#111317]`}
       >
         <AuthProvider>
-          <Preloader />
           <Navbar />
           <main className="flex-grow flex flex-col w-full">
             {children}
           </main>
           <Footer />
+          <FloatingChatBot />
+          <CookieConsent />
         </AuthProvider>
       </body>
     </html>
