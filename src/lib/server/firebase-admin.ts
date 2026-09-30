@@ -1,8 +1,10 @@
 import { getApps, initializeApp, cert, getApp, App } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
-import { getAuth, Auth } from "firebase-admin/auth";
+import type { Auth } from "firebase-admin/auth";
 
 let adminApp: App | null = null;
+let adminAuthInstance: Auth | null = null;
+let adminAuthPromise: Promise<Auth | null> | null = null;
 
 function sanitizePrivateKey(rawKey?: string): string | undefined {
   if (!rawKey) return undefined;
@@ -101,9 +103,28 @@ export function getAdminDb(): Firestore | null {
   return app ? getFirestore(app) : null;
 }
 
-export function getAdminAuth(): Auth | null {
-  const app = getAdminApp();
-  return app ? getAuth(app) : null;
+export async function getAdminAuth(): Promise<Auth | null> {
+  if (adminAuthInstance) return adminAuthInstance;
+  if (adminAuthPromise) return adminAuthPromise;
+
+  adminAuthPromise = (async () => {
+    try {
+      const app = getAdminApp();
+      if (!app) return null;
+      const { getAuth } = await import("firebase-admin/auth");
+      adminAuthInstance = getAuth(app);
+      return adminAuthInstance;
+    } catch (err) {
+      console.warn("firebase-admin/auth dynamic import notice:", err);
+      return null;
+    }
+  })();
+
+  return adminAuthPromise;
+}
+
+export function getAdminAuthSync(): Auth | null {
+  return adminAuthInstance;
 }
 
 // Proxied exports so direct usage of `adminDb.collection(...)` dynamically resolves
@@ -144,14 +165,23 @@ export const adminDb: Firestore | null = new Proxy({} as Firestore, {
   },
 });
 
-export const adminAuth: Auth | null = new Proxy({} as Auth, {
+export const adminAuth: any = new Proxy({} as any, {
   get(_target, prop) {
-    const auth = getAdminAuth();
-    if (!auth) return undefined;
-    const val = (auth as any)[prop];
-    if (typeof val === "function") {
-      return val.bind(auth);
+    if (adminAuthInstance) {
+      const val = (adminAuthInstance as any)[prop];
+      return typeof val === "function" ? val.bind(adminAuthInstance) : val;
     }
-    return val;
+
+    return async (...args: any[]) => {
+      const auth = await getAdminAuth();
+      if (!auth) {
+        throw new Error("Firebase Admin Auth service is currently unavailable.");
+      }
+      const val = (auth as any)[prop];
+      if (typeof val === "function") {
+        return val.apply(auth, args);
+      }
+      return val;
+    };
   },
 });

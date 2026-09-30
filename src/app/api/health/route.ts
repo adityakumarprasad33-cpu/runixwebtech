@@ -20,7 +20,7 @@ export async function GET() {
 
   const healthData = {
     status: "ok",
-    version: "2.4.1",
+    version: "2.4.2",
     uptimeSeconds: Math.floor(process.uptime()),
     timestamp: new Date().toISOString(),
     runtime: {

@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const db = getAdminDb();
-    const auth = getAdminAuth();
+    const auth = await getAdminAuth();
 
     if (!db) {
       return NextResponse.json(

@@ -82,7 +82,7 @@ export async function requireAuthAndPermission(
   req: NextRequest,
   requiredPermission?: Permission
 ): Promise<AuthenticatedUserContext | NextResponse> {
-  const auth = getAdminAuth();
+  const auth = await getAdminAuth();
   const db = getAdminDb();
 
   if (!auth || !db) {

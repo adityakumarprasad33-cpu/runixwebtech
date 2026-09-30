@@ -17,7 +17,7 @@ const PayoutDetailsSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = getAdminAuth();
+    const auth = await getAdminAuth();
     const db = getAdminDb();
     if (!auth || !db) {
       return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });
@@ -50,7 +50,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = getAdminAuth();
+    const auth = await getAdminAuth();
     const db = getAdminDb();
     if (!auth || !db) {
       return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });

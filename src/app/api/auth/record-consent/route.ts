@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const adminAuth = getAdminAuth();
+    const adminAuth = await getAdminAuth();
     const adminDb = getAdminDb();
 
     if (!adminAuth || !adminDb) {
