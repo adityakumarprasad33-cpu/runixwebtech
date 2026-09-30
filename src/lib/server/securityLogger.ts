@@ -1,4 +1,4 @@
-import { adminDb } from "@/lib/server/firebase-admin";
+import { getAdminDb } from "@/lib/server/firebase-admin";
 import crypto from "crypto";
 
 export interface SecurityLogEntry {
@@ -19,9 +19,9 @@ export interface SecurityLogEntry {
  * Automatically masks tokens, passwords, and sensitive keys.
  */
 export async function logSecurityEvent(entry: SecurityLogEntry): Promise<void> {
-  if (!adminDb) return;
-
   try {
+    const db = getAdminDb();
+    if (!db || typeof db.collection !== "function") return;
     const correlationId = entry.correlationId || `sec_${crypto.randomUUID()}`;
     const sanitizedMetadata: Record<string, any> = {};
 
@@ -43,7 +43,7 @@ export async function logSecurityEvent(entry: SecurityLogEntry): Promise<void> {
       }
     }
 
-    await adminDb.collection("security_logs").add({
+    await db.collection("security_logs").add({
       correlationId,
       actorUid: entry.actorUid || "anonymous",
       actorEmail: entry.actorEmail || null,

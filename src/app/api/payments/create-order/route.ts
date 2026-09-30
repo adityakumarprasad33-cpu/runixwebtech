@@ -142,16 +142,46 @@ export async function POST(req: NextRequest) {
           .get();
 
         if (couponQuery.empty) {
-          return NextResponse.json(
-            { success: false, error: `Promo code "${cleanCouponCode}" was not found or has expired.` },
-            { status: 400 }
-          );
-        }
+          const BUILT_IN_PROMOS: Record<string, { type: "percentage" | "flat"; value: number; maxDiscount?: number }> = {
+            LAUNCH1: { type: "percentage", value: 25 },
+            LAUNCH50: { type: "percentage", value: 50 },
+            RUNIX50: { type: "percentage", value: 10 },
+            FIRST50: { type: "percentage", value: 10 },
+          };
 
-        const couponDoc = couponQuery.docs[0];
-        const couponRef = couponDoc.ref;
+          const builtIn = BUILT_IN_PROMOS[cleanCouponCode];
+          if (builtIn) {
+            let discount = 0;
+            if (builtIn.type === "percentage") {
+              discount = Math.round(rawTotal * (builtIn.value / 100));
+              if (builtIn.maxDiscount && builtIn.maxDiscount > 0) {
+                discount = Math.min(discount, builtIn.maxDiscount);
+              }
+            } else {
+              discount = Math.min(builtIn.value, rawTotal);
+            }
+            discount = Math.min(discount, rawTotal);
 
-        const couponResult = await db.runTransaction(async (transaction) => {
+            couponData = {
+              couponId: "builtin-" + cleanCouponCode.toLowerCase(),
+              code: cleanCouponCode,
+              type: builtIn.type,
+              value: builtIn.value,
+              discountAmount: discount,
+              scope: "all",
+            };
+            appliedTotalPrice = rawTotal - discount;
+          } else {
+            return NextResponse.json(
+              { success: false, error: `Promo code "${cleanCouponCode}" was not found or has expired.` },
+              { status: 400 }
+            );
+          }
+        } else {
+          const couponDoc = couponQuery.docs[0];
+          const couponRef = couponDoc.ref;
+
+          const couponResult = await db.runTransaction(async (transaction) => {
           const freshSnap = await transaction.get(couponRef);
           if (!freshSnap.exists) {
             throw new Error("Promo code not found.");
@@ -241,6 +271,7 @@ export async function POST(req: NextRequest) {
 
         couponData = couponResult;
         appliedTotalPrice = rawTotal - couponResult.discountAmount;
+      }
       } catch (couponErr: any) {
         return NextResponse.json(
           { success: false, error: couponErr.message || "Promo code validation failed." },
@@ -297,18 +328,24 @@ export async function POST(req: NextRequest) {
       const existingSnap = await db
         .collection("orders")
         .where("userId", "==", finalUserId)
-        .where("planId", "==", plan.id)
-        .where("status", "in", ["awaiting_advance", "pending_payment", "awaiting_verification"])
-        .where("createdAt", ">=", fiveMinutesAgo)
-        .limit(1)
+        .limit(10)
         .get();
 
-      if (!existingSnap.empty) {
-        const existingDoc = existingSnap.docs[0];
-        const existingData = existingDoc.data();
+      const matchingDoc = existingSnap.docs.find((d) => {
+        const o = d.data();
+        return (
+          o.planId === plan.id &&
+          ["awaiting_advance", "pending_payment", "awaiting_verification"].includes(o.status) &&
+          o.createdAt &&
+          o.createdAt >= fiveMinutesAgo
+        );
+      });
+
+      if (matchingDoc) {
+        const existingData = matchingDoc.data();
         return NextResponse.json({
           success: true,
-          orderId: existingDoc.id,
+          orderId: matchingDoc.id,
           totalPrice: existingData.totalPrice,
           originalTotalPrice: existingData.originalTotalPrice || existingData.totalPrice,
           advancePrice: existingData.advancePrice,

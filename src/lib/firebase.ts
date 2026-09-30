@@ -37,21 +37,7 @@ export const getFirebaseDb = (): Firestore => {
   return _dbInstance;
 };
 
-// Lazy Proxies for standard import { auth, db } compatibility
-export const auth = new Proxy({} as Auth, {
-  get(_, prop) {
-    const target = getFirebaseAuth();
-    const val = (target as any)[prop];
-    return typeof val === "function" ? val.bind(target) : val;
-  },
-});
-
-export const db = new Proxy({} as Firestore, {
-  get(_, prop) {
-    const target = getFirebaseDb();
-    const val = (target as any)[prop];
-    return typeof val === "function" ? val.bind(target) : val;
-  },
-});
+export const auth: Auth = getFirebaseAuth();
+export const db: Firestore = getFirebaseDb();
 
 export { app };

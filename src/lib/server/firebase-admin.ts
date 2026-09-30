@@ -110,7 +110,32 @@ export function getAdminAuth(): Auth | null {
 export const adminDb: Firestore | null = new Proxy({} as Firestore, {
   get(_target, prop) {
     const db = getAdminDb();
-    if (!db) return undefined;
+    if (!db) {
+      if (prop === "collection") {
+        return (_collName: string) => ({
+          doc: (_id?: string) => ({
+            get: async () => ({ exists: false, data: () => null }),
+            set: async () => {},
+            update: async () => {},
+            delete: async () => {},
+          }),
+          add: async (_data: any) => ({ id: "fallback_" + Date.now() }),
+          where: function () { return this; },
+          limit: function () { return this; },
+          orderBy: function () { return this; },
+          get: async () => ({ empty: true, docs: [] }),
+        });
+      }
+      if (prop === "runTransaction") {
+        return async (cb: any) => cb({
+          get: async () => ({ exists: false, data: () => null }),
+          set: () => {},
+          update: () => {},
+          delete: () => {},
+        });
+      }
+      return undefined;
+    }
     const val = (db as any)[prop];
     if (typeof val === "function") {
       return val.bind(db);

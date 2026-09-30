@@ -445,11 +445,12 @@ function PricingContent() {
         if (foundBanner) {
           coupon = foundBanner;
           couponId = foundBanner.id || "banner-code";
-        } else if (targetCode === "RUNIX50" || targetCode === "FIRST50") {
+        } else if (targetCode === "RUNIX50" || targetCode === "FIRST50" || targetCode === "LAUNCH1" || targetCode === "LAUNCH50") {
+          const discountPct = targetCode === "LAUNCH1" ? 25 : targetCode === "LAUNCH50" ? 50 : 10;
           coupon = {
             code: targetCode,
             type: "percentage",
-            value: 10,
+            value: discountPct,
             isActive: true,
             scope: "all",
           };
