@@ -108,23 +108,44 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
     };
 
-    // Defer auth check until critical rendering is done to avoid blocking LCP
+    // Requirement 13 & 25: Defer non-critical auth scripts on marketing pages to protect hero LCP
     if (typeof window !== "undefined") {
-      if ("requestIdleCallback" in window) {
-        const handle = (window as any).requestIdleCallback(initAuth, { timeout: 1500 });
+      const isCriticalAuthRoute =
+        window.location.pathname.startsWith("/dashboard") ||
+        window.location.pathname.startsWith("/login") ||
+        window.location.pathname.startsWith("/signup") ||
+        window.location.pathname.startsWith("/forgot-password") ||
+        window.location.pathname.startsWith("/reset-password");
+
+      const hasExistingSession =
+        document.cookie.includes("__session") ||
+        Object.keys(localStorage).some((k) => k.startsWith("firebase:authUser"));
+
+      if (isCriticalAuthRoute || hasExistingSession) {
+        initAuth();
         return () => {
-          if ("cancelIdleCallback" in window) (window as any).cancelIdleCallback(handle);
-          if (unsubscribeAuth) unsubscribeAuth();
-          if (unsubProfile) unsubProfile();
-        };
-      } else {
-        const timer = setTimeout(initAuth, 100);
-        return () => {
-          clearTimeout(timer);
           if (unsubscribeAuth) unsubscribeAuth();
           if (unsubProfile) unsubProfile();
         };
       }
+
+      // For anonymous first-time visitors on marketing pages, initialize on user interaction or idle (9s)
+      const events = ["pointerdown", "touchstart", "keydown", "scroll"];
+      const onUserActivity = () => {
+        events.forEach((ev) => window.removeEventListener(ev, onUserActivity));
+        initAuth();
+      };
+      events.forEach((ev) =>
+        window.addEventListener(ev, onUserActivity, { once: true, passive: true })
+      );
+
+      const timer = setTimeout(onUserActivity, 9000);
+      return () => {
+        clearTimeout(timer);
+        events.forEach((ev) => window.removeEventListener(ev, onUserActivity));
+        if (unsubscribeAuth) unsubscribeAuth();
+        if (unsubProfile) unsubProfile();
+      };
     }
   }, []);
 

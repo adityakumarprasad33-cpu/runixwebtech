@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
-import { motion } from "framer-motion";
 import {
   ArrowRight,
   ShieldCheck,
@@ -24,48 +23,7 @@ const ShowcaseViewer = dynamic(() => import("@/components/showcase/ShowcaseViewe
 
 export default function Home() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [dbProjects, setDbProjects] = useState<Project[]>([]);
-
-  useEffect(() => {
-    let unsub: (() => void) | undefined;
-
-    const subscribeProjects = async () => {
-      try {
-        const { collection, onSnapshot } = await import("firebase/firestore");
-        const { db } = await import("@/lib/firebase");
-        unsub = onSnapshot(
-          collection(db, "projects"),
-          (snap) => {
-            const data = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() } as unknown as Project));
-            setDbProjects(data);
-          },
-          (err) => {
-            console.error("Realtime homepage projects error:", err);
-          }
-        );
-      } catch (e) {
-        // Fallback to static defaultProjects
-      }
-    };
-
-    if (typeof window !== "undefined") {
-      if ("requestIdleCallback" in window) {
-        const handle = (window as any).requestIdleCallback(subscribeProjects, { timeout: 2000 });
-        return () => {
-          if ("cancelIdleCallback" in window) (window as any).cancelIdleCallback(handle);
-          if (unsub) unsub();
-        };
-      } else {
-        const timer = setTimeout(subscribeProjects, 500);
-        return () => {
-          clearTimeout(timer);
-          if (unsub) unsub();
-        };
-      }
-    }
-  }, []);
-
-  const displayProjects = dbProjects.length > 0 ? dbProjects : defaultProjects;
+  const displayProjects = defaultProjects;
 
   return (
     <PageReadinessGate pagePath="/">
@@ -77,45 +35,36 @@ export default function Home() {
       <RunixRealisticDeveloperHero page="home" />
 
       {/* ── 01. Selected Works ── */}
-      <section id="work" className="w-full px-6 sm:px-8 lg:px-16 py-24 sm:py-32 relative z-10 bg-white border-t border-[rgba(17,19,23,0.06)] lazy-render">
+      <section id="work" className="w-full px-6 sm:px-8 lg:px-16 py-24 sm:py-32 relative z-10 bg-white border-t border-[rgba(17,19,23,0.06)]">
         <div className="max-w-[1200px] mx-auto">
           <div className="mb-14 flex flex-col md:flex-row items-start md:items-end justify-between gap-6">
             <div>
               <span className="section-label mb-3 block">Selected Work</span>
-              <motion.h2
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.4 }}
-                className="text-3xl md:text-[2.75rem] font-semibold text-[#111317] tracking-tight leading-[1.1]"
-              >
+              <h2 className="text-3xl md:text-[2.75rem] font-semibold text-[#111317] tracking-tight leading-[1.1]">
                 Projects we&apos;re proud of.
-              </motion.h2>
+              </h2>
               <p className="text-[#4B5563] text-[15px] mt-3 max-w-md leading-relaxed">
                 Web applications, platforms, and digital products built for real businesses.
               </p>
             </div>
 
-            <Link href="/work">
-              <Button
-                variant="outline"
-                className="rounded-[8px] h-10 px-5 text-[14px] font-medium flex items-center gap-2"
-              >
+            <Button
+              asChild
+              variant="outline"
+              className="rounded-[8px] h-10 px-5 text-[14px] font-medium flex items-center gap-2"
+            >
+              <Link href="/work">
                 All Projects
                 <ArrowRight className="w-3.5 h-3.5 text-[#315EF7]" />
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
 
           {/* Large Visual Case Studies (Editorial Layout) */}
           <div className="flex flex-col gap-12 sm:gap-16">
             {displayProjects.slice(0, 2).map((project, idx) => (
-              <motion.article
+              <article
                 key={project.id || project.slug || `home-proj-${idx}`}
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-40px" }}
-                transition={{ duration: 0.4, delay: idx * 0.1 }}
                 className="bg-white border border-[rgba(17,19,23,0.08)] rounded-xl overflow-hidden shadow-[0_2px_8px_rgba(17,19,23,0.03)] grid grid-cols-1 lg:grid-cols-12 cursor-pointer group"
                 onClick={() => setSelectedProject(project)}
               >
@@ -147,9 +96,9 @@ export default function Home() {
                       </div>
                     ) : (
                       <div className="w-full h-full rounded bg-white border border-[rgba(17,19,23,0.06)] p-6 flex flex-col justify-between">
-                        <span className="text-[12px] font-mono text-[#7B838E]">{project.category}</span>
+                        <span className="text-[12px] font-mono text-[#4B5563]">{project.category}</span>
                         <div className="space-y-2">
-                          <h4 className="text-xl font-semibold text-[#111317]">{project.title}</h4>
+                          <p className="text-xl font-semibold text-[#111317]">{project.title}</p>
                           <p className="text-xs text-[#5A626E] line-clamp-2">{project.summary}</p>
                         </div>
                         <span className="text-[11px] text-[#315EF7] font-medium inline-flex items-center gap-1">
@@ -167,7 +116,7 @@ export default function Home() {
                       <span className="section-label">
                         {project.category || "Web App"}
                       </span>
-                      <span className="text-[12px] font-mono text-[#7B838E]">
+                      <span className="text-[12px] font-mono text-[#4B5563]">
                         {project.year || "2026"}
                       </span>
                     </div>
@@ -182,7 +131,7 @@ export default function Home() {
 
                     {project.problem_solved && (
                       <div className="p-3.5 rounded-[8px] bg-[#F8F9FA] border border-[rgba(17,19,23,0.06)] mb-6">
-                        <span className="text-[11px] font-mono font-medium text-[#7B838E] uppercase tracking-wider block mb-1">
+                        <span className="text-[11px] font-mono font-medium text-[#4B5563] uppercase tracking-wider block mb-1">
                           Outcome
                         </span>
                         <p className="text-[13px] text-[#2D3339] leading-snug">
@@ -210,23 +159,17 @@ export default function Home() {
                     </span>
                   </div>
                 </div>
-              </motion.article>
+              </article>
             ))}
           </div>
         </div>
       </section>
 
       {/* ── 02. What We Do ── */}
-      <section className="w-full max-w-[1200px] px-6 sm:px-8 lg:px-16 py-24 sm:py-32 relative z-10 border-t border-[rgba(17,19,23,0.06)] lazy-render">
+      <section className="w-full max-w-[1200px] px-6 sm:px-8 lg:px-16 py-24 sm:py-32 relative z-10 border-t border-[rgba(17,19,23,0.06)]">
         <div className="flex flex-col lg:flex-row gap-16 justify-between">
           <div className="lg:w-1/3">
-            <motion.div
-              initial={{ opacity: 0, x: -12 }}
-              whileInView={{ opacity: 1, x: 0 }}
-              viewport={{ once: true }}
-              transition={{ duration: 0.4 }}
-              className="sticky top-32 space-y-4"
-            >
+            <div className="sticky top-32 space-y-4">
               <span className="section-label">What We Do</span>
               <h2 className="text-3xl md:text-[2.75rem] font-semibold text-[#111317] tracking-tight leading-[1.1]">
                 Full-stack<br />engineering.
@@ -234,7 +177,7 @@ export default function Home() {
               <p className="text-[#4B5563] text-[15px] leading-relaxed max-w-sm">
                 We handle the entire product lifecycle — from architecture to deployment — so you can focus on your business.
               </p>
-            </motion.div>
+            </div>
           </div>
 
           <div className="lg:w-2/3 flex flex-col gap-0">
@@ -255,16 +198,12 @@ export default function Home() {
                 desc: "High-converting landing pages, corporate presences, and portfolio sites that establish credibility at first glance.",
               },
             ].map((service, i) => (
-              <motion.div
+              <div
                 key={service.num}
-                initial={{ opacity: 0, y: 12 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-40px" }}
-                transition={{ duration: 0.35, delay: i * 0.06 }}
                 className="group border-b border-[rgba(17,19,23,0.08)] py-8 first:pt-0 last:border-b-0 last:pb-0"
               >
                 <div className="flex items-baseline gap-5 mb-2">
-                  <span className="text-sm font-medium text-[#6B7280] font-mono tabular-nums">
+                  <span className="text-sm font-medium text-[#4B5563] font-mono tabular-nums">
                     {service.num}
                   </span>
                   <h3 className="text-xl sm:text-2xl font-semibold text-[#111317] group-hover:text-[#315EF7] transition-colors duration-150 tracking-tight">
@@ -274,7 +213,7 @@ export default function Home() {
                 <p className="text-[15px] text-[#4B5563] ml-10 max-w-xl leading-relaxed">
                   {service.desc}
                 </p>
-              </motion.div>
+              </div>
             ))}
           </div>
         </div>
@@ -366,7 +305,7 @@ export default function Home() {
               className="p-4 rounded-lg bg-white border border-[rgba(17,19,23,0.06)] hover:border-[rgba(17,19,23,0.12)] transition-all duration-200"
             >
               <span className="text-[10px] font-mono text-[#6B7280] uppercase block mb-1">{tech.role}</span>
-              <h4 className="text-sm font-semibold text-[#111317] tracking-tight">{tech.name}</h4>
+              <h3 className="text-sm font-semibold text-[#111317] tracking-tight">{tech.name}</h3>
             </div>
           ))}
         </div>
@@ -393,28 +332,23 @@ export default function Home() {
             </div>
           </div>
 
-          <Link href="/pricing" className="shrink-0">
-            <Button
-              variant="primary"
-              size="lg"
-              className="rounded-[8px] h-11 px-6 text-[14px] font-medium flex items-center gap-2"
-            >
+          <Button
+            asChild
+            variant="primary"
+            size="lg"
+            className="rounded-[8px] h-11 px-6 text-[14px] font-medium flex items-center gap-2 shrink-0"
+          >
+            <Link href="/pricing">
               View Pricing <ArrowRight className="w-3.5 h-3.5" />
-            </Button>
-          </Link>
+            </Link>
+          </Button>
         </div>
       </section>
 
       {/* ── Final CTA ── */}
-      <section className="w-full pb-28 px-6 sm:px-8 lg:px-16 relative z-10 lazy-render">
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.4 }}
-          className="w-full max-w-[1200px] mx-auto rounded-2xl p-10 md:p-16 bg-[#111317] text-center flex flex-col items-center justify-center"
-        >
-          <span className="section-label text-[#6B7280] mb-4">
+      <section className="w-full pb-28 px-6 sm:px-8 lg:px-16 relative z-10">
+        <div className="w-full max-w-[1200px] mx-auto rounded-2xl p-10 md:p-16 bg-[#111317] text-center flex flex-col items-center justify-center">
+          <span className="section-label !text-[#D1D5DB] mb-4">
             Start a Project
           </span>
           <h2 className="text-3xl sm:text-5xl font-semibold text-white mb-5 tracking-tight leading-[1.1]">
@@ -424,26 +358,28 @@ export default function Home() {
             Browse our packages, configure your scope, and kickstart your build with senior engineers.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
-            <Link href="/pricing">
-              <Button
-                variant="primary"
-                size="lg"
-                className="rounded-[8px] h-11 px-6 text-[14px] font-medium w-full sm:w-auto"
-              >
+            <Button
+              asChild
+              variant="primary"
+              size="lg"
+              className="rounded-[8px] h-11 px-6 text-[14px] font-medium w-full sm:w-auto"
+            >
+              <Link href="/pricing">
                 Browse Pricing <ArrowRight className="w-3.5 h-3.5 ml-1.5" />
-              </Button>
-            </Link>
-            <Link href="/contact">
-              <Button
-                size="lg"
-                variant="ghost"
-                className="rounded-[8px] h-11 px-5 text-[14px] font-medium text-white/80 hover:text-white hover:bg-white/10 w-full sm:w-auto"
-              >
+              </Link>
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="ghost"
+              className="rounded-[8px] h-11 px-5 text-[14px] font-medium text-white/80 hover:text-white hover:bg-white/10 w-full sm:w-auto"
+            >
+              <Link href="/contact">
                 Contact Us
-              </Button>
-            </Link>
+              </Link>
+            </Button>
           </div>
-        </motion.div>
+        </div>
       </section>
 
       <ShowcaseViewer

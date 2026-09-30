@@ -27,10 +27,29 @@ export default function CookieConsent() {
   });
 
   useEffect(() => {
-    const saved = localStorage.getItem("runix_cookie_consent");
-    if (!saved) {
-      const timer = setTimeout(() => setIsOpen(true), 1200);
-      return () => clearTimeout(timer);
+    const checkConsent = () => {
+      try {
+        const saved = localStorage.getItem("runix_cookie_consent");
+        if (!saved) {
+          setIsOpen(true);
+        }
+      } catch {
+        // Storage access handled gracefully
+      }
+    };
+
+    if (typeof window !== "undefined") {
+      if ("requestIdleCallback" in window) {
+        const idleId = (window as unknown as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback(checkConsent, { timeout: 2500 });
+        return () => {
+          if ("cancelIdleCallback" in window) {
+            (window as unknown as { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleId);
+          }
+        };
+      } else {
+        const timer = setTimeout(checkConsent, 2500);
+        return () => clearTimeout(timer);
+      }
     }
   }, []);
 
@@ -97,8 +116,9 @@ export default function CookieConsent() {
                   </p>
                 </div>
                 <button
+                  type="button"
                   onClick={() => setIsOpen(false)}
-                  className="text-[#7B838E] hover:text-[#111317] p-1 transition-colors cursor-pointer"
+                  className="text-[#4B5563] hover:text-[#111317] p-1 transition-colors cursor-pointer"
                   aria-label="Dismiss cookie notice"
                 >
                   <X className="w-4 h-4" />
@@ -107,20 +127,23 @@ export default function CookieConsent() {
 
               <div className="flex flex-wrap items-center gap-2 pt-1">
                 <button
+                  type="button"
                   onClick={handleAcceptAll}
                   className="h-8 px-3.5 rounded-[8px] bg-[#111317] hover:bg-[#1C1F26] text-white text-[12px] font-medium transition-colors cursor-pointer"
                 >
                   Accept All
                 </button>
                 <button
+                  type="button"
                   onClick={handleRejectNonEssential}
                   className="h-8 px-3 rounded-[8px] bg-[#F1F2F4] hover:bg-[#E8EAED] text-[#111317] text-[12px] font-medium transition-colors cursor-pointer"
                 >
                   Reject Non-Essential
                 </button>
                 <button
+                  type="button"
                   onClick={() => setShowPreferences(true)}
-                  className="text-[12px] text-[#7B838E] hover:text-[#111317] ml-auto transition-colors cursor-pointer underline-offset-2 hover:underline"
+                  className="text-[12px] text-[#4B5563] hover:text-[#111317] ml-auto transition-colors cursor-pointer underline-offset-2 hover:underline"
                 >
                   Preferences
                 </button>
@@ -131,8 +154,10 @@ export default function CookieConsent() {
               <div className="flex items-center justify-between border-b border-[rgba(17,19,23,0.06)] pb-2.5">
                 <h3 className="text-[14px] font-semibold text-[#111317]">Cookie Preferences</h3>
                 <button
+                  type="button"
                   onClick={() => setShowPreferences(false)}
-                  className="text-[#7B838E] hover:text-[#111317] p-1 cursor-pointer"
+                  className="text-[#4B5563] hover:text-[#111317] p-1 cursor-pointer"
+                  aria-label="Close cookie preferences"
                 >
                   <X className="w-4 h-4" />
                 </button>

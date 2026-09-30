@@ -41,6 +41,25 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="light" data-scroll-behavior="smooth" suppressHydrationWarning>
+      <head>
+        {/* Preload critical Homepage Slide 1 image: responsive AVIF for mobile (<768px) and desktop (>=768px) */}
+        <link
+          rel="preload"
+          as="image"
+          type="image/avif"
+          href="/images/heroes/home/home-01-mobile.avif"
+          media="(max-width: 767px)"
+          fetchPriority="high"
+        />
+        <link
+          rel="preload"
+          as="image"
+          type="image/avif"
+          href="/images/heroes/home/home-01.avif"
+          media="(min-width: 768px)"
+          fetchPriority="high"
+        />
+      </head>
       <body
         suppressHydrationWarning
         className={`${geistSans.variable} ${geistMono.variable} font-sans bg-[#F1F2F4] text-[#111317] antialiased min-h-screen flex flex-col selection:bg-[#315EF7]/20 selection:text-[#111317]`}

@@ -73,11 +73,6 @@
     font-family: var(--font-geist-mono), monospace;
   }
 
-  /* Below-the-fold render optimization */
-  .lazy-render {
-    content-visibility: auto;
-    contain-intrinsic-size: 1px 700px;
-  }
 
   /* Navbar glass (Titanium Editorial) */
   .glass-panel {
@@ -85,6 +80,29 @@
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border-bottom: 1px solid rgba(17, 19, 23, 0.06);
+  }
+
+  /* Carousel background slide (Renders via ::before to isolate LCP to Slide 1) */
+  .hero-pseudo-slide {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  .hero-pseudo-slide::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: var(--hero-pos, 72% center);
+    background-image: var(--hero-mobile);
+  }
+  @media (min-width: 768px) {
+    .hero-pseudo-slide::before {
+      background-image: var(--hero-desktop);
+      background-position: var(--hero-pos, 68% center);
+    }
   }
 
   /* Clean White Card (12px radius — editorial precision) */
@@ -146,7 +164,7 @@
     font-weight: 500;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #7B838E;
+    color: #4B5563;
   }
 
   /* Runix Skeleton Shimmer (Base #E5E7EB, Highlight #F3F4F6, 1.6s duration) */

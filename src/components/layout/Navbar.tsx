@@ -183,20 +183,22 @@ export default function Navbar() {
             )}
 
             {/* Primary CTA: Rectangular, max 8px radius */}
-            <Link href="/pricing">
-              <button className="h-[40px] px-5 rounded-[8px] bg-[#111317] hover:bg-[#1C1F26] text-white text-[14px] font-medium inline-flex items-center gap-2 transition-colors duration-150 cursor-pointer">
-                Start a Project
-                <ArrowRight className="w-3.5 h-3.5" />
-              </button>
+            <Link
+              href="/pricing"
+              className="h-[40px] px-5 rounded-[8px] bg-[#111317] hover:bg-[#1C1F26] text-white text-[14px] font-medium inline-flex items-center gap-2 transition-colors duration-150 cursor-pointer shadow-sm focus:outline-none focus:ring-2 focus:ring-[#315EF7]"
+            >
+              Start a Project
+              <ArrowRight className="w-3.5 h-3.5" aria-hidden="true" />
             </Link>
           </div>
 
           {/* MOBILE: Menu Button */}
           <div className="flex md:hidden items-center gap-3">
-            <Link href="/pricing">
-              <button className="h-[34px] px-3.5 rounded-[8px] bg-[#111317] text-white text-[13px] font-medium inline-flex items-center gap-1.5">
-                Start a Project
-              </button>
+            <Link
+              href="/pricing"
+              className="h-[34px] px-3.5 rounded-[8px] bg-[#111317] text-white text-[13px] font-medium inline-flex items-center gap-1.5 focus:outline-none focus:ring-2 focus:ring-[#315EF7]"
+            >
+              Start a Project
             </Link>
             <button
               onClick={() => setMenuOpen(!menuOpen)}

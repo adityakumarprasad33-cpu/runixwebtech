@@ -59,6 +59,12 @@ next-env.d.ts
 
 # Documentation / Markdown
 *.md
+!README.md
+!ARCHITECTURE.md
+!BACKUP_RECOVERY.md
+
+# Lighthouse test outputs
+lighthouse-*.json
 
 # Python scripts and artifacts
 *.py

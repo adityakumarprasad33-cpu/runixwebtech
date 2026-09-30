@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { ArrowUpRight } from "lucide-react";
 
@@ -27,9 +28,11 @@ export default function Footer() {
           <div className="col-span-1 md:col-span-6 lg:col-span-5">
             <Link href="/" className="text-xl font-semibold tracking-tight text-[#111317] flex items-center gap-2.5 mb-5">
               <div className="relative w-6 h-6 shrink-0">
-                <img
+                <Image
                   src="/logo-v2.png"
                   alt="Runix Logo"
+                  width={24}
+                  height={24}
                   className="w-6 h-6 object-contain"
                 />
               </div>
@@ -52,7 +55,7 @@ export default function Footer() {
 
           {/* Links */}
           <div className="col-span-1 md:col-span-3 lg:col-span-2">
-            <h3 className="font-mono text-[11px] font-medium tracking-[0.08em] text-[#6B7280] uppercase mb-5">
+            <h3 className="font-mono text-[11px] font-medium tracking-[0.08em] text-[#4B5563] uppercase mb-5">
               Navigation
             </h3>
             <ul className="space-y-3 text-[14px]">
@@ -66,38 +69,57 @@ export default function Footer() {
 
           {/* Connect */}
           <div className="col-span-1 md:col-span-3 lg:col-span-2">
-            <h3 className="font-mono text-[11px] font-medium tracking-[0.08em] text-[#6B7280] uppercase mb-5">
+            <h3 className="font-mono text-[11px] font-medium tracking-[0.08em] text-[#4B5563] uppercase mb-5">
               Connect
             </h3>
             <ul className="space-y-3 text-[14px]">
               <li>
-                <a href="#" className="text-[#4B5563] hover:text-[#111317] transition-colors flex items-center justify-between group font-medium">
+                <a
+                  href="https://twitter.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Runix on Twitter / X"
+                  className="text-[#4B5563] hover:text-[#111317] transition-colors flex items-center justify-between group font-medium"
+                >
                   Twitter / X
-                  <ArrowUpRight className="w-3.5 h-3.5 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden="true" />
                 </a>
               </li>
               <li>
-                <a href="#" className="text-[#4B5563] hover:text-[#111317] transition-colors flex items-center justify-between group font-medium">
+                <a
+                  href="https://linkedin.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Runix on LinkedIn"
+                  className="text-[#4B5563] hover:text-[#111317] transition-colors flex items-center justify-between group font-medium"
+                >
                   LinkedIn
-                  <ArrowUpRight className="w-3.5 h-3.5 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden="true" />
                 </a>
               </li>
               <li>
-                <a href="#" className="text-[#4B5563] hover:text-[#111317] transition-colors flex items-center justify-between group font-medium">
+                <a
+                  href="https://github.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Runix on GitHub"
+                  className="text-[#4B5563] hover:text-[#111317] transition-colors flex items-center justify-between group font-medium"
+                >
                   GitHub
-                  <ArrowUpRight className="w-3.5 h-3.5 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" />
+                  <ArrowUpRight className="w-3.5 h-3.5 text-[#6B7280] opacity-0 group-hover:opacity-100 transition-opacity" aria-hidden="true" />
                 </a>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-16 pt-6 border-t border-[rgba(17,19,23,0.08)] flex flex-col md:flex-row items-center justify-between gap-3 text-[12px] text-[#7B838E] font-mono">
+        <div className="mt-16 pt-6 border-t border-[rgba(17,19,23,0.08)] flex flex-col md:flex-row items-center justify-between gap-3 text-[12px] text-[#4B5563] font-mono">
           <p>© {new Date().getFullYear()} Runix Web Technologies. All rights reserved.</p>
           <div className="flex items-center space-x-5">
             <Link href="/privacy" className="hover:text-[#111317] transition-colors">Privacy Policy</Link>
             <Link href="/terms" className="hover:text-[#111317] transition-colors">Terms of Service</Link>
             <button
+              type="button"
               onClick={() => {
                 if (typeof window !== "undefined") {
                   window.dispatchEvent(new CustomEvent("open-cookie-settings"));
