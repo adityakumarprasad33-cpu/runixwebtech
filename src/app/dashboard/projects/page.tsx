@@ -104,6 +104,22 @@ export default function ProjectsPage() {
   const router = useRouter();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
+  const [highlightedOrderId, setHighlightedOrderId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash) {
+      const targetId = window.location.hash.replace("#order-", "");
+      if (targetId) {
+        setHighlightedOrderId(targetId);
+        setTimeout(() => {
+          const el = document.getElementById(`order-${targetId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+          }
+        }, 300);
+      }
+    }
+  }, [orders]);
 
   useEffect(() => {
     if (isDeveloper) {
@@ -209,10 +225,15 @@ export default function ProjectsPage() {
             return (
               <motion.div
                 key={order.id}
+                id={`order-${order.id}`}
                 initial={{ opacity: 0, y: 14 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: i * 0.05 }}
-                className="bg-white border border-[rgba(21,24,29,0.10)] rounded-xl p-6 sm:p-8 space-y-6 hover:border-[rgba(21,24,29,0.16)] transition-all shadow-[0_12px_40px_rgba(21,24,29,0.06)]"
+                className={`bg-white border rounded-xl p-6 sm:p-8 space-y-6 transition-all shadow-[0_12px_40px_rgba(21,24,29,0.06)] ${
+                  highlightedOrderId === order.id
+                    ? "ring-2 ring-[#315EF7] border-[#315EF7]"
+                    : "border-[rgba(21,24,29,0.10)] hover:border-[rgba(21,24,29,0.16)]"
+                }`}
               >
                 {/* Header */}
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-5 border-b border-[rgba(21,24,29,0.08)]">

@@ -27,6 +27,7 @@ import {
 
 import { collection, onSnapshot, updateDoc, doc, arrayUnion } from "firebase/firestore";
 import { db } from "@/lib/firebase";
+import DashboardSearchBar from "@/components/dashboard/DashboardSearchBar";
 
 const sidebarLinks = [
   { name: "Overview", path: "/dashboard", icon: LayoutDashboard },
@@ -382,14 +383,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="hidden sm:flex items-center gap-2 bg-[#FAFAFA] border border-[rgba(21,24,29,0.10)] rounded-xl px-3 py-2 w-72">
-              <Search className="w-4 h-4 text-[#6B7280]" />
-              <input
-                type="text"
-                placeholder="Search projects..."
-                className="bg-transparent text-sm text-[#111317] placeholder:text-[#6B7280] outline-none w-full"
-              />
-            </div>
+            <DashboardSearchBar />
           </div>
           <div className="flex items-center gap-3 relative">
             <button 
