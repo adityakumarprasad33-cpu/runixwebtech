@@ -134,21 +134,28 @@ const dedupeById = <T extends { id?: string }>(arr: T[]): T[] => {
   });
 };
 
+const getOrderTime = (o: any) => {
+  const val = o?.createdAt;
+  if (!val) return 0;
+  if (typeof val === "string") return new Date(val).getTime() || 0;
+  if (val._seconds) return val._seconds * 1000;
+  if (val.seconds) return val.seconds * 1000;
+  if (val.toDate) return val.toDate().getTime();
+  return 0;
+};
+
 // Content-aware order deduplication: if same user placed same plan with same status
-// within 10 minutes, keep only the earliest order (others are rage-click duplicates).
+// within 10 minutes, keep only one order (others are rage-click duplicates).
 const dedupeOrders = (orders: any[]): any[] => {
   if (!orders || orders.length === 0) return [];
   const deduped = dedupeById(orders);
-  const sorted = [...deduped].sort((a, b) => {
-    const ta = new Date(a.createdAt || 0).getTime();
-    const tb = new Date(b.createdAt || 0).getTime();
-    return ta - tb; // earliest first
-  });
+  // Sort newest first
+  const sorted = [...deduped].sort((a, b) => getOrderTime(b) - getOrderTime(a));
   const kept: any[] = [];
   const seen = new Map<string, number>(); // fingerprint → createdAt timestamp
   for (const o of sorted) {
     const fp = `${o.userId || ""}|${o.planId || o.planName || ""}|${o.status || ""}`;
-    const ts = new Date(o.createdAt || 0).getTime();
+    const ts = getOrderTime(o);
     const prev = seen.get(fp);
     if (prev && Math.abs(ts - prev) < 10 * 60 * 1000) {
       // Duplicate within 10-minute window — skip
@@ -166,7 +173,7 @@ export default function AdminPanel() {
 
   const [activeTab, setActiveTab] = useState<
     "users" | "cms" | "orders" | "offers" | "salaries" | "ledger" | "notifications" | "logs" | "activity" | "team"
-  >("cms");
+  >("orders");
 
   // Team management state (super_admin only)
   const [savingPermissions, setSavingPermissions] = useState<string | null>(null);
@@ -1506,16 +1513,16 @@ export default function AdminPanel() {
       {/* Tabs — permission-gated */}
       <div className="flex flex-wrap items-center gap-2 border-b border-white/5 pb-4">
         {[
-          { id: "cms",           label: "Content (CMS)",    icon: FolderKanban,  show: canDo("cms") },
-          { id: "offers",        label: "Offers & Deals",   icon: Tag,           show: canDo("cms") || canDo("offers") },
-          { id: "users",         label: "Personnel",        icon: Users,         show: true },
-          { id: "orders",        label: "Orders & Payments",icon: ShoppingCart,  show: canDo("payments") },
-          { id: "salaries",      label: "Pay Salary & Staff",icon: Wallet,       show: canDo("salaries") || isSuperAdmin },
-          { id: "ledger",        label: "P&L & Accounts",   icon: Receipt,       show: canDo("financials") || canDo("payments") },
-          { id: "notifications", label: "Notifications",    icon: Bell,          show: canDo("notifications") },
-          { id: "logs",          label: "Security Logs",    icon: ShieldCheck,   show: canDo("logs") },
-          { id: "activity",      label: "Admin Activity",   icon: Activity,      show: canDo("logs") },
-          { id: "team",          label: "Team Management",  icon: Crown,         show: isSuperAdmin },
+          { id: "orders",        label: "Client Projects & Orders", icon: ShoppingCart,  show: true },
+          { id: "cms",           label: "Portfolio Showcase (CMS)", icon: FolderKanban,  show: canDo("cms") },
+          { id: "users",         label: "Personnel & Users",        icon: Users,         show: true },
+          { id: "offers",        label: "Offers & Deals",           icon: Tag,           show: canDo("cms") || canDo("offers") },
+          { id: "salaries",      label: "Pay Salary & Staff",       icon: Wallet,        show: canDo("salaries") || isSuperAdmin },
+          { id: "ledger",        label: "P&L & Accounts",           icon: Receipt,       show: canDo("financials") || canDo("payments") },
+          { id: "notifications", label: "Notifications",            icon: Bell,          show: canDo("notifications") },
+          { id: "logs",          label: "Security Logs",            icon: ShieldCheck,   show: canDo("logs") },
+          { id: "activity",      label: "Admin Activity",           icon: Activity,      show: canDo("logs") },
+          { id: "team",          label: "Team Management",          icon: Crown,         show: isSuperAdmin },
         ]
           .filter((tab) => tab.show)
           .map((tab) => (

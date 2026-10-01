@@ -118,6 +118,16 @@ const fadeUp: any = {
   transition: { duration: 0.5, ease: [0.16, 1, 0.3, 1] },
 };
 
+const getOrderTime = (o: any) => {
+  const val = o?.createdAt;
+  if (!val) return 0;
+  if (typeof val === "string") return new Date(val).getTime() || 0;
+  if (val._seconds) return val._seconds * 1000;
+  if (val.seconds) return val.seconds * 1000;
+  if (val.toDate) return val.toDate().getTime();
+  return 0;
+};
+
 // Content-aware order deduplication: collapse rage-click duplicates
 // (same plan + status created within 10 minutes) into a single entry.
 const dedupeOrders = (orders: any[]): any[] => {
@@ -129,14 +139,12 @@ const dedupeOrders = (orders: any[]): any[] => {
     idSeen.add(o.id);
     return true;
   });
-  const sorted = [...unique].sort((a, b) => {
-    return new Date(a.createdAt || 0).getTime() - new Date(b.createdAt || 0).getTime();
-  });
+  const sorted = [...unique].sort((a, b) => getOrderTime(b) - getOrderTime(a));
   const kept: any[] = [];
   const seen = new Map<string, number>();
   for (const o of sorted) {
     const fp = `${o.userId || ""}|${o.planId || o.planName || ""}|${o.status || ""}`;
-    const ts = new Date(o.createdAt || 0).getTime();
+    const ts = getOrderTime(o);
     const prev = seen.get(fp);
     if (prev && Math.abs(ts - prev) < 10 * 60 * 1000) continue;
     seen.set(fp, ts);
@@ -230,8 +238,7 @@ export default function DashboardOverview() {
     // 2. Real-time User Orders Listener
     const ordersQuery = query(
       collection(db, "orders"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
+      where("userId", "==", user.uid)
     );
     const unsubOrders = onSnapshot(
       ordersQuery,

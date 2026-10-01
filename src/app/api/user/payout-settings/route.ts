@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminDb, getAdminAuth } from "@/lib/server/firebase-admin";
+import { verifyFirebaseIdToken } from "@/lib/server/tokenVerifier";
 import { z } from "zod";
 
 export const dynamic = "force-dynamic";
@@ -17,9 +18,8 @@ const PayoutDetailsSchema = z.object({
 
 export async function GET(req: NextRequest) {
   try {
-    const auth = await getAdminAuth();
     const db = getAdminDb();
-    if (!auth || !db) {
+    if (!db) {
       return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });
     }
 
@@ -29,8 +29,19 @@ export async function GET(req: NextRequest) {
     }
 
     const token = authHeader.split("Bearer ")[1].trim();
-    const decoded = await auth.verifyIdToken(token);
-    const uid = decoded.uid;
+    let uid = "";
+    try {
+      const decoded = await verifyFirebaseIdToken(token);
+      uid = decoded.uid;
+    } catch {
+      const auth = await getAdminAuth().catch(() => null);
+      if (auth) {
+        const decoded = await auth.verifyIdToken(token);
+        uid = decoded.uid;
+      } else {
+        return NextResponse.json({ success: false, error: "Unauthorized: Invalid or expired token." }, { status: 401 });
+      }
+    }
 
     const userDoc = await db.collection("users").doc(uid).get();
     if (!userDoc.exists) {
@@ -50,9 +61,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const auth = await getAdminAuth();
     const db = getAdminDb();
-    if (!auth || !db) {
+    if (!db) {
       return NextResponse.json({ success: false, error: "Database service unavailable." }, { status: 503 });
     }
 
@@ -62,8 +72,19 @@ export async function POST(req: NextRequest) {
     }
 
     const token = authHeader.split("Bearer ")[1].trim();
-    const decoded = await auth.verifyIdToken(token);
-    const uid = decoded.uid;
+    let uid = "";
+    try {
+      const decoded = await verifyFirebaseIdToken(token);
+      uid = decoded.uid;
+    } catch {
+      const auth = await getAdminAuth().catch(() => null);
+      if (auth) {
+        const decoded = await auth.verifyIdToken(token);
+        uid = decoded.uid;
+      } else {
+        return NextResponse.json({ success: false, error: "Unauthorized: Invalid or expired token." }, { status: 401 });
+      }
+    }
 
     const body = await req.json();
     const parseResult = PayoutDetailsSchema.safeParse(body);

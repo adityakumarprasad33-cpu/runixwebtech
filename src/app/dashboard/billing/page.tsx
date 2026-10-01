@@ -44,14 +44,25 @@ export default function BillingPage() {
 
     const q = query(
       collection(db, "orders"),
-      where("userId", "==", user.uid),
-      orderBy("createdAt", "desc")
+      where("userId", "==", user.uid)
     );
+
+    const getOrderTime = (o: any) => {
+      const val = o.createdAt;
+      if (!val) return 0;
+      if (typeof val === "string") return new Date(val).getTime() || 0;
+      if (val._seconds) return val._seconds * 1000;
+      if (val.seconds) return val.seconds * 1000;
+      if (val.toDate) return val.toDate().getTime();
+      return 0;
+    };
 
     const unsub = onSnapshot(
       q,
       (snap) => {
-        setOrders(snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order)));
+        const rawOrders = snap.docs.map((d) => ({ id: d.id, ...d.data() } as Order));
+        rawOrders.sort((a, b) => getOrderTime(b) - getOrderTime(a));
+        setOrders(rawOrders);
         setLoading(false);
       },
       (err) => {

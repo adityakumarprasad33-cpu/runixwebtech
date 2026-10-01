@@ -63,7 +63,7 @@ function initAdminApp(): App | null {
     const projectId =
       process.env.FIREBASE_PROJECT_ID ||
       process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
-      "runix-webtech";
+      "portfolio-1fb93";
     const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
     const privateKey = sanitizePrivateKey(process.env.FIREBASE_PRIVATE_KEY);
 
@@ -115,8 +115,43 @@ export async function getAdminAuth(): Promise<Auth | null> {
       adminAuthInstance = getAuth(app);
       return adminAuthInstance;
     } catch (err) {
-      console.warn("firebase-admin/auth dynamic import notice:", err);
-      return null;
+      console.warn("firebase-admin/auth dynamic import notice (falling back to native token verifier):", err);
+      // Return a lightweight fallback auth instance powered by native crypto verifier
+      const { verifyFirebaseIdToken } = await import("./tokenVerifier");
+      const fallbackAuth: any = {
+        verifyIdToken: async (token: string) => {
+          return verifyFirebaseIdToken(token);
+        },
+        getUserByEmail: async (email: string) => {
+          const db = getAdminDb();
+          if (db) {
+            const snap = await db.collection("users").where("email", "==", email.toLowerCase().trim()).limit(1).get();
+            if (!snap.empty) {
+              const doc = snap.docs[0];
+              const data = doc.data();
+              return { uid: doc.id, email: data.email, displayName: data.name };
+            }
+          }
+          const notFoundError: any = new Error("User not found");
+          notFoundError.code = "auth/user-not-found";
+          throw notFoundError;
+        },
+        getUser: async (uid: string) => {
+          const db = getAdminDb();
+          if (db) {
+            const doc = await db.collection("users").doc(uid).get();
+            if (doc.exists) {
+              const data = doc.data() || {};
+              return { uid: doc.id, email: data.email, displayName: data.name };
+            }
+          }
+          const notFoundError: any = new Error("User not found");
+          notFoundError.code = "auth/user-not-found";
+          throw notFoundError;
+        },
+      };
+      adminAuthInstance = fallbackAuth as Auth;
+      return adminAuthInstance;
     }
   })();
 

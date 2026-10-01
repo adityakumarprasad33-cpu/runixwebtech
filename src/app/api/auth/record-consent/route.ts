@@ -29,18 +29,32 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const adminAuth = await getAdminAuth();
     const adminDb = getAdminDb();
 
-    if (!adminAuth || !adminDb) {
+    if (!adminDb) {
       return NextResponse.json(
-        { success: false, error: "Authentication service temporarily unavailable." },
+        { success: false, error: "Database service temporarily unavailable." },
         { status: 503 }
       );
     }
 
     // Verify token
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    let decodedToken: any;
+    try {
+      const { verifyFirebaseIdToken } = await import("@/lib/server/tokenVerifier");
+      decodedToken = await verifyFirebaseIdToken(token);
+    } catch {
+      const adminAuth = await getAdminAuth().catch(() => null);
+      if (adminAuth) {
+        decodedToken = await adminAuth.verifyIdToken(token);
+      } else {
+        return NextResponse.json(
+          { success: false, error: "Unauthorized: Invalid or expired token." },
+          { status: 401 }
+        );
+      }
+    }
+
     const uid = decodedToken.uid;
     const email = decodedToken.email || "";
 

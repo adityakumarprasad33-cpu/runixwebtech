@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { adminAuth, adminDb, getAdminAuth, getAdminDb } from "@/lib/server/firebase-admin";
+import { getAdminDb, getAdminAuth } from "@/lib/server/firebase-admin";
+import { verifyFirebaseIdToken } from "@/lib/server/tokenVerifier";
 
 export type Role = "super_admin" | "admin" | "developer" | "user";
 
@@ -82,12 +83,11 @@ export async function requireAuthAndPermission(
   req: NextRequest,
   requiredPermission?: Permission
 ): Promise<AuthenticatedUserContext | NextResponse> {
-  const auth = await getAdminAuth();
   const db = getAdminDb();
 
-  if (!auth || !db) {
+  if (!db) {
     return NextResponse.json(
-      { success: false, error: "Authentication service unavailable." },
+      { success: false, error: "Database service unavailable." },
       { status: 500 }
     );
   }
@@ -109,10 +109,34 @@ export async function requireAuthAndPermission(
   }
 
   try {
-    const decodedToken = await auth.verifyIdToken(token);
-    const uid = decodedToken.uid;
+    let decodedToken: any;
+    try {
+      decodedToken = await verifyFirebaseIdToken(token);
+    } catch (verifyErr) {
+      // Fallback to getAdminAuth if native verifier failed
+      const auth = await getAdminAuth().catch(() => null);
+      if (auth) {
+        decodedToken = await auth.verifyIdToken(token);
+      } else {
+        throw verifyErr;
+      }
+    }
 
-    const userDoc = await db.collection("users").doc(uid).get();
+    const uid = decodedToken.uid;
+    const tokenEmail = (decodedToken.email || "").toLowerCase().trim();
+
+    let userDoc = await db.collection("users").doc(uid).get();
+    let actualUid = uid;
+
+    if (!userDoc.exists && tokenEmail) {
+      // Fallback check by email in case UID format or account document differs
+      const snap = await db.collection("users").where("email", "==", tokenEmail).limit(1).get();
+      if (!snap.empty) {
+        userDoc = snap.docs[0];
+        actualUid = userDoc.id;
+      }
+    }
+
     if (!userDoc.exists) {
       return NextResponse.json(
         { success: false, error: "Unauthorized: User record not found." },
@@ -134,8 +158,8 @@ export async function requireAuthAndPermission(
     }
 
     return {
-      uid,
-      email: userData.email || decodedToken.email || "",
+      uid: actualUid,
+      email: userData.email || tokenEmail,
       role,
       name: userData.name || decodedToken.name || "User",
     };

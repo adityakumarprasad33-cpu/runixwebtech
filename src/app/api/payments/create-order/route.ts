@@ -65,18 +65,37 @@ export async function POST(req: NextRequest) {
     // 2. Authentication & Safe Account Provisioning
     let authenticatedUid: string | null = null;
     const authHeader = req.headers.get("authorization") || req.headers.get("Authorization");
-    if (authHeader && authHeader.startsWith("Bearer ") && auth) {
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const token = authHeader.split("Bearer ")[1].trim();
       try {
-        const token = authHeader.split("Bearer ")[1].trim();
-        const decoded = await auth.verifyIdToken(token);
+        const { verifyFirebaseIdToken } = await import("@/lib/server/tokenVerifier");
+        const decoded = await verifyFirebaseIdToken(token);
         authenticatedUid = decoded.uid;
       } catch {
-        // Unauthenticated guest checkout
+        // Unauthenticated guest checkout or invalid token
+        try {
+          if (auth) {
+            const decoded = await auth.verifyIdToken(token);
+            authenticatedUid = decoded.uid;
+          }
+        } catch {}
       }
     }
 
     let finalUserId = authenticatedUid || "";
     let customAuthToken: string | null = null;
+
+    // Check Firestore directly for existing registered user with this email
+    if (!finalUserId && userEmail) {
+      try {
+        const userSnap = await db.collection("users").where("email", "==", userEmail).limit(1).get();
+        if (!userSnap.empty) {
+          finalUserId = userSnap.docs[0].id;
+        }
+      } catch (lookupErr) {
+        console.warn("User lookup by email note:", lookupErr);
+      }
+    }
 
     if (!finalUserId && auth) {
       try {
@@ -91,25 +110,31 @@ export async function POST(req: NextRequest) {
 
         if (existingUser) {
           finalUserId = existingUser.uid;
-        } else {
-          const newUser = await auth.createUser({
-            email: userEmail,
-            displayName: formData.name.trim(),
-            emailVerified: false,
-          });
+        } else if (typeof auth.createUser === "function") {
+          try {
+            const newUser = await auth.createUser({
+              email: userEmail,
+              displayName: formData.name.trim(),
+              emailVerified: false,
+            });
 
-          finalUserId = newUser.uid;
-          await db.collection("users").doc(newUser.uid).set({
-            name: formData.name.trim(),
-            email: userEmail,
-            role: "user",
-            company: formData.company || "",
-            activeProjectCount: 0,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
+            finalUserId = newUser.uid;
+            await db.collection("users").doc(newUser.uid).set({
+              name: formData.name.trim(),
+              email: userEmail,
+              role: "user",
+              company: formData.company || "",
+              activeProjectCount: 0,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            });
 
-          customAuthToken = await auth.createCustomToken(newUser.uid);
+            if (typeof auth.createCustomToken === "function") {
+              customAuthToken = await auth.createCustomToken(newUser.uid);
+            }
+          } catch (createErr) {
+            console.warn("User creation note:", createErr);
+          }
         }
       } catch (userProvisionErr) {
         console.error("Account provisioning note:", userProvisionErr);
